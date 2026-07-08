@@ -445,7 +445,7 @@ def _parse_train_result(fields: list[str], from_name: str, to_name: str) -> Opti
     if len(fields) < 12:
         return None
 
-    train_code = fields[3]  # station_train_code
+    train_code = fields[4] if len(fields) > 4 else fields[3]  # station_train_code（显示车次号，如 G1025）
     from_station_tele = fields[6]
     to_station_tele = fields[7]
     depart_time = fields[8]

@@ -1,7 +1,7 @@
 const state = {
       cities: [
-        { name: '北京', transport: 'auto' },
-        { name: '西安', transport: 'train' }
+        { name: '北京', transport: 'auto', days: 2 },
+        { name: '西安', transport: 'train', days: 1 }
       ],
       totalDays: 3,
       pace: '适中均衡',
@@ -122,15 +122,14 @@ const state = {
 
     function cityDayMap() {
       const days = [];
-      const base = Math.max(1, Math.floor(state.totalDays / state.cities.length));
-      let extra = state.totalDays % state.cities.length;
       state.cities.forEach(city => {
-        const count = base + (extra > 0 ? 1 : 0);
-        extra -= 1;
-        for (let i = 0; i < count; i += 1) days.push(city.name);
+        for (let i = 0; i < city.days; i += 1) days.push(city.name);
       });
-      while (days.length < state.totalDays) days.push(state.cities.at(-1).name);
-      return days.slice(0, state.totalDays);
+      return days;
+    }
+
+    function computeTotalDays() {
+      return state.cities.reduce((sum, city) => sum + city.days, 0);
     }
 
     function renderCities() {
@@ -149,14 +148,22 @@ const state = {
               <div class="city-name">${city.name}</div>
               <div class="city-meta">${index === 0 ? '起点城市' : '从上一站到达'}</div>
             </div>
-            ${index > 0 ? `
-              <select class="select city-transport" data-index="${index}" aria-label="${city.name} 到达方式">
-                <option value="auto">智能推荐</option>
-                <option value="train">高铁优先</option>
-                <option value="plane">飞机优先</option>
-                <option value="driving">自驾优先</option>
-              </select>
-            ` : ''}
+            <div class="city-controls">
+              <label class="city-days-label">
+                <span>停留</span>
+                <select class="select city-days" data-index="${index}" aria-label="${city.name} 游玩天数">
+                  ${[1,2,3,4,5,6,7].map(d => `<option value="${d}" ${city.days === d ? 'selected' : ''}>${d} 天</option>`).join('')}
+                </select>
+              </label>
+              ${index > 0 ? `
+                <select class="select city-transport" data-index="${index}" aria-label="${city.name} 到达方式">
+                  <option value="auto">智能推荐</option>
+                  <option value="train">高铁优先</option>
+                  <option value="plane">飞机优先</option>
+                  <option value="driving">自驾优先</option>
+                </select>
+              ` : ''}
+            </div>
           </div>
           <div class="city-actions">
             <span class="city-drag-handle" aria-hidden="true">↕</span>
@@ -191,8 +198,10 @@ const state = {
 
     function updateHeaderMeta() {
       const route = state.cities.map(c => c.name).join(' → ');
+      state.totalDays = computeTotalDays();
       el.routeMeta.textContent = `${route} · ${state.totalDays} 天 · ${state.pace}`;
       el.daysValue.textContent = `${state.totalDays} 天`;
+      el.daysRange.value = Math.min(state.totalDays, 15);
       el.metricDays.textContent = state.totalDays;
       el.metricCities.textContent = state.cities.length;
     }
@@ -417,7 +426,7 @@ const state = {
       }
 
       setLoading(true);
-      state.totalDays = Number(el.daysRange.value);
+      state.totalDays = computeTotalDays();
       state.pace = getActive(el.paceGroup);
       state.globalTransport = getActive(el.transportGroup);
       state.interests = el.interestsInput.value.trim();
@@ -426,8 +435,10 @@ const state = {
       let cityData = [];
       try {
         cityData = await Promise.all(state.cities.map(city => fetchCityData(city.name)));
+        // 将每个城市的天数合并到 cityData 中
+        cityData = cityData.map((data, i) => ({ ...data, days: state.cities[i].days }));
       } catch (_) {
-        cityData = state.cities.map(city => ({ city: city.name, center: getCenter(city.name), pois: [] }));
+        cityData = state.cities.map(city => ({ city: city.name, center: getCenter(city.name), pois: [], days: city.days }));
       }
 
       try {
@@ -436,7 +447,7 @@ const state = {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            destinations: state.cities.map(city => ({ name: city.name, days: null, transport: city.transport })),
+            destinations: state.cities.map(city => ({ name: city.name, days: city.days, transport: city.transport })),
             days: state.totalDays,
             departure: '',
             pace: state.pace,
@@ -746,7 +757,7 @@ const state = {
       el.addCityBtn.addEventListener('click', () => {
         const name = el.cityInput.value.trim();
         if (!name) return;
-        if (!state.cities.some(city => city.name === name)) state.cities.push({ name, transport: 'auto' });
+        if (!state.cities.some(city => city.name === name)) state.cities.push({ name, transport: 'auto', days: 1 });
         el.cityInput.value = '';
         renderCities();
       });
@@ -768,8 +779,14 @@ const state = {
 
       el.cityList.addEventListener('change', event => {
         const select = event.target.closest('.city-transport');
-        if (!select) return;
-        state.cities[Number(select.dataset.index)].transport = select.value;
+        const daysSelect = event.target.closest('.city-days');
+        if (select) {
+          state.cities[Number(select.dataset.index)].transport = select.value;
+        }
+        if (daysSelect) {
+          state.cities[Number(daysSelect.dataset.index)].days = Number(daysSelect.value);
+          updateHeaderMeta();
+        }
       });
 
       el.cityList.addEventListener('dragstart', event => {
@@ -813,8 +830,8 @@ const state = {
 
       el.cityList.addEventListener('dragend', clearCityDragState);
 
+      // 天数滑块现为只读展示，由各城市天数自动求和
       el.daysRange.addEventListener('input', () => {
-        state.totalDays = Number(el.daysRange.value);
         updateHeaderMeta();
       });
 
