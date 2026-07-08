@@ -10,3 +10,8 @@ mrbw*-image.png
 mrbw*-drawing-*.png
 *.pem
 services/.cache/
+
+# 开发过程产物，不对外发布
+.od-skills/
+critique.json
+static/index-before-ui-rebuild.html
