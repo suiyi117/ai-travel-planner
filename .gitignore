@@ -1,0 +1,12 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+.conda/
+*.artifact.json
+mrbw*-image.png
+mrbw*-drawing-*.png
+*.pem
+services/.cache/
