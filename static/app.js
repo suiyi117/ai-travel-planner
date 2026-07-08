@@ -124,6 +124,72 @@ const state = {
       return '景点';
     }
 
+    function cleanMetaValue(value) {
+      if (Array.isArray(value)) return value.filter(Boolean).join('、');
+      if (value === null || value === undefined) return '';
+      return String(value).trim();
+    }
+
+    function copyPoiMeta(source = {}) {
+      return {
+        rating: cleanMetaValue(source.rating),
+        address: cleanMetaValue(source.address),
+        tel: cleanMetaValue(source.tel),
+        opentime: cleanMetaValue(source.opentime)
+      };
+    }
+
+    function mergePoiMeta(source = {}, fallback = {}) {
+      return {
+        rating: cleanMetaValue(source.rating) || cleanMetaValue(fallback.rating),
+        address: cleanMetaValue(source.address) || cleanMetaValue(fallback.address),
+        tel: cleanMetaValue(source.tel) || cleanMetaValue(fallback.tel),
+        opentime: cleanMetaValue(source.opentime) || cleanMetaValue(fallback.opentime)
+      };
+    }
+
+    function escapeHtml(value) {
+      return cleanMetaValue(value).replace(/[&<>"']/g, char => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[char]));
+    }
+
+    function renderRatingBadge(item) {
+      return item.rating ? `<span class="badge badge-accent">评分 ${escapeHtml(item.rating)}</span>` : '';
+    }
+
+    function renderPoiAddressLine(item) {
+      return item.address ? `<p class="poi-meta-line">地址：${escapeHtml(item.address)}</p>` : '';
+    }
+
+    function renderPoiMetaList(item) {
+      const rows = [
+        ['评分', item.rating],
+        ['地址', item.address],
+        ['电话', item.tel],
+        ['营业时间', item.opentime]
+      ].filter(([, value]) => cleanMetaValue(value));
+      if (!rows.length) return '';
+      return `<dl class="poi-meta-list">${rows.map(([label, value]) => `
+        <div>
+          <dt>${label}</dt>
+          <dd>${escapeHtml(value)}</dd>
+        </div>
+      `).join('')}</dl>`;
+    }
+
+    function renderPopupMeta(item) {
+      const rows = [
+        item.rating ? `评分 ${escapeHtml(item.rating)}` : '',
+        item.address ? `地址：${escapeHtml(item.address)}` : ''
+      ].filter(Boolean);
+      return rows.length ? `<div class="poi-popup-meta">${rows.join('<br>')}</div>` : '';
+    }
+
     function cityDayMap() {
       const days = [];
       state.cities.forEach(city => {
@@ -293,7 +359,8 @@ const state = {
             desc: `抵达后选择交通方便的核心景点，避免第一天排得太满。`,
             tips: '2 小时',
             lat: pois[0]?.lat,
-            lng: pois[0]?.lng
+            lng: pois[0]?.lng,
+            ...copyPoiMeta(pois[0])
           });
         } else {
           morning.push({
@@ -301,14 +368,16 @@ const state = {
             desc: pois[0]?.desc || `从${cityName}最有代表性的地点开始今日路线。`,
             tips: '2.5 小时',
             lat: pois[0]?.lat,
-            lng: pois[0]?.lng
+            lng: pois[0]?.lng,
+            ...copyPoiMeta(pois[0])
           });
           afternoon.push({
             name: pois[1]?.name || `${cityName}老街区`,
             desc: pois[1]?.desc || `下午安排一个节奏更舒缓的街区或公园。`,
             tips: '2 小时',
             lat: pois[1]?.lat,
-            lng: pois[1]?.lng
+            lng: pois[1]?.lng,
+            ...copyPoiMeta(pois[1])
           });
         }
         return {
@@ -367,6 +436,7 @@ const state = {
     }
 
     function mapPlanToItems(plan) {
+      const poisByName = new Map((plan.pois || []).filter(poi => poi.name).map(poi => [poi.name, poi]));
       return (plan.days || []).map(day => {
         const items = [];
         const previous = plan.days[day.day - 2]?.city;
@@ -384,7 +454,7 @@ const state = {
             city: day.city
           });
         }
-        (day.morning || []).forEach((spot, index) => items.push(toItem(day, spot, index, 'morning')));
+        (day.morning || []).forEach((spot, index) => items.push(toItem(day, spot, index, 'morning', poisByName)));
         if (day.food && day.food.length) {
           const center = getCenter(day.city);
           items.push({
@@ -399,7 +469,7 @@ const state = {
             city: day.city
           });
         }
-        (day.afternoon || []).forEach((spot, index) => items.push(toItem(day, spot, index, 'afternoon')));
+        (day.afternoon || []).forEach((spot, index) => items.push(toItem(day, spot, index, 'afternoon', poisByName)));
         if (day.stay) {
           const center = getCenter(day.city);
           items.push({
@@ -418,8 +488,9 @@ const state = {
       });
     }
 
-    function toItem(day, spot, index, slot) {
+    function toItem(day, spot, index, slot, poisByName = new Map()) {
       const center = getCenter(day.city);
+      const poi = poisByName.get(spot.name) || {};
       return {
         id: `day-${day.day}-${slot}-${index}`,
         type: 'experience',
@@ -427,9 +498,10 @@ const state = {
         title: spot.name,
         desc: spot.desc || '根据地理位置和节奏安排的核心游览点。',
         duration: spot.tips || '2 小时',
-        lat: Number(spot.lat) || center.lat + (index - 0.5) * 0.015,
-        lng: Number(spot.lng) || center.lng + (index ? 0.018 : -0.018),
-        city: day.city
+        lat: Number(spot.lat) || Number(poi.lat) || center.lat + (index - 0.5) * 0.015,
+        lng: Number(spot.lng) || Number(poi.lng) || center.lng + (index ? 0.018 : -0.018),
+        city: day.city,
+        ...mergePoiMeta(spot, poi)
       };
     }
 
@@ -544,9 +616,11 @@ const state = {
               <span class="badge ${item.type === 'transport' ? 'badge-accent' : ''}">${normalizeType(item.type)}</span>
             </div>
             <p class="item-desc">${item.desc}</p>
+            ${renderPoiAddressLine(item)}
             <div class="badge-row">
               <span class="badge">${item.duration}</span>
               <span class="badge">${item.city}</span>
+              ${renderRatingBadge(item)}
             </div>
           </button>
         </article>
@@ -628,6 +702,7 @@ const state = {
         <h3>${item.title}</h3>
         <p>${item.time} · ${normalizeType(item.type)} · ${item.duration}</p>
         <p>${item.desc}</p>
+        ${renderPoiMetaList(item)}
       `;
     }
 
@@ -655,7 +730,7 @@ const state = {
           iconAnchor: [11, 11]
         });
         const marker = L.marker(point, { icon }).addTo(map);
-        marker.bindPopup(`<strong>${item.title}</strong><br>${item.time} · ${normalizeType(item.type)}`);
+        marker.bindPopup(`<strong>${escapeHtml(item.title)}</strong><br>${escapeHtml(item.time)} · ${normalizeType(item.type)}${renderPopupMeta(item)}`);
         marker.on('click', () => focusItem(item.id, false));
         markers.push(marker);
       });

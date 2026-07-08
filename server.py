@@ -247,16 +247,25 @@ async def generate_itinerary(request: PlanRequest) -> dict:
         else:
             raise HTTPException(status_code=500, detail="AI 返回格式解析失败")
 
-    # 合并 POI 坐标数据到行程中（根据所有景点的名称，进行坐标映射）
-    poi_coords = {p["name"]: {"lat": p.get("lat", 0), "lng": p.get("lng", 0), "rating": p.get("rating", "")} for p in all_pois}
+    # 合并 POI 坐标与元信息到行程中（根据所有景点的名称，进行坐标映射）
+    poi_coords = {
+        p["name"]: {
+            "lat": p.get("lat", 0),
+            "lng": p.get("lng", 0),
+            "rating": p.get("rating", ""),
+            "address": p.get("address", ""),
+            "tel": p.get("tel", ""),
+            "opentime": p.get("opentime", ""),
+        }
+        for p in all_pois
+        if p.get("name")
+    }
     for day_plan in itinerary.get("days", []):
         for slot in ["morning", "afternoon"]:
             for spot in day_plan.get(slot, []):
                 name = spot.get("name", "")
                 if name in poi_coords:
-                    spot["lat"] = poi_coords[name]["lat"]
-                    spot["lng"] = poi_coords[name]["lng"]
-                    spot["rating"] = poi_coords[name]["rating"]
+                    spot.update(poi_coords[name])
 
     # 提取各城市的中心点返回给前端
     city_centers = {}

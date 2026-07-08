@@ -766,6 +766,14 @@ body[data-mobile-view="map"] .results-pane {
   line-height: 1.6;
 }
 
+.poi-meta-line {
+  margin-top: calc(var(--space-2) * -1);
+  color: var(--meta);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 .badge-row {
   display: flex;
   flex-wrap: wrap;
@@ -955,8 +963,8 @@ body[data-mobile-view="map"] .results-pane {
 
 .place-detail {
   border-top: 1px solid var(--border);
-  padding: var(--space-6);
-  background: color-mix(in oklab, var(--surface), var(--bg) 20%);
+  padding: var(--space-5) var(--space-6);
+  background: color-mix(in oklab, var(--surface), var(--bg) 16%);
 }
 
 .place-detail h3 {
@@ -969,6 +977,41 @@ body[data-mobile-view="map"] .results-pane {
   color: var(--muted);
   font-size: var(--text-sm);
   line-height: 1.55;
+}
+
+.poi-meta-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 0;
+  padding: 0;
+}
+
+.poi-meta-list div {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  min-height: 30px;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklab, var(--surface-warm), transparent 50%);
+}
+
+.poi-meta-list dt {
+  color: var(--meta);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.poi-meta-list dd {
+  margin: 0;
+  color: var(--fg-2);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 /* 闂佸啿鍘滈崑鎾绘煃閸忓浜?Empty state 闂佸啿鍘滈崑鎾绘煃閸忓浜鹃梺鍐插帨閸嬫捇鏌嶉崗澶婁壕闂佸啿鍘滈崑鎾绘煃閸忓浜鹃梺鍐插帨閸嬫捇鏌嶉崗澶婁壕闂佸啿鍘滈崑鎾绘煃閸忓浜鹃梺鍐插帨閸嬫捇鏌嶉崗澶婁壕闂佸啿鍘滈崑鎾绘煃閸忓浜鹃梺鍐插帨閸嬫捇鏌嶉崗澶婁壕闂佸啿鍘滈崑鎾绘煃閸忓浜鹃梺鍐插帨閸嬫捇鏌嶉崗澶婁壕闂佸啿鍘滈崑鎾绘煃閸忓浜鹃梺鍐插帨閸嬫捇鏌嶉崗澶婁壕闂佸啿鍘滈崑鎾绘煃閸忓浜鹃梺鍐插帨閸嬫捇鏌嶉崗澶婁壕闂佸啿鍘滈崑鎾绘煃閸忓浜鹃梺鍐插帨閸嬫捇鏌嶉崗澶婁壕闂佸啿鍘滈崑鎾绘煃閸忓浜鹃梺鍐插帨閸嬫捇鏌嶉崗澶婁壕闂佸啿鍘滈崑鎾绘煃閸忓浜鹃梺鍐插帨閸嬫捇鏌嶉崗澶婁壕闂佸啿鍘滈崑鎾绘煃閸忓浜鹃梺鍐插帨閸嬫捇鏌嶉崗澶婁壕闂佸啿鍘滈崑鎾绘煃閸忓浜?*/
@@ -994,6 +1037,15 @@ body[data-mobile-view="map"] .results-pane {
   margin: var(--space-4) var(--space-5) !important;
   font-family: var(--font-body) !important;
   line-height: 1.5 !important;
+}
+
+.poi-popup-meta {
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
 }
 
 .marker-pin {
