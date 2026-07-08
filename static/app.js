@@ -59,7 +59,11 @@ const state = {
       fitMapBtn: document.getElementById('fitMapBtn'),
       refreshTransportBtn: document.getElementById('refreshTransportBtn'),
       copyPlanBtn: document.getElementById('copyPlanBtn'),
-      workspaceTabs: document.getElementById('workspaceTabs')
+      workspaceTabs: document.getElementById('workspaceTabs'),
+      plannerPane: document.querySelector('.planner-pane'),
+      plannerBody: document.querySelector('.planner-pane .pane-body'),
+      resultsPane: document.querySelector('.results-pane'),
+      resultsBody: document.querySelector('.results-pane .pane-body')
     };
 
     let map = null;
@@ -204,6 +208,16 @@ const state = {
       el.daysRange.value = Math.min(state.totalDays, 15);
       el.metricDays.textContent = state.totalDays;
       el.metricCities.textContent = state.cities.length;
+    }
+
+    function syncPaneBriefState(pane, body) {
+      if (!pane || !body) return;
+      pane.classList.toggle('is-brief-collapsed', body.scrollTop > 24);
+    }
+
+    function syncBriefStates() {
+      syncPaneBriefState(el.plannerPane, el.plannerBody);
+      syncPaneBriefState(el.resultsPane, el.resultsBody);
     }
 
     function initMap() {
@@ -852,6 +866,8 @@ const state = {
       el.copyPlanBtn.addEventListener('click', copyPlan);
       el.refreshTransportBtn.addEventListener('click', refreshTransport);
       el.fitMapBtn.addEventListener('click', renderMap);
+      if (el.plannerBody) el.plannerBody.addEventListener('scroll', () => syncPaneBriefState(el.plannerPane, el.plannerBody), { passive: true });
+      if (el.resultsBody) el.resultsBody.addEventListener('scroll', () => syncPaneBriefState(el.resultsPane, el.resultsBody), { passive: true });
 
       el.dayTabs.addEventListener('click', event => {
         const button = event.target.closest('[data-day]');
@@ -907,6 +923,7 @@ const state = {
       const fallback = buildFallbackItinerary(state.cities.map(city => ({ city: city.name, center: getCenter(city.name), pois: fallbackPois(city.name) })));
       applyPlan(fallback, '已载入可交互示例。修改路线后点击生成即可连接后端规划。');
       bindEvents();
+      syncBriefStates();
     }
 
     document.addEventListener('DOMContentLoaded', boot);
