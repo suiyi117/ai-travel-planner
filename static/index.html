@@ -4,7 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AeroTravel - 智能旅行规划工作台</title>
+  <link rel="icon" href="data:,">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" defer></script>
   <style>
     :root {
           /* ─── Surface (3 levels) ─────────────────────────────────────────
@@ -98,7 +100,7 @@
           --container-gutter-phone: 12px;
         }
   </style>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=poi-meta-compact-20260708">
 </head>
 <body data-mobile-view="planner">
   <div class="app">
@@ -114,7 +116,11 @@
       </div>
       <p class="topbar-meta" id="routeMeta">北京 → 西安 · 3 天 · 舒适型</p>
       <div class="topbar-actions">
-        <button class="btn btn-ghost" id="copyPlanBtn" type="button" data-od-id="copy-plan">复制行程</button>
+        <button class="btn btn-ghost" id="savedTripsBtn" type="button">我的行程</button>
+        <div id="savedTripsPanel" class="snapshot-dropdown" hidden></div>
+        <button class="btn btn-ghost" id="copyPlanBtn" type="button" data-od-id="copy-plan">复制客户行程</button>
+        <button class="btn btn-ghost" id="exportLongImageBtn" type="button">导出客户长图</button>
+        <button class="btn btn-ghost" id="exportIcsBtn" type="button">导出日历</button>
         <button class="btn btn-primary" id="generateBtnTop" type="button" data-od-id="generate-top">生成规划</button>
       </div>
     </header>
@@ -183,6 +189,15 @@
               </div>
             </div>
 
+            <div class="field" data-od-id="budget-field">
+              <label>预算档位</label>
+              <div class="segmented" style="--segments: 3" id="budgetGroup">
+                <button type="button" data-value="经济型">经济型</button>
+                <button class="is-active" type="button" data-value="舒适型">舒适型</button>
+                <button type="button" data-value="高端型">高端型</button>
+              </div>
+            </div>
+
             <div class="field" data-od-id="interests-field">
               <label for="interestsInput">偏好补充</label>
               <textarea class="textarea" id="interestsInput" placeholder="例如：亲子友好、博物馆优先、少走路、晚上想吃当地小吃"></textarea>
@@ -208,6 +223,8 @@
               <div class="metric-card"><div class="metric-value" id="metricStops">8</div><div class="metric-label">行程节点</div></div>
             </div>
 
+            <div class="quality-panel" id="qualityPanel" data-status="pass"></div>
+
             <div class="day-tabs" id="dayTabs" data-od-id="day-tabs"></div>
 
             <div class="filter-tabs" id="filterTabs" data-od-id="filter-tabs">
@@ -232,7 +249,7 @@
               <div class="insight-card">
                 <div class="row-between">
                   <h3 class="section-label">费用估算</h3>
-                  <span class="badge">舒适型</span>
+                  <span class="badge" id="budgetLevelBadge">舒适型</span>
                 </div>
                 <div id="budgetList" style="margin-top: var(--space-3);"></div>
               </div>
@@ -272,6 +289,7 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="app.js"></script>
+  <script src="app-utils.js?v=productization-20260709"></script>
+  <script src="app.js?v=productization-20260709"></script>
 </body>
 </html>

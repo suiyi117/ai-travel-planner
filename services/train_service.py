@@ -2,6 +2,7 @@
 12306 火车/高铁查询服务
 直接调用 12306 公开 JSON 接口，无需 API Key 或登录
 """
+import asyncio
 import json
 import re
 import time
@@ -27,6 +28,13 @@ PRICE_QUERY_URL = "https://kyfw.12306.cn/otn/leftTicket/queryTicketPrice"
 # 请求控制
 REQUEST_DELAY = 0.4  # 请求间隔（秒），避免被封
 _last_request_time = 0.0
+_rate_lock = asyncio.Lock()
+
+# 车站映射进程内缓存（避免每次查询都重新读取/解析缓存文件）
+_station_mem_cache: Optional[dict] = None
+_station_mem_cache_at = 0.0
+STATION_MEM_CACHE_TTL = 60  # 秒
+_code_to_name: dict = {}
 
 # ===== 内置车站映射（fallback，覆盖主要旅游城市） =====
 BUILTIN_STATION_MAP = {
@@ -136,18 +144,18 @@ BUILTIN_STATION_MAP = {
 
 
 async def _rate_limit():
-    """控制请求频率"""
+    """控制请求频率（用 asyncio.Lock 保护检查+sleep+更新时间戳，避免并发任务同时放行导致 12306 请求瞬时集中）"""
     global _last_request_time
-    now = time.time()
-    elapsed = now - _last_request_time
-    if elapsed < REQUEST_DELAY:
-        await _async_sleep(REQUEST_DELAY - elapsed)
-    _last_request_time = time.time()
+    async with _rate_lock:
+        now = time.time()
+        elapsed = now - _last_request_time
+        if elapsed < REQUEST_DELAY:
+            await _async_sleep(REQUEST_DELAY - elapsed)
+        _last_request_time = time.time()
 
 
 async def _async_sleep(seconds: float):
     """异步等待"""
-    import asyncio
     await asyncio.sleep(seconds)
 
 
@@ -221,17 +229,35 @@ def _extract_city(station_name: str) -> str:
 
 
 def _get_station_map() -> dict[str, list[tuple[str, str]]]:
-    """获取车站映射（优先缓存，其次内置）"""
+    """获取车站映射（优先进程内内存缓存 60 秒，其次磁盘缓存，最后内置映射）"""
+    global _station_mem_cache, _station_mem_cache_at, _code_to_name
+
+    now = time.time()
+    if _station_mem_cache is not None and (now - _station_mem_cache_at) < STATION_MEM_CACHE_TTL:
+        return _station_mem_cache
+
+    station_map = BUILTIN_STATION_MAP
     try:
         if STATION_CACHE_FILE.exists():
             cache = json.loads(STATION_CACHE_FILE.read_text(encoding="utf-8"))
             # 检查缓存是否过期
             updated = datetime.fromisoformat(cache.get("updated_at", "2000-01-01"))
             if (datetime.now() - updated).total_seconds() < STATION_CACHE_TTL:
-                return cache.get("stations", {})
+                station_map = cache.get("stations", {})
     except Exception:
         pass
-    return BUILTIN_STATION_MAP
+
+    # 构建反查表（telecode -> 中文站名），供 _get_station_name_by_code 做 O(1) 查找
+    code_to_name = {}
+    for stations in station_map.values():
+        for code, name in stations:
+            code_to_name[code] = name
+
+    _station_mem_cache = station_map
+    _station_mem_cache_at = now
+    _code_to_name = code_to_name
+
+    return station_map
 
 
 def _find_station_code(city_name: str, prefer_highspeed: bool = True) -> Optional[tuple[str, str]]:
@@ -266,20 +292,24 @@ def _select_best_station(stations: list[tuple[str, str]], prefer_highspeed: bool
     if len(stations) == 1:
         return stations[0]
 
-    if prefer_highspeed:
-        # 优先选高铁站：包含"南"、"东"、"北"（高铁新站通常在这些方向）
-        for code, name in stations:
-            if any(d in name for d in ["南", "东"]):
-                return (code, name)
-        # 其次选主站（不含方向词的主站名 = 城市名）
-        for code, name in stations:
-            if not any(d in name for d in ["西", "北", "南", "东"]):
-                return (code, name)
+    # 12306 对主站电报码（站名=城市名，如 北京→BJP）按全市口径返回各车站的车次，
+    # 因此主站优先能查到最全的结果；选了方向站（如 北京东）反而只剩极少数车次。
+    # 方向站 = 末字为方位词且站名长度≥3（避免把 北京/西安 这类自带方位字的城市名误判）。
+    directions = ("东", "南", "西", "北")
+    def _is_directional(name: str) -> bool:
+        return len(name) >= 3 and name[-1] in directions
 
-    # 优先选主站（不含任何方向词）
-    for code, name in stations:
-        if not any(d in name for d in ["西", "北", "南", "东"]):
-            return (code, name)
+    mains = [s for s in stations if not _is_directional(s[1])]
+    if mains:
+        # 多个非方向站时，站名最短的最接近城市名本身
+        return min(mains, key=lambda s: len(s[1]))
+
+    if prefer_highspeed:
+        # 无主站时优先选高铁新站常在的方向
+        for suffix in ("南", "西", "北", "东"):
+            for code, name in stations:
+                if name.endswith(suffix):
+                    return (code, name)
 
     # 返回第一个
     return stations[0]
@@ -445,7 +475,17 @@ def _parse_train_result(fields: list[str], from_name: str, to_name: str) -> Opti
     if len(fields) < 12:
         return None
 
-    train_code = fields[4] if len(fields) > 4 else fields[3]  # station_train_code（显示车次号，如 G1025）
+    # 12306 不同接口版本的字段布局有差异：标准布局下 fields[3] 是显示车次号
+    # （如 G1025）、fields[4] 是始发站电报码（如 TJP）；旧布局则相反。
+    # 显示车次号有固定模式（可选一位字母 + 1-4 位数字），按模式匹配取值最稳。
+    _code_candidates = [
+        fields[3] if len(fields) > 3 else "",
+        fields[4] if len(fields) > 4 else "",
+    ]
+    train_code = next(
+        (c for c in _code_candidates if re.fullmatch(r"[GDCKTZSLY]?\d{1,4}", c or "")),
+        _code_candidates[0] or _code_candidates[1],
+    )
     from_station_tele = fields[6]
     to_station_tele = fields[7]
     depart_time = fields[8]
@@ -530,13 +570,9 @@ def _classify_train(train_code: str) -> str:
 
 
 def _get_station_name_by_code(telecode: str) -> Optional[str]:
-    """根据电报码查找站名"""
-    station_map = _get_station_map()
-    for city, stations in station_map.items():
-        for code, name in stations:
-            if code == telecode:
-                return name
-    return None
+    """根据电报码查找站名（O(1) 反查表，由 _get_station_map() 构建/刷新）"""
+    _get_station_map()  # 确保 _code_to_name 已按当前缓存状态构建
+    return _code_to_name.get(telecode)
 
 
 async def search_train_by_number(train_no: str, date: str) -> Optional[dict]:
@@ -588,13 +624,3 @@ async def init_station_data():
         await download_station_map()
     except Exception as e:
         print(f"[TrainService] 初始化车站数据失败（将使用内置映射）: {e}")
-
-
-def _get_station_name_by_code(telecode: str) -> Optional[str]:
-    """根据电报码查找站名"""
-    station_map = _get_station_map()
-    for city, stations in station_map.items():
-        for code, name in stations:
-            if code == telecode:
-                return name
-    return None
