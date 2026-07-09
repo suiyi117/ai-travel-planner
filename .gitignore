@@ -6,6 +6,7 @@ venv/
 *.egg-info/
 .conda/
 *.artifact.json
+*.baiduyun.uploading.cfg
 mrbw*-image.png
 mrbw*-drawing-*.png
 *.pem

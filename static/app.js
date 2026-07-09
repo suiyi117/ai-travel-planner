@@ -83,21 +83,19 @@ const state = {
     let markers = [];
     let draggedCityIndex = null;
 
-    function todayPlus(days) {
-      const date = new Date();
-      date.setDate(date.getDate() + days);
-      return date.toISOString().slice(0, 10);
-    }
-
-    function addDays(dateStr, n) {
-      const base = dateStr ? new Date(`${dateStr}T00:00:00`) : new Date();
-      if (Number.isNaN(base.getTime())) return '';
-      base.setDate(base.getDate() + n);
-      const year = base.getFullYear();
-      const month = String(base.getMonth() + 1).padStart(2, '0');
-      const day = String(base.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    }
+    const {
+      todayPlus,
+      addDays,
+      normalizeType,
+      cleanMetaValue,
+      copyPoiMeta,
+      mergePoiMeta,
+      escapeHtml,
+      parseTimeRange,
+      parsePriceValue,
+      normalizeSegKey,
+      optionMatchesDirection
+    } = window.AeroTravelUtils;
 
     function weatherForDay(day) {
       const casts = state.cityWeather[day.city];
@@ -146,47 +144,6 @@ const state = {
         toast.classList.remove('is-visible');
         setTimeout(() => toast.remove(), 300);
       }, 2500);
-    }
-
-    function normalizeType(type) {
-      if (type === 'food') return '美食';
-      if (type === 'hotel') return '住宿';
-      if (type === 'transport') return '交通';
-      return '景点';
-    }
-
-    function cleanMetaValue(value) {
-      if (Array.isArray(value)) return value.filter(Boolean).join('、');
-      if (value === null || value === undefined) return '';
-      return String(value).trim();
-    }
-
-    function copyPoiMeta(source = {}) {
-      return {
-        rating: cleanMetaValue(source.rating),
-        address: cleanMetaValue(source.address),
-        tel: cleanMetaValue(source.tel),
-        opentime: cleanMetaValue(source.opentime)
-      };
-    }
-
-    function mergePoiMeta(source = {}, fallback = {}) {
-      return {
-        rating: cleanMetaValue(source.rating) || cleanMetaValue(fallback.rating),
-        address: cleanMetaValue(source.address) || cleanMetaValue(fallback.address),
-        tel: cleanMetaValue(source.tel) || cleanMetaValue(fallback.tel),
-        opentime: cleanMetaValue(source.opentime) || cleanMetaValue(fallback.opentime)
-      };
-    }
-
-    function escapeHtml(value) {
-      return cleanMetaValue(value).replace(/[&<>"']/g, char => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;'
-      }[char]));
     }
 
     function loadSavedTrips() {
@@ -300,56 +257,11 @@ const state = {
       }).join('');
     }
 
-    function parseTimeRange(str) {
-      const toMinutes = (hour, minute) => {
-        const h = Number(hour);
-        const m = Number(minute);
-        if (h < 0 || h > 23 || m < 0 || m > 59) return null;
-        return h * 60 + m;
-      };
-      const rangeMatch = /(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/.exec(String(str || ''));
-      if (rangeMatch) {
-        const startMin = toMinutes(rangeMatch[1], rangeMatch[2]);
-        let endMin = toMinutes(rangeMatch[3], rangeMatch[4]);
-        if (startMin === null || endMin === null) return null;
-        // Overnight transport (e.g. 15:42 - 04:59) has an end time earlier than the
-        // start time when read as minutes-of-day. Treat it as spanning into the next
-        // day so overlap checks and calendar export don't silently mis-handle it.
-        if (endMin < startMin) endMin += 1440;
-        return [startMin, endMin];
-      }
-      const pointMatch = /(?:^|\D)(\d{1,2}):(\d{2})(?:\D|$)/.exec(String(str || ''));
-      if (!pointMatch) return null;
-      const pointMin = toMinutes(pointMatch[1], pointMatch[2]);
-      return pointMin === null ? null : [pointMin, pointMin + 90];
-    }
-
-    function parsePriceValue(str) {
-      const nums = String(str || '').match(/\d+(\.\d+)?/g);
-      if (!nums || !nums.length) return null;
-      if (nums.length >= 2) return (Number(nums[0]) + Number(nums[1])) / 2;
-      return Number(nums[0]);
-    }
-
-    function normalizeSegKey(s) {
-      return String(s).split(/→|->/).map(t => t.trim()).join(' → ');
-    }
-
-    function cityToken(city) {
-      return cleanMetaValue(city).replace(/市$/, '');
-    }
-
-    function textHasCity(text, city) {
-      const token = cityToken(city);
-      return Boolean(token && cleanMetaValue(text).includes(token));
-    }
-
-    function optionMatchesDirection(option, fromCity, toCity) {
-      const fromStation = option.from_station || option.from_airport || '';
-      const toStation = option.to_station || option.to_airport || '';
-      if (fromStation && !textHasCity(fromStation, fromCity)) return false;
-      if (toStation && !textHasCity(toStation, toCity)) return false;
-      return true;
+    function setSavedTripsPanelOpen(isOpen) {
+      if (!el.savedTripsBtn || !el.savedTripsPanel) return;
+      if (isOpen) renderSavedTripsPanel();
+      el.savedTripsPanel.hidden = !isOpen;
+      el.savedTripsBtn.setAttribute('aria-expanded', String(isOpen));
     }
 
     function findSegment(fromCity, toCity) {
@@ -770,7 +682,7 @@ const state = {
       const hasWarn = items.some(item => item.level === 'warn');
       return {
         status: hasError ? 'error' : (hasWarn ? 'review' : 'pass'),
-        summary: hasError ? '存在问题' : (hasWarn ? '需人工确认' : '可交付')
+        summary: hasError ? '存在问题' : (hasWarn ? '需人工确认' : '通过')
       };
     }
 
@@ -833,7 +745,7 @@ const state = {
         seen.add(key);
         return true;
       });
-      if (!uniqueItems.length) uniqueItems.push({ level: 'ok', message: '行程结构、交通方向和交付信息检查通过。' });
+      if (!uniqueItems.length) uniqueItems.push({ level: 'ok', message: '行程结构、交通方向和客户版信息检查通过。' });
       const status = checkStatusFromItems(uniqueItems);
       return { ...status, items: uniqueItems };
     }
@@ -886,8 +798,8 @@ const state = {
             start_date: el.departureDate.value
           })
         });
-        setStatus('正在校验交通方向并整理交付稿...');
-        applyPlan(plan, '已生成 AI 行程，交付检查和长图文案已就绪。');
+        setStatus('正在校验交通方向并整理客户版行程...');
+        applyPlan(plan, '已生成 AI 行程，内部检查和客户版行程已就绪。');
         saveTripSnapshot(plan);
       } catch (error) {
         const plan = buildFallbackItinerary(cityData);
@@ -1031,17 +943,17 @@ const state = {
 
     function renderQualityChecks(checks) {
       if (!el.qualityPanel) return;
-      const normalized = checks || { status: 'pass', summary: '可交付', items: [] };
+      const normalized = checks || { status: 'pass', summary: '通过', items: [] };
       const items = normalized.items || [];
       const visibleItems = items.slice(0, 6);
       el.qualityPanel.dataset.status = normalized.status || 'pass';
       el.qualityPanel.innerHTML = `
         <div class="quality-head">
           <div>
-            <h3 class="section-label">交付检查</h3>
-            <p>生成后请按这些项目做最后复核。</p>
+            <h3 class="section-label">内部检查</h3>
+            <p>这些内容仅用于发布前复核，不会复制到客户版行程。</p>
           </div>
-          <span class="quality-status">${escapeHtml(normalized.summary || '可交付')}</span>
+          <span class="quality-status">${escapeHtml(normalized.summary || '通过')}</span>
         </div>
         <ul class="quality-list">
           ${visibleItems.map(item => `
@@ -1322,13 +1234,11 @@ const state = {
     function buildDeliveryText(plan) {
       const lines = [];
       const route = state.cities.map(city => city.name).join(' → ');
-      const checks = plan.quality_checks || {};
 
       lines.push(plan.title || '旅行规划方案');
       if (plan.summary) lines.push(plan.summary);
       lines.push('');
       lines.push(`【行程概览】${route} · ${state.totalDays}天 · ${state.budget}`);
-      lines.push(`【交付检查】${checks.summary || '可交付'}`);
       lines.push('');
 
       (plan.days || []).forEach(day => {
@@ -1367,10 +1277,10 @@ const state = {
       (plan.tips || []).slice(0, 8).forEach(tip => lines.push(`- ${tip}`));
       lines.push('');
 
-      lines.push('【数据来源与说明】');
-      lines.push('- 景点地址/评分等信息来自高德 POI 或本地兜底数据。');
-      lines.push('- 火车班次优先来自 12306；航班如无实时接口则显示典型参考数据。');
-      lines.push('- 本商品为旅行规划服务，不含机票、酒店、门票代订；开放时间、票价、班次以官方实时信息为准。');
+      lines.push('【温馨说明】');
+      lines.push('- 景点地址、评分、开放时间等信息来自高德 POI 或本地参考数据。');
+      lines.push('- 火车班次优先参考 12306；航班如无实时接口则显示典型参考数据。');
+      lines.push('- 本方案为参考旅行规划，不含机票、酒店、门票代订；开放时间、票价、班次以官方实时信息为准。');
 
       return lines.join('\n');
     }
@@ -1394,7 +1304,6 @@ const state = {
 
     function buildDeliverySheetHtml(plan) {
       const route = state.cities.map(city => city.name).join(' → ');
-      const checks = plan.quality_checks || {};
       const daysHtml = (plan.days || []).map(day => {
         const cast = weatherForDay(day);
         const weather = cast ? `${escapeHtml(cast.dayweather)} ${escapeHtml(cast.nighttemp)}~${escapeHtml(cast.daytemp)}℃` : '';
@@ -1430,7 +1339,6 @@ const state = {
               <span>${state.totalDays} 天</span>
               <span>${escapeHtml(state.budget)}</span>
             </div>
-            <div class="delivery-check" data-status="${escapeHtml(checks.status || 'pass')}">${escapeHtml(checks.summary || '可交付')}</div>
           </header>
           ${daysHtml}
           ${transportHtml ? `<section class="delivery-section"><h3>城际交通</h3>${transportHtml}</section>` : ''}
@@ -1445,7 +1353,7 @@ const state = {
             <ul>${(plan.tips || []).slice(0, 8).map(tip => `<li>${escapeHtml(tip)}</li>`).join('')}</ul>
           </section>
           <footer class="delivery-disclaimer">
-            本方案为旅行规划服务，不含机票、酒店、门票代订；开放时间、票价、班次以官方实时信息为准。
+            本方案为参考旅行规划，不含机票、酒店、门票代订；开放时间、票价、班次以官方实时信息为准。
           </footer>
         </div>
       `;
@@ -1472,7 +1380,7 @@ const state = {
       const text = buildDeliveryText(plan);
       
       copyTextToClipboard(text)
-        .then(() => showToast('交付文案已复制，可直接发给客户。', 'success'))
+        .then(() => showToast('客户版行程已复制。', 'success'))
         .catch(() => showToast('复制失败，您的浏览器不支持直接复制，请手动选择文本。', 'error'));
     }
 
@@ -1483,7 +1391,7 @@ const state = {
         return;
       }
       if (!window.html2canvas) {
-        showToast('长图组件加载失败，请先使用复制交付文案。', 'error');
+        showToast('长图组件加载失败，请先使用复制客户行程。', 'error');
         return;
       }
 
@@ -1503,7 +1411,7 @@ const state = {
         const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png', 0.95));
         if (!blob) throw new Error('图片生成失败');
         downloadBlob(blob, `${cleanMetaValue(plan.title) || '旅行规划'}.png`);
-        showToast('长图已导出，可用于小红书客服交付。', 'success');
+        showToast('客户版长图已导出。', 'success');
       } catch (error) {
         showToast(`长图导出失败：${error.message || '请改用复制文案'}`, 'error');
       } finally {
@@ -1723,11 +1631,12 @@ const state = {
       el.exportIcsBtn.addEventListener('click', exportItineraryToIcs);
 
       if (el.savedTripsBtn && el.savedTripsPanel) {
+        el.savedTripsBtn.setAttribute('aria-haspopup', 'menu');
+        el.savedTripsBtn.setAttribute('aria-expanded', 'false');
+
         el.savedTripsBtn.addEventListener('click', event => {
           event.stopPropagation();
-          const isHidden = el.savedTripsPanel.hidden;
-          if (isHidden) renderSavedTripsPanel();
-          el.savedTripsPanel.hidden = !isHidden;
+          setSavedTripsPanelOpen(el.savedTripsPanel.hidden);
         });
 
         el.savedTripsPanel.addEventListener('click', event => {
@@ -1736,7 +1645,7 @@ const state = {
           if (restoreButton) {
             const id = Number(restoreButton.dataset.restoreId);
             restoreTripSnapshot(id);
-            el.savedTripsPanel.hidden = true;
+            setSavedTripsPanelOpen(false);
           } else if (deleteButton) {
             const id = Number(deleteButton.dataset.deleteId);
             deleteTripSnapshot(id);
@@ -1744,11 +1653,11 @@ const state = {
           }
         });
 
-        document.addEventListener('click', event => {
+        document.addEventListener('pointerdown', event => {
           if (el.savedTripsPanel.hidden) return;
           if (el.savedTripsPanel.contains(event.target) || event.target === el.savedTripsBtn) return;
-          el.savedTripsPanel.hidden = true;
-        });
+          setSavedTripsPanelOpen(false);
+        }, true);
       }
 
       el.refreshTransportBtn.addEventListener('click', refreshTransport);

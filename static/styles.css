@@ -1429,6 +1429,10 @@ body[data-mobile-view="map"] .results-pane {
   gap: var(--space-2);
 }
 
+.snapshot-dropdown[hidden] {
+  display: none;
+}
+
 .snapshot-empty {
   padding: var(--space-5);
   text-align: center;

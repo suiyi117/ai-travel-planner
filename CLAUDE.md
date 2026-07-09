@@ -93,7 +93,7 @@ The active UI uses Leaflet.js + 高德 map tiles for rendering. In the active `s
 | `static/styles.css` | Warm terracotta theme, responsive 3-column layout, pane brief-collapse styling, mobile panes |
 | `static/index.html` | Single-page app shell served by the backend |
 | `README.md` | User-facing quick start and feature summary |
-| `CHANGELOG.md` | Release notes; currently documents the 1.0.0 feature set and technical notes |
+| `CHANGELOG.md` | Release notes; currently documents the 1.1.0 productization release and prior 1.0.0 feature set |
 
 ### API design notes
 
@@ -118,7 +118,7 @@ All in `.env` (copy from `.env.example`):
 | `AMAP_KEY` | Yes (for real POI/city lookup) | 高德 Web服务 API Key used by backend proxy routes |
 | `AI_API_KEY` | Yes (for AI itinerary generation) | LLM API key for an OpenAI-compatible Chat Completions endpoint |
 | `AI_BASE_URL` | No (default: OpenAI) | LLM base URL |
-| `AI_MODEL` | No (default: `gpt-4o-mini`) | Model name |
+| `AI_MODEL` | No (default: `gpt-5.5`) | Model name |
 | `JUHE_FLIGHT_API_KEY` | No | 聚合数据 flight API; falls back to built-in route data |
 | `AMAP_SECURITY_KEY` | No | Supported by `server.py`/`/api/config` for legacy 高德 JS API usage, but not present in `.env.example` and not used by the active UI |
 

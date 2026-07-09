@@ -1,7 +1,7 @@
 import asyncio
 import unittest
 
-from server import _enrich_one_segment
+from planner.transport import enrich_one_segment
 
 
 class TransportQualityTests(unittest.TestCase):
@@ -23,7 +23,7 @@ class TransportQualityTests(unittest.TestCase):
             ],
         }
 
-        result = asyncio.run(_enrich_one_segment(segment, "2026-07-12", "舒适型"))
+        result = asyncio.run(enrich_one_segment(segment, "2026-07-12", "舒适型"))
 
         self.assertEqual(result["data_source"], "ai_fallback")
         self.assertEqual(result["source_label"], "AI 预估，需确认")
