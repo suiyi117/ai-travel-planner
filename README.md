@@ -45,6 +45,9 @@ flowchart LR
 
 ```powershell
 pip install -r requirements.txt
+
+# 可选：安装团队开发/CI 工具
+pip install -r requirements-dev.txt
 ```
 
 ### 2. 配置环境变量
@@ -103,6 +106,9 @@ python -m uvicorn server:app --reload --host 0.0.0.0 --port 8000
 # 本地质量门禁
 .\scripts\check.ps1
 
+# 安全门禁
+.\scripts\security.ps1
+
 # API 冒烟
 curl http://localhost:8000/api/health
 curl "http://localhost:8000/api/city_center?city=北京"
@@ -110,7 +116,7 @@ curl "http://localhost:8000/api/search_pois?city=北京&keywords=景点&count=5"
 curl "http://localhost:8000/api/weather?city=北京"
 ```
 
-`.\scripts\check.ps1` 会运行 Python 语法检查、后端回归测试，并在本机安装 Node.js 时检查所有 `static/*.js` 语法。
+`.\scripts\check.ps1` 会运行 Python 语法检查、Ruff、Mypy、coverage-backed 后端回归测试，并检查所有 `static/*.js` 语法。`.\scripts\security.ps1` 会扫描跟踪文件中的疑似密钥并审计 Python 依赖漏洞。
 
 ## 架构结构
 
@@ -157,12 +163,22 @@ ai-travel-planner/
 ├── routers/               # FastAPI API 路由
 ├── schemas/               # Pydantic 请求模型
 ├── services/              # 12306、航班等交通服务
+│   ├── train_parser.py    # 12306 结果解析
+│   └── train_station_cache.py # 车站缓存读写与反查表
 ├── static/
 │   ├── index.html         # 单页应用壳
-│   ├── app-utils.js       # 无构建前端工具函数
-│   ├── app.js             # 前端状态、渲染、地图、导出
+│   ├── app-utils.js       # 无构建前端纯工具函数
+│   ├── state.js           # 初始状态和本地 fallback 常量
+│   ├── api.js             # fetchJson 与 /api 路由兼容
+│   ├── map.js             # Leaflet 地图初始化
+│   ├── storage.js         # localStorage 快照读写
+│   ├── export-ics.js      # ICS 和下载工具
+│   ├── render.js          # 共享渲染辅助
+│   ├── app.js             # 前端启动、事件绑定、状态编排
 │   └── styles.css         # 前端样式
+├── tests/                 # 按 clients/core/planner/routers/services 镜像组织的离线回归测试
 ├── docs/                  # 部署、回滚、冒烟检查、ADR
+│   └── engineering/       # 协作、变更管理和发布流程
 ├── scripts/check.ps1      # 本地质量门禁
 ├── tasks/                 # 产品化规格和 backlog
 └── tests/                 # 离线回归测试
@@ -184,6 +200,8 @@ ai-travel-planner/
 
 - 部署与回滚清单：[docs/deployment-checklist.md](docs/deployment-checklist.md)
 - 人工冒烟清单：[docs/smoke-checklist.md](docs/smoke-checklist.md)
+- 工程变更管理：[docs/engineering/change-management.md](docs/engineering/change-management.md)
+- 发布流程：[docs/engineering/release-process.md](docs/engineering/release-process.md)
 - 持久化/auth 决策：[docs/decisions/ADR-001-local-only-persistence.md](docs/decisions/ADR-001-local-only-persistence.md)
 - 产品化 backlog：[tasks/todo.md](tasks/todo.md)
 - 实施记录：[IMPLEMENTATION.md](IMPLEMENTATION.md)
@@ -199,6 +217,7 @@ ai-travel-planner/
 | AI | OpenAI-compatible Chat Completions |
 | 交通 | 12306 公开接口，聚合数据航班 API 可选 |
 | 持久化 | 浏览器 localStorage |
+| 工程治理 | Ruff, Mypy, Coverage, detect-secrets, pip-audit, pre-commit, GitHub Actions |
 
 ## License
 

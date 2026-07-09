@@ -13,6 +13,9 @@ from datetime import datetime, timedelta
 
 import httpx
 
+from services.train_parser import classify_train, parse_train_result
+from services.train_station_cache import build_code_to_name, load_station_cache, write_station_cache
+
 # ===== 配置 =====
 # 车站数据缓存文件
 STATION_CACHE_DIR = Path(__file__).parent / ".cache"
@@ -195,11 +198,7 @@ async def download_station_map() -> dict[str, list[tuple[str, str]]]:
                     city_map[city].append((code, name))
 
             # 缓存到本地
-            cache_data = {
-                "updated_at": datetime.now().isoformat(),
-                "stations": {k: v for k, v in city_map.items()},
-            }
-            STATION_CACHE_FILE.write_text(json.dumps(cache_data, ensure_ascii=False), encoding="utf-8")
+            write_station_cache(STATION_CACHE_FILE, city_map)
             print(f"[TrainService] 车站数据已更新: {len(city_map)} 个城市")
             return city_map
 
@@ -236,22 +235,14 @@ def _get_station_map() -> dict[str, list[tuple[str, str]]]:
     if _station_mem_cache is not None and (now - _station_mem_cache_at) < STATION_MEM_CACHE_TTL:
         return _station_mem_cache
 
-    station_map = BUILTIN_STATION_MAP
-    try:
-        if STATION_CACHE_FILE.exists():
-            cache = json.loads(STATION_CACHE_FILE.read_text(encoding="utf-8"))
-            # 检查缓存是否过期
-            updated = datetime.fromisoformat(cache.get("updated_at", "2000-01-01"))
-            if (datetime.now() - updated).total_seconds() < STATION_CACHE_TTL:
-                station_map = cache.get("stations", {})
-    except Exception:
-        pass
+    station_map = load_station_cache(
+        STATION_CACHE_FILE,
+        ttl_seconds=STATION_CACHE_TTL,
+        fallback=BUILTIN_STATION_MAP,
+    )
 
     # 构建反查表（telecode -> 中文站名），供 _get_station_name_by_code 做 O(1) 查找
-    code_to_name = {}
-    for stations in station_map.values():
-        for code, name in stations:
-            code_to_name[code] = name
+    code_to_name = build_code_to_name(station_map)
 
     _station_mem_cache = station_map
     _station_mem_cache_at = now
@@ -401,7 +392,9 @@ async def search_trains(
                 if len(fields) < 36:
                     continue
 
-                train_info = _parse_train_result(fields, from_name, to_name)
+                train_info = parse_train_result(fields, from_name, to_name, _get_station_name_by_code)
+                if not train_info:
+                    continue
 
                 # 按车次类型过滤
                 train_no = train_info.get("train_no", "")

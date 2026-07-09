@@ -1,4 +1,4 @@
-name: CI
+name: Security
 
 on:
   pull_request:
@@ -8,9 +8,11 @@ on:
       - main
       - "feature/**"
       - "codex/**"
+  schedule:
+    - cron: "0 2 * * 1"
 
 jobs:
-  quality:
+  security:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -22,14 +24,9 @@ jobs:
           python-version: "3.11"
           cache: pip
 
-      - name: Install Python dependencies
+      - name: Install dependencies
         run: pip install -r requirements-dev.txt
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: Local quality gate
+      - name: Run security gate
         shell: pwsh
-        run: ./scripts/check.ps1
+        run: ./scripts/security.ps1

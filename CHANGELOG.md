@@ -7,6 +7,24 @@
 
 ---
 
+## [Unreleased]
+
+### Added 新增
+- 小团队工程化治理：新增 `requirements-dev.txt`、`pyproject.toml`、pre-commit、PR/Issue 模板、Dependabot、CI 质量门禁和安全扫描 workflow。
+- 新增 `scripts/security.ps1`，对 Git 跟踪文件做 secret scan，并用 `pip-audit` 审计 Python 依赖。
+- 新增 `docs/engineering/change-management.md` 和 `docs/engineering/release-process.md`，记录变更、ADR、浏览器 smoke 和发布流程。
+- 前端无构建模块继续拆分为 `state/api/map/storage/export-ics/render` 边界模块，`app.js` 保留为启动和编排入口。
+- 12306 解析与站点缓存拆分到 `services/train_parser.py` 和 `services/train_station_cache.py`，并增加离线回归测试。
+- 测试目录按 `clients/core/planner/routers/services` 镜像源码组织。
+
+### Changed 变更
+- 本地与 CI 质量门禁统一为 `scripts/check.ps1`，覆盖 Ruff、Mypy、coverage、Python 测试和全部 `static/*.js` 语法检查。
+- Python 运行时依赖升级：FastAPI `0.139.0`，python-dotenv `1.2.2`，以消除 Starlette/python-dotenv 已知漏洞。
+- Coverage 基线门槛设为当前覆盖率向下取整后的 50%，后续只应上调。
+
+### Security 安全
+- 安全门禁当前通过：未发现跟踪文件疑似密钥，`pip-audit` 未发现已知漏洞。
+
 ## [1.1.0] - 2026-07-09
 
 ### Added 新增

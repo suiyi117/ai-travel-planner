@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import APIRouter, HTTPException, Query
 
 from planner.transport import estimate_train_price, resolve_train_type_pref
@@ -97,7 +99,7 @@ async def search_transport(
     keyword = keyword.strip().upper()
     first_char = keyword[0] if keyword else ""
 
-    result = {"keyword": keyword, "type": "", "results": []}
+    result: dict[str, Any] = {"keyword": keyword, "type": "", "results": []}
 
     if first_char in "GDKTZCSYL":
         result["type"] = "train"
