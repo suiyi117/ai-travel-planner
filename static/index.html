@@ -114,7 +114,10 @@
       </div>
       <p class="topbar-meta" id="routeMeta">北京 → 西安 · 3 天 · 舒适型</p>
       <div class="topbar-actions">
+        <button class="btn btn-ghost" id="savedTripsBtn" type="button">我的行程</button>
+        <div id="savedTripsPanel" class="snapshot-dropdown" hidden></div>
         <button class="btn btn-ghost" id="copyPlanBtn" type="button" data-od-id="copy-plan">复制行程</button>
+        <button class="btn btn-ghost" id="exportIcsBtn" type="button">导出日历</button>
         <button class="btn btn-primary" id="generateBtnTop" type="button" data-od-id="generate-top">生成规划</button>
       </div>
     </header>
@@ -183,6 +186,15 @@
               </div>
             </div>
 
+            <div class="field" data-od-id="budget-field">
+              <label>预算档位</label>
+              <div class="segmented" style="--segments: 3" id="budgetGroup">
+                <button type="button" data-value="经济型">经济型</button>
+                <button class="is-active" type="button" data-value="舒适型">舒适型</button>
+                <button type="button" data-value="高端型">高端型</button>
+              </div>
+            </div>
+
             <div class="field" data-od-id="interests-field">
               <label for="interestsInput">偏好补充</label>
               <textarea class="textarea" id="interestsInput" placeholder="例如：亲子友好、博物馆优先、少走路、晚上想吃当地小吃"></textarea>
@@ -232,7 +244,7 @@
               <div class="insight-card">
                 <div class="row-between">
                   <h3 class="section-label">费用估算</h3>
-                  <span class="badge">舒适型</span>
+                  <span class="badge" id="budgetLevelBadge">舒适型</span>
                 </div>
                 <div id="budgetList" style="margin-top: var(--space-3);"></div>
               </div>

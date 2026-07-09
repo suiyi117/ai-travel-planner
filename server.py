@@ -6,6 +6,8 @@ FastAPI 服务，负责 AI 行程生成（POI 搜索由前端 JS API 完成）
 import os
 import json
 import re
+import math
+import time
 import httpx
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
@@ -35,6 +37,10 @@ AI_MODEL = os.getenv("AI_MODEL", "gpt-4o-mini")
 AMAP_KEY = os.getenv("AMAP_KEY", "")  # 传给前端 JS API 用
 AMAP_SECURITY_KEY = os.getenv("AMAP_SECURITY_KEY", "")
 
+# 天气查询缓存: city -> (查询时的时间戳, 天气预报列表)，30 分钟 TTL，节省高德配额
+_weather_cache: dict = {}
+_WEATHER_CACHE_TTL = 30 * 60
+
 
 # ===== 数据模型 =====
 class CityInfo(BaseModel):
@@ -52,6 +58,66 @@ class PlanRequest(BaseModel):
     city_data: list[dict] = []
     global_transport: str = "auto"   # 全局交通偏好 (auto/train/plane/driving)
     start_date: str = ""  # 出发日期 YYYY-MM-DD，用于查询真实交通班次
+
+
+def _pick_primary_district(districts: list) -> dict:
+    """高德 district 关键词查询对同名行政区会多命中（如查"西安"会同时命中
+    陕西西安市与吉林辽源市西安区），按行政级别择优，避免定位到别省的同名区县。"""
+    priority = {"city": 0, "province": 1, "district": 2, "street": 3}
+    return min(districts, key=lambda d: priority.get(d.get("level"), 9))
+
+
+async def _query_amap_weather(city: str) -> list:
+    """查询城市的天气预报（复用 AMAP_KEY，与 get_city_center 同款请求高德 district 接口取 adcode）。
+    无 Key、请求失败或解析异常时一律返回 []，绝不抛出异常。结果按城市名缓存 30 分钟以节省配额。"""
+    if not AMAP_KEY:
+        return []
+
+    now = time.time()
+    cached = _weather_cache.get(city)
+    if cached and (now - cached[0]) < _WEATHER_CACHE_TTL:
+        return cached[1]
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            district_resp = await client.get(
+                "https://restapi.amap.com/v3/config/district",
+                params={"key": AMAP_KEY, "keywords": city, "subdistrict": 0},
+            )
+            district_data = district_resp.json()
+            districts = district_data.get("districts") or []
+            if district_data.get("status") != "1" or not districts:
+                return []
+            adcode = _pick_primary_district(districts).get("adcode")
+            if not adcode:
+                return []
+
+            weather_resp = await client.get(
+                "https://restapi.amap.com/v3/weather/weatherInfo",
+                params={"key": AMAP_KEY, "city": adcode, "extensions": "all"},
+            )
+            weather_data = weather_resp.json()
+            if weather_data.get("status") != "1":
+                return []
+            forecasts = weather_data.get("forecasts") or []
+            if not forecasts:
+                return []
+            casts = forecasts[0].get("casts") or []
+            result = [
+                {
+                    "date": d.get("date", ""),
+                    "dayweather": d.get("dayweather", ""),
+                    "nightweather": d.get("nightweather", ""),
+                    "daytemp": d.get("daytemp", ""),
+                    "nighttemp": d.get("nighttemp", ""),
+                }
+                for d in casts
+            ]
+            _weather_cache[city] = (now, result)
+            return result
+    except Exception as e:
+        print(f"[Weather] 查询 {city} 天气失败: {e}")
+        return []
 
 
 # ===== AI 行程生成 =====
@@ -92,6 +158,25 @@ async def generate_itinerary(request: PlanRequest) -> dict:
             rating = f"评分{p.get('rating','')}" if p.get('rating') else ""
             poi_list_text += f"{i}. {p['name']}（{p.get('type','')}，{rating}，地址:{p.get('address','')}）\n"
 
+    # 2.5 查询各目的地城市的天气预报（复用 AMAP_KEY，无 Key/查询失败时静默跳过）
+    weather_results = await asyncio.gather(
+        *(_query_amap_weather(c.name) for c in request.destinations)
+    )
+    city_weather = {
+        c.name: w
+        for c, w in zip(request.destinations, weather_results)
+        if w
+    }
+    weather_text = ""
+    for city_name, casts in city_weather.items():
+        weather_text += f"\n### {city_name} 天气预报：\n"
+        for cast in casts:
+            weather_text += (
+                f"- {cast.get('date', '')}：白天{cast.get('dayweather', '')}"
+                f"/夜间{cast.get('nightweather', '')}，"
+                f"气温 {cast.get('nighttemp', '')}~{cast.get('daytemp', '')}℃\n"
+            )
+
     # 3. 构造交通方式约束
     trans_map = {
         "auto": "智能混合推荐",
@@ -124,6 +209,9 @@ async def generate_itinerary(request: PlanRequest) -> dict:
 - 旅行节奏：[PACE]
 - 预算水平：[BUDGET]
 - 兴趣偏好：[INTERESTS]
+
+## 各城市天气预报（如有数据，请据此调整：雨雪天优先安排室内景点，户外景点排在晴好日）
+[WEATHER_INFO]
 
 ## 城际中转交通约束（重要，必须严格遵守）
 [TRANSPORT_RULES]
@@ -192,7 +280,8 @@ async def generate_itinerary(request: PlanRequest) -> dict:
 }"""
 
     prompt = (
-        prompt.replace("[DAYS]", str(request.days))
+        prompt.replace("[WEATHER_INFO]", weather_text or "（暂无天气数据，按常规安排）")
+        .replace("[DAYS]", str(request.days))
         .replace("[DEPARTURE]", request.departure or "未指定")
         .replace("[ROUTE]", destinations_list_str)
         .replace("[CITIES_DETAIL]", cities_str)
@@ -215,7 +304,7 @@ async def generate_itinerary(request: PlanRequest) -> dict:
             {"role": "user", "content": prompt},
         ],
         "temperature": 0.7,
-        "max_tokens": 4000,
+        "max_tokens": min(8000, 2000 + request.days * 350 + len(request.destinations) * 200),
     }
 
     async with httpx.AsyncClient(timeout=60) as client:
@@ -243,7 +332,15 @@ async def generate_itinerary(request: PlanRequest) -> dict:
         start = content.find("{")
         end = content.rfind("}") + 1
         if start >= 0 and end > start:
-            itinerary = json.loads(content[start:end])
+            candidate = content[start:end]
+            try:
+                itinerary = json.loads(candidate)
+            except json.JSONDecodeError:
+                repaired = _repair_truncated_json(candidate)
+                if repaired is not None:
+                    itinerary = repaired
+                else:
+                    raise HTTPException(status_code=500, detail="AI 返回格式解析失败")
         else:
             raise HTTPException(status_code=500, detail="AI 返回格式解析失败")
 
@@ -267,6 +364,12 @@ async def generate_itinerary(request: PlanRequest) -> dict:
                 if name in poi_coords:
                     spot.update(poi_coords[name])
 
+    # 同日景点地理最近邻排序（零 API 成本的路线几何优化，须在坐标合并之后执行）
+    for day_plan in itinerary.get("days", []):
+        for slot in ("morning", "afternoon"):
+            if isinstance(day_plan.get(slot), list):
+                day_plan[slot] = _nearest_neighbor_order(day_plan[slot])
+
     # 提取各城市的中心点返回给前端
     city_centers = {}
     for item in request.city_data:
@@ -276,8 +379,16 @@ async def generate_itinerary(request: PlanRequest) -> dict:
             city_centers[city_name] = center
 
     itinerary["city_centers"] = city_centers
+    itinerary["city_weather"] = city_weather
     # 返回前 20 个 POI 仅作前端示意
     itinerary["pois"] = all_pois[:20]
+
+    # ===== 服务端主导生成 transport_guide 分段（保证 segment 字符串格式永远稳定） =====
+    itinerary["transport_guide"] = _build_segments_from_destinations(
+        request.destinations,
+        request.global_transport,
+        itinerary.get("transport_guide", []),
+    )
 
     # ===== 增强 transport_guide：用真实车次/航班数据替换 AI 虚构选项 =====
     travel_date = request.start_date or ""
@@ -286,7 +397,8 @@ async def generate_itinerary(request: PlanRequest) -> dict:
             itinerary["transport_guide"] = await enrich_transport_guide(
                 itinerary.get("transport_guide", []),
                 request.destinations,
-                travel_date
+                travel_date,
+                request.budget
             )
         except Exception as e:
             print(f"[TransportEnrich] 增强交通数据失败: {e}，保留 AI 生成数据")
@@ -294,27 +406,139 @@ async def generate_itinerary(request: PlanRequest) -> dict:
     return itinerary
 
 
-async def enrich_transport_guide(
-    transport_guide: list[dict],
+def _repair_truncated_json(text: str):
+    """尝试修复被截断（通常因 max_tokens 限制）的 JSON 文本。
+
+    逐字符扫描，跟踪是否处于字符串内（及转义状态）与 {[ 括号栈；每遇到一个
+    未在字符串内的 '}' 或 ']'，记录一个候选截断点（该闭合符之后的位置 + 当时的
+    括号栈快照）。从最后一个候选点开始向前回退，逐个尝试：截断到该点、去掉尾部
+    悬挂逗号、按栈序（后进先出）补齐缺失的闭合符，再尝试 json.loads。最多尝试
+    20 个候选点，全部失败返回 None。
+    """
+    if not text:
+        return None
+
+    stack: list[str] = []
+    in_string = False
+    escape = False
+    candidates: list[tuple[int, list[str]]] = []
+
+    for i, ch in enumerate(text):
+        if in_string:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_string = False
+            continue
+
+        if ch == '"':
+            in_string = True
+        elif ch in "{[":
+            stack.append(ch)
+        elif ch in "}]":
+            if stack:
+                stack.pop()
+            candidates.append((i + 1, list(stack)))
+
+    attempts = 0
+    for cut_index, stack_snapshot in reversed(candidates):
+        if attempts >= 20:
+            break
+        attempts += 1
+
+        snippet = text[:cut_index].rstrip()
+        # 去掉尾部悬挂逗号（防御性处理）
+        while snippet.endswith(","):
+            snippet = snippet[:-1].rstrip()
+
+        closers = "".join("}" if b == "{" else "]" for b in reversed(stack_snapshot))
+        candidate_json = snippet + closers
+
+        try:
+            result = json.loads(candidate_json)
+        except json.JSONDecodeError:
+            continue
+
+        if isinstance(result, dict):
+            return result
+
+    return None
+
+
+def _build_segments_from_destinations(
     destinations: list[CityInfo],
-    travel_date: str,
+    global_transport: str,
+    ai_guide: list[dict],
 ) -> list[dict]:
-    """用真实交通 API 数据增强/替换 transport_guide 中的 options"""
-    enhanced = []
-    for segment in transport_guide:
+    """服务端主导生成 transport_guide 的城际分段，保证 segment 字符串格式('A → B')永远稳定，
+    不依赖 AI 输出的措辞（AI 可能写成"北京到西安"等不规范格式）。"""
+    segments = []
+    guide_len = len(ai_guide) if ai_guide else 0
+
+    for i in range(1, len(destinations)):
+        prev = destinations[i - 1]
+        curr = destinations[i]
+        ai_seg = ai_guide[i - 1] if (i - 1) < guide_len else {}
+
+        # tool 解析优先级：per-segment 指定 > 全局偏好 > AI 建议（仅接受 train/plane）> 默认 train
+        tool = None
+        if curr.transport in ("train", "plane", "driving"):
+            tool = curr.transport
+        elif global_transport in ("train", "plane", "driving"):
+            tool = global_transport
+        else:
+            ai_tool = ai_seg.get("tool")
+            if ai_tool in ("train", "plane"):
+                tool = ai_tool
+        if not tool:
+            tool = "train"
+
+        segments.append({
+            "segment": f"{prev.name} → {curr.name}",
+            "from_city": prev.name,
+            "to_city": curr.name,
+            "tool": tool,
+            "advice": ai_seg.get("advice", ""),
+            "options": ai_seg.get("options", []),
+        })
+
+    expected_len = max(0, len(destinations) - 1)
+    if guide_len > expected_len:
+        print(
+            f"[TransportSegments] AI 返回的 transport_guide 段数 ({guide_len}) 多于目的地分段数 "
+            f"({expected_len})，丢弃多余 {guide_len - expected_len} 段"
+        )
+
+    return segments
+
+
+async def _enrich_one_segment(segment: dict, travel_date: str, budget: str = "") -> dict:
+    """增强单个交通分段（可并发调用，内部绝不裸抛异常）"""
+    try:
         seg_str = segment.get("segment", "")
         tool = segment.get("tool", "train")
 
-        # 解析城市对: "北京 → 西安" → ("北京", "西安")
-        from_city, to_city = _parse_segment_cities(seg_str)
-
-        if not from_city or not to_city:
-            # 尝试从 destinations 顺序推断
+        if tool == "driving":
+            # 自驾无需查询票务，直接标注为 AI 预估
             seg = segment.copy()
             seg["options"] = segment.get("options", [])
             seg["data_source"] = "ai_fallback"
-            enhanced.append(seg)
-            continue
+            seg["source_label"] = "自驾（AI 预估）"
+            return seg
+
+        # 优先直接读取服务端主导生成的 from_city/to_city，仅当字段缺失时才回退解析 segment 字符串
+        from_city = segment.get("from_city") or ""
+        to_city = segment.get("to_city") or ""
+        if not from_city or not to_city:
+            from_city, to_city = _parse_segment_cities(seg_str)
+
+        if not from_city or not to_city:
+            seg = segment.copy()
+            seg["options"] = segment.get("options", [])
+            seg["data_source"] = "ai_fallback"
+            return seg
 
         print(f"[TransportEnrich] 查询真实车次: {from_city} → {to_city} (tool={tool})")
 
@@ -323,13 +547,13 @@ async def enrich_transport_guide(
         if tool == "train":
             # 查询火车
             try:
-                trains = await search_trains(from_city, to_city, travel_date)
+                trains = await search_trains(from_city, to_city, travel_date, prefer_train_type=_resolve_train_type_pref(budget))
                 if trains:
                     # 转换为 transport_guide options 格式
                     for t in trains[:8]:
                         # 始终使用估算函数得到合理的票价
                         price = _estimate_train_price(t.get("duration_minutes", 0), t.get("train_type", ""))
-                        
+
                         # 解析 seats 余票状态信息并附在车次描述后面
                         seats = t.get("seats", {})
                         seats_info = ""
@@ -341,11 +565,11 @@ async def enrich_transport_guide(
                                 status = f"{status}张"
                             seat_name = "二等座" if edz else ("硬座" if yz else list(seats.keys())[0])
                             seats_info = f" ({seat_name}:{status})"
-                        
+
                         desc = t.get("desc", "") + seats_info
 
                         option = {
-                            "id": t.get("id", ""),
+                            "id": t.get("id") or t.get("train_no", ""),
                             "time": t.get("time", ""),
                             "duration": t.get("duration", ""),
                             "price": price,
@@ -407,9 +631,31 @@ async def enrich_transport_guide(
             seg["data_source"] = "ai_fallback"
             seg["source_label"] = "AI 预估"
 
-        enhanced.append(seg)
+        return seg
+    except Exception as e:
+        print(f"[TransportEnrich] 分段处理异常: {e}")
+        seg = segment.copy()
+        seg["options"] = segment.get("options", [])
+        seg["data_source"] = "ai_fallback"
+        seg.setdefault("source_label", "AI 预估")
+        return seg
 
+
+async def enrich_transport_guide(
+    transport_guide: list[dict],
+    destinations: list[CityInfo],
+    travel_date: str,
+    budget: str = "",
+) -> list[dict]:
+    """用真实交通 API 数据增强/替换 transport_guide 中的 options（各分段并发查询，耗时≈最慢单段）"""
+    enhanced = list(await asyncio.gather(*(_enrich_one_segment(seg, travel_date, budget) for seg in transport_guide)))
     return enhanced
+
+
+def _resolve_train_type_pref(budget: str) -> str:
+    """根据预算档位解析火车查询时偏好的车次类型集合。
+    经济型/预算有限/穷游 → 放开到 高铁/动车/城际/快速/特快/直达（含慢车），其余（含默认舒适型/高端型）→ 高铁/动车/城际。"""
+    return 'GDCKTZ' if any(k in (budget or '') for k in ('经济', '预算', '穷游')) else 'GDC'
 
 
 def _parse_segment_cities(segment: str) -> tuple:
@@ -465,6 +711,40 @@ def _estimate_flight_price(from_city: str, to_city: str, duration_minutes: int =
     else:
         price = "¥1500-2500"
     return price
+
+
+def _haversine_km(a: dict, b: dict) -> float:
+    """计算两个 {lat, lng} 坐标点之间的球面距离（公里）"""
+    lat1, lng1 = math.radians(a.get("lat", 0)), math.radians(a.get("lng", 0))
+    lat2, lng2 = math.radians(b.get("lat", 0)), math.radians(b.get("lng", 0))
+    dlat = lat2 - lat1
+    dlng = lng2 - lng1
+    h = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlng / 2) ** 2
+    return 2 * 6371.0 * math.asin(math.sqrt(h))
+
+
+def _nearest_neighbor_order(spots: list) -> list:
+    """按最近邻贪心算法对同一时段内的景点重排，零 API 成本的路线几何优化。
+
+    只对同时具备真值 lat/lng 的点重排；坐标缺失或为 0 的点保持原相对顺序追加到末尾。
+    """
+    if not isinstance(spots, list) or len(spots) < 2:
+        return spots
+
+    with_coords = [s for s in spots if isinstance(s, dict) and s.get("lat") and s.get("lng")]
+    without_coords = [s for s in spots if not (isinstance(s, dict) and s.get("lat") and s.get("lng"))]
+
+    if len(with_coords) < 2:
+        return spots
+
+    remaining = with_coords[:]
+    ordered = [remaining.pop(0)]
+    while remaining:
+        current = ordered[-1]
+        nearest_idx = min(range(len(remaining)), key=lambda i: _haversine_km(current, remaining[i]))
+        ordered.append(remaining.pop(nearest_idx))
+
+    return ordered + without_coords
 
 
 # ===== API 路由 =====
@@ -554,7 +834,7 @@ async def get_city_center(city: str):
         if resp.status_code == 200:
             data = resp.json()
             if data.get("status") == "1" and data.get("districts"):
-                d = data["districts"][0]
+                d = _pick_primary_district(data["districts"])
                 center = d.get("center")
                 if center:
                     lng_str, lat_str = center.split(",")
@@ -562,6 +842,16 @@ async def get_city_center(city: str):
         return {"lat": 30.0, "lng": 116.0, "name": city}
     except Exception:
         return {"lat": 30.0, "lng": 116.0, "name": city}
+
+
+@app.get("/api/weather")
+async def get_weather(city: str):
+    """查询城市天气预报（复用 AMAP_KEY），永不抛 500，无数据时返回空 forecasts。"""
+    try:
+        forecasts = await _query_amap_weather(city)
+        return {"status": "ok" if forecasts else "error", "city": city, "forecasts": forecasts}
+    except Exception as e:
+        return {"status": "error", "city": city, "forecasts": [], "message": str(e)}
 
 
 @app.get("/api/config")
@@ -585,7 +875,8 @@ async def health_check():
         "ai_configured": bool(AI_API_KEY),
         "ai_model": AI_MODEL,
         "transport_train_available": True,  # 12306 接口可用
-        "transport_flight_available": bool(os.getenv("JUHE_FLIGHT_API_KEY", "")) or True,  # 内置数据 fallback
+        "juhe_key_configured": bool(os.getenv("JUHE_FLIGHT_API_KEY", "")),
+        "transport_flight_available": True,  # 内置航线数据兜底，恒可用
     }
 
 
@@ -595,13 +886,14 @@ async def query_trains(
     from_city: str = Query(..., description="出发城市"),
     to_city: str = Query(..., description="到达城市"),
     date: str = Query(..., description="日期 YYYY-MM-DD"),
+    budget: str = Query("", description="预算档位，用于经济型慢车筛选"),
 ):
     """查询高铁/火车班次"""
     if not from_city or not to_city:
         raise HTTPException(status_code=400, detail="请提供出发城市和到达城市")
 
     try:
-        trains = await search_trains(from_city, to_city, date)
+        trains = await search_trains(from_city, to_city, date, prefer_train_type=_resolve_train_type_pref(budget))
         for t in trains:
             # 始终使用估算函数得到合理的票价
             t["price"] = _estimate_train_price(t.get("duration_minutes", 0), t.get("train_type", ""))
