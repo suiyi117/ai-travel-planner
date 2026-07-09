@@ -66,9 +66,11 @@ const state = {
       fitMapBtn: document.getElementById('fitMapBtn'),
       refreshTransportBtn: document.getElementById('refreshTransportBtn'),
       copyPlanBtn: document.getElementById('copyPlanBtn'),
+      exportLongImageBtn: document.getElementById('exportLongImageBtn'),
       exportIcsBtn: document.getElementById('exportIcsBtn'),
       savedTripsBtn: document.getElementById('savedTripsBtn'),
       savedTripsPanel: document.getElementById('savedTripsPanel'),
+      qualityPanel: document.getElementById('qualityPanel'),
       workspaceTabs: document.getElementById('workspaceTabs'),
       plannerPane: document.querySelector('.planner-pane'),
       plannerBody: document.querySelector('.planner-pane .pane-body'),
@@ -331,6 +333,23 @@ const state = {
 
     function normalizeSegKey(s) {
       return String(s).split(/→|->/).map(t => t.trim()).join(' → ');
+    }
+
+    function cityToken(city) {
+      return cleanMetaValue(city).replace(/市$/, '');
+    }
+
+    function textHasCity(text, city) {
+      const token = cityToken(city);
+      return Boolean(token && cleanMetaValue(text).includes(token));
+    }
+
+    function optionMatchesDirection(option, fromCity, toCity) {
+      const fromStation = option.from_station || option.from_airport || '';
+      const toStation = option.to_station || option.to_airport || '';
+      if (fromStation && !textHasCity(fromStation, fromCity)) return false;
+      if (toStation && !textHasCity(toStation, toCity)) return false;
+      return true;
     }
 
     function findSegment(fromCity, toCity) {
@@ -614,7 +633,8 @@ const state = {
         segments.push({
           segment: `${from} → ${to}`,
           tool,
-          source_label: tool === 'plane' ? '航班参考' : '12306 参考',
+          data_source: 'ai_fallback',
+          source_label: 'AI 预估，需确认',
           advice: `建议选择上午出发、午后抵达的${tool === 'plane' ? '航班' : '高铁'}，给下午入住和轻量游览留出缓冲。`,
           options: [
             { id: tool === 'plane' ? 'CA1201' : 'G651', time: '09:30 - 13:54', duration: '4小时24分钟', price: tool === 'plane' ? '¥720' : '¥515', desc: `${tool === 'plane' ? '航班' : '高铁'} · ${from} → ${to}` },
@@ -745,6 +765,87 @@ const state = {
       return { total, missingCount };
     }
 
+    function checkStatusFromItems(items) {
+      const hasError = items.some(item => item.level === 'error');
+      const hasWarn = items.some(item => item.level === 'warn');
+      return {
+        status: hasError ? 'error' : (hasWarn ? 'review' : 'pass'),
+        summary: hasError ? '存在问题' : (hasWarn ? '需人工确认' : '可交付')
+      };
+    }
+
+    function normalizeQualityChecks(checks) {
+      const rawItems = Array.isArray(checks?.items) ? checks.items : [];
+      return rawItems
+        .map(item => ({
+          level: ['ok', 'warn', 'error'].includes(item.level) ? item.level : 'warn',
+          message: cleanMetaValue(item.message)
+        }))
+        .filter(item => item.message);
+    }
+
+    function buildLocalQualityChecks(plan) {
+      const items = [];
+      const routeCities = new Set(state.cities.map(city => city.name));
+      const guide = plan?.transport_guide || [];
+
+      (plan?.days || []).forEach(day => {
+        if (!routeCities.has(day.city)) {
+          items.push({ level: 'error', message: `Day ${day.day}：城市不在当前路线中。` });
+        }
+        (day.items || []).forEach(item => {
+          if (item.type !== 'transport' && item.city && item.city !== day.city) {
+            items.push({ level: 'warn', message: `Day ${day.day}：${item.title} 的城市与当天不一致。` });
+          }
+          if (item.type === 'transport' && !findSegment(item.fromCity, item.city)) {
+            items.push({ level: 'warn', message: `Day ${day.day}：${item.fromCity} → ${item.city} 未匹配到交通段。` });
+          }
+        });
+      });
+
+      guide.forEach(segment => {
+        const options = segment.options || [];
+        if (segment.tool !== 'driving' && !options.length) {
+          items.push({ level: 'warn', message: `${segment.segment}：暂无可用班次，需要人工确认。` });
+        }
+        if (segment.data_source === 'ai_fallback') {
+          items.push({ level: 'warn', message: `${segment.segment}：交通为 AI 预估，需人工核对。` });
+        }
+        if (segment.data_source === 'reference') {
+          items.push({ level: 'warn', message: `${segment.segment}：典型参考数据不代表实时余票或票价。` });
+        }
+      });
+
+      const { missingCount } = computeSelectedTransportTotal();
+      if (missingCount) {
+        items.push({ level: 'warn', message: `${missingCount} 段已选交通缺少明确价格。` });
+      }
+
+      return items;
+    }
+
+    function mergeQualityChecks(serverChecks, localItems) {
+      const items = [...normalizeQualityChecks(serverChecks), ...localItems];
+      const seen = new Set();
+      const uniqueItems = items.filter(item => {
+        const key = `${item.level}:${item.message}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      if (!uniqueItems.length) uniqueItems.push({ level: 'ok', message: '行程结构、交通方向和交付信息检查通过。' });
+      const status = checkStatusFromItems(uniqueItems);
+      return { ...status, items: uniqueItems };
+    }
+
+    function refreshQualityChecks() {
+      if (!state.itinerary) return;
+      state.itinerary.quality_checks = mergeQualityChecks(
+        state.itinerary._serverQualityChecks,
+        buildLocalQualityChecks(state.itinerary)
+      );
+    }
+
     async function generatePlan() {
       if (!state.cities.length) {
         setStatus('请至少添加一个目的地城市。', 'error');
@@ -757,7 +858,7 @@ const state = {
       state.globalTransport = getActive(el.transportGroup);
       state.budget = getActive(el.budgetGroup);
       state.interests = el.interestsInput.value.trim();
-      setStatus('正在获取城市 POI 和中心坐标...');
+      setStatus('正在查询城市中心与景点数据...');
 
       let cityData = [];
       try {
@@ -769,7 +870,7 @@ const state = {
       }
 
       try {
-        setStatus('正在连接后端生成 AI 行程...');
+        setStatus('正在生成 AI 行程...');
         const plan = await fetchJson('/api/plan', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -785,7 +886,8 @@ const state = {
             start_date: el.departureDate.value
           })
         });
-        applyPlan(plan, '已生成 AI 行程，并同步交通、预算与地图。');
+        setStatus('正在校验交通方向并整理交付稿...');
+        applyPlan(plan, '已生成 AI 行程，交付检查和长图文案已就绪。');
         saveTripSnapshot(plan);
       } catch (error) {
         const plan = buildFallbackItinerary(cityData);
@@ -804,8 +906,14 @@ const state = {
       rainTips.reverse().forEach(tip => {
         if (!tips.includes(tip)) tips.unshift(tip);
       });
-      state.itinerary = { ...plan, tips, days: mappedDays };
+      state.itinerary = {
+        ...plan,
+        tips,
+        days: mappedDays,
+        _serverQualityChecks: plan.quality_checks || null
+      };
       state.selectedOptions = { ...selectedOptionsSnapshot };
+      refreshQualityChecks();
       state.currentDay = 1;
       state.currentFilter = 'all';
       state.activeItemId = mappedDays[0]?.items[0]?.id || null;
@@ -858,6 +966,7 @@ const state = {
     function renderPlan() {
       const plan = state.itinerary;
       if (!plan) return;
+      refreshQualityChecks();
       const days = plan.days || [];
       const current = days.find(day => day.day === state.currentDay) || days[0];
       if (!current) return;
@@ -912,11 +1021,34 @@ const state = {
       }).join('') : '<div class="empty-state">当前筛选下没有日程节点。</div>';
 
       renderTransport(plan.transport_guide || []);
+      renderQualityChecks(plan.quality_checks);
       renderBudget(plan.budget || {});
       el.budgetLevelBadge.textContent = state.budget;
       renderTips(plan.tips || []);
       renderPlaceDetail();
       el.mapTitle.textContent = `Day ${current.day} · ${cleanMetaValue(current.city)}`;
+    }
+
+    function renderQualityChecks(checks) {
+      if (!el.qualityPanel) return;
+      const normalized = checks || { status: 'pass', summary: '可交付', items: [] };
+      const items = normalized.items || [];
+      const visibleItems = items.slice(0, 6);
+      el.qualityPanel.dataset.status = normalized.status || 'pass';
+      el.qualityPanel.innerHTML = `
+        <div class="quality-head">
+          <div>
+            <h3 class="section-label">交付检查</h3>
+            <p>生成后请按这些项目做最后复核。</p>
+          </div>
+          <span class="quality-status">${escapeHtml(normalized.summary || '可交付')}</span>
+        </div>
+        <ul class="quality-list">
+          ${visibleItems.map(item => `
+            <li data-level="${escapeHtml(item.level)}">${escapeHtml(item.message)}</li>
+          `).join('')}
+        </ul>
+      `;
     }
 
     function renderTransport(guide) {
@@ -1067,14 +1199,27 @@ const state = {
       const data = await fetchJson(`${endpoint}?from_city=${encodeURIComponent(from)}&to_city=${encodeURIComponent(to)}&date=${encodeURIComponent(date)}${budgetParam}`);
       const list = segment.tool === 'plane' ? data.flights : data.trains;
       if (list?.length) {
-        segment.options = list.slice(0, 6).map(item => ({
+        const options = list.slice(0, 6).map(item => ({
           id: item.flight_no || item.id || item.train_no,
           time: item.time || `${item.depart_time || item.departure_time || ''} - ${item.arrive_time || item.arrival_time || ''}`,
           duration: item.duration || item.duration_text || '',
           price: item.price || item.price_text || '¥待定',
-          desc: item.airline || item.train_type || item.desc || ''
-        }));
-        segment.source_label = segment.tool === 'plane' ? '实时航班' : '12306 实时';
+          desc: item.desc || item.airline || item.train_type || '',
+          from_station: item.from_airport || item.from_station || '',
+          to_station: item.to_airport || item.to_station || '',
+          source: item.source || data.source || ''
+        })).filter(option => optionMatchesDirection(option, from, to));
+        if (!options.length) throw new Error('未找到同方向班次');
+        segment.options = options;
+        if (segment.tool === 'plane') {
+          segment.data_source = data.source === 'builtin' ? 'reference' : 'real';
+          segment.source_label = data.source === 'builtin' ? '典型参考数据' : '实时航班数据';
+        } else {
+          segment.data_source = 'real';
+          segment.source_label = '12306 实时数据';
+        }
+      } else {
+        throw new Error('暂无可用班次');
       }
       delete segment.refreshError;
     }
@@ -1148,21 +1293,222 @@ const state = {
       });
     }
 
+    function formatDeliveryDate(day) {
+      const date = addDays(el.departureDate.value, day.day - 1);
+      return date ? `${date} · ` : '';
+    }
+
+    function budgetRows(budget = {}) {
+      return [
+        ['交通', budget.transport || '暂无估算'],
+        ['住宿', budget.hotel || '暂无估算'],
+        ['餐饮', budget.food || '暂无估算'],
+        ['门票', budget.tickets || '暂无估算'],
+        ['合计', budget.total || '暂无估算']
+      ];
+    }
+
+    function transportOptionText(segment) {
+      const option = selectedOption(segment);
+      if (!option) return '暂无可用班次，需人工确认';
+      const code = option.id ? `${option.id} ` : '';
+      const price = option.price ? ` · ${option.price}` : '';
+      const station = option.from_station || option.to_station
+        ? ` · ${option.from_station || segment.from_city || ''} → ${option.to_station || segment.to_city || ''}`
+        : '';
+      return `${code}${option.time || '时间待定'} · ${option.duration || '时长待定'}${price}${station}`;
+    }
+
+    function buildDeliveryText(plan) {
+      const lines = [];
+      const route = state.cities.map(city => city.name).join(' → ');
+      const checks = plan.quality_checks || {};
+
+      lines.push(plan.title || '旅行规划方案');
+      if (plan.summary) lines.push(plan.summary);
+      lines.push('');
+      lines.push(`【行程概览】${route} · ${state.totalDays}天 · ${state.budget}`);
+      lines.push(`【交付检查】${checks.summary || '可交付'}`);
+      lines.push('');
+
+      (plan.days || []).forEach(day => {
+        const cast = weatherForDay(day);
+        const weather = cast ? ` · ${cast.dayweather} ${cast.nighttemp}~${cast.daytemp}℃` : '';
+        lines.push(`【Day ${day.day}｜${formatDeliveryDate(day)}${day.city}${weather}】`);
+        if (day.route) lines.push(day.route);
+        (day.items || []).forEach(item => {
+          const display = item.type === 'transport' ? transportDisplay(item) : { time: item.time, extra: '' };
+          const meta = [display.time, normalizeType(item.type), item.duration].filter(Boolean).join(' · ');
+          lines.push(`- ${meta}｜${item.title}`);
+          if (item.desc) lines.push(`  ${item.desc}`);
+          if (item.address) lines.push(`  地址：${item.address}`);
+        });
+        lines.push('');
+      });
+
+      const guide = plan.transport_guide || [];
+      if (guide.length) {
+        lines.push('【城际交通】');
+        guide.forEach(segment => {
+          lines.push(`- ${segment.segment}｜${segment.source_label || '需确认'}`);
+          lines.push(`  ${transportOptionText(segment)}`);
+          if (segment.advice) lines.push(`  建议：${segment.advice}`);
+        });
+        lines.push('');
+      }
+
+      lines.push('【费用估算】');
+      budgetRows(plan.budget).forEach(([label, value]) => lines.push(`- ${label}：${value}`));
+      const selectedTotal = computeSelectedTransportTotal();
+      if (selectedTotal.total > 0) lines.push(`- 已选交通参考合计：约 ¥${Math.round(selectedTotal.total)}`);
+      lines.push('');
+
+      lines.push('【出行贴士】');
+      (plan.tips || []).slice(0, 8).forEach(tip => lines.push(`- ${tip}`));
+      lines.push('');
+
+      lines.push('【数据来源与说明】');
+      lines.push('- 景点地址/评分等信息来自高德 POI 或本地兜底数据。');
+      lines.push('- 火车班次优先来自 12306；航班如无实时接口则显示典型参考数据。');
+      lines.push('- 本商品为旅行规划服务，不含机票、酒店、门票代订；开放时间、票价、班次以官方实时信息为准。');
+
+      return lines.join('\n');
+    }
+
+    function deliveryItemHtml(item) {
+      const display = item.type === 'transport' ? transportDisplay(item) : { time: item.time, extra: '' };
+      const desc = item.desc ? `<p>${escapeHtml(item.desc)}</p>` : '';
+      const address = item.address ? `<p class="delivery-meta">地址：${escapeHtml(item.address)}</p>` : '';
+      return `
+        <div class="delivery-item">
+          <div class="delivery-time">${escapeHtml(display.time)}</div>
+          <div>
+            <h4>${escapeHtml(item.title)}</h4>
+            <div class="delivery-meta">${normalizeType(item.type)} · ${escapeHtml(item.duration)}</div>
+            ${desc}
+            ${address}
+          </div>
+        </div>
+      `;
+    }
+
+    function buildDeliverySheetHtml(plan) {
+      const route = state.cities.map(city => city.name).join(' → ');
+      const checks = plan.quality_checks || {};
+      const daysHtml = (plan.days || []).map(day => {
+        const cast = weatherForDay(day);
+        const weather = cast ? `${escapeHtml(cast.dayweather)} ${escapeHtml(cast.nighttemp)}~${escapeHtml(cast.daytemp)}℃` : '';
+        return `
+          <section class="delivery-section">
+            <div class="delivery-day-head">
+              <span>Day ${day.day}</span>
+              <strong>${escapeHtml(day.city)}</strong>
+              ${weather ? `<em>${weather}</em>` : ''}
+            </div>
+            ${day.route ? `<p class="delivery-route">${escapeHtml(day.route)}</p>` : ''}
+            ${(day.items || []).map(deliveryItemHtml).join('')}
+          </section>
+        `;
+      }).join('');
+
+      const transportHtml = (plan.transport_guide || []).map(segment => `
+        <div class="delivery-mini-row">
+          <strong>${escapeHtml(segment.segment)}</strong>
+          <span>${escapeHtml(segment.source_label || '需确认')}</span>
+          <p>${escapeHtml(transportOptionText(segment))}</p>
+        </div>
+      `).join('');
+
+      return `
+        <div class="delivery-sheet">
+          <header class="delivery-cover">
+            <div class="delivery-brand">AeroTravel</div>
+            <h2>${escapeHtml(plan.title || '旅行规划方案')}</h2>
+            <p>${escapeHtml(plan.summary || '')}</p>
+            <div class="delivery-tags">
+              <span>${escapeHtml(route)}</span>
+              <span>${state.totalDays} 天</span>
+              <span>${escapeHtml(state.budget)}</span>
+            </div>
+            <div class="delivery-check" data-status="${escapeHtml(checks.status || 'pass')}">${escapeHtml(checks.summary || '可交付')}</div>
+          </header>
+          ${daysHtml}
+          ${transportHtml ? `<section class="delivery-section"><h3>城际交通</h3>${transportHtml}</section>` : ''}
+          <section class="delivery-section">
+            <h3>费用估算</h3>
+            ${budgetRows(plan.budget).map(([label, value]) => `
+              <div class="delivery-budget"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>
+            `).join('')}
+          </section>
+          <section class="delivery-section">
+            <h3>出行贴士</h3>
+            <ul>${(plan.tips || []).slice(0, 8).map(tip => `<li>${escapeHtml(tip)}</li>`).join('')}</ul>
+          </section>
+          <footer class="delivery-disclaimer">
+            本方案为旅行规划服务，不含机票、酒店、门票代订；开放时间、票价、班次以官方实时信息为准。
+          </footer>
+        </div>
+      `;
+    }
+
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+
     function copyPlan() {
       const plan = state.itinerary;
       if (!plan) {
         showToast('暂无行程可供复制，请先生成规划。', 'error');
         return;
       }
-      const text = [
-        plan.title,
-        plan.summary,
-        ...(plan.days || []).map(day => `${day.title || `Day ${day.day}`}：${(day.items || []).map(item => item.title).join(' / ')}`)
-      ].join('\n');
+      refreshQualityChecks();
+      const text = buildDeliveryText(plan);
       
       copyTextToClipboard(text)
-        .then(() => showToast('行程摘要已复制！', 'success'))
+        .then(() => showToast('交付文案已复制，可直接发给客户。', 'success'))
         .catch(() => showToast('复制失败，您的浏览器不支持直接复制，请手动选择文本。', 'error'));
+    }
+
+    async function exportLongImage() {
+      const plan = state.itinerary;
+      if (!plan) {
+        showToast('暂无行程可供导出，请先生成规划。', 'error');
+        return;
+      }
+      if (!window.html2canvas) {
+        showToast('长图组件加载失败，请先使用复制交付文案。', 'error');
+        return;
+      }
+
+      refreshQualityChecks();
+      const wrapper = document.createElement('div');
+      wrapper.className = 'delivery-export-host';
+      wrapper.innerHTML = buildDeliverySheetHtml(plan);
+      document.body.appendChild(wrapper);
+      try {
+        const sheet = wrapper.querySelector('.delivery-sheet');
+        const canvas = await window.html2canvas(sheet, {
+          backgroundColor: '#faf9f5',
+          scale: 2,
+          useCORS: true,
+          logging: false
+        });
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png', 0.95));
+        if (!blob) throw new Error('图片生成失败');
+        downloadBlob(blob, `${cleanMetaValue(plan.title) || '旅行规划'}.png`);
+        showToast('长图已导出，可用于小红书客服交付。', 'success');
+      } catch (error) {
+        showToast(`长图导出失败：${error.message || '请改用复制文案'}`, 'error');
+      } finally {
+        wrapper.remove();
+      }
     }
 
     function icsEscape(text) {
@@ -1373,6 +1719,7 @@ const state = {
       el.generateBtn.addEventListener('click', generatePlan);
       el.generateBtnTop.addEventListener('click', generatePlan);
       el.copyPlanBtn.addEventListener('click', copyPlan);
+      el.exportLongImageBtn.addEventListener('click', exportLongImage);
       el.exportIcsBtn.addEventListener('click', exportItineraryToIcs);
 
       if (el.savedTripsBtn && el.savedTripsPanel) {

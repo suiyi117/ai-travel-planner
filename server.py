@@ -403,6 +403,8 @@ async def generate_itinerary(request: PlanRequest) -> dict:
         except Exception as e:
             print(f"[TransportEnrich] 增强交通数据失败: {e}，保留 AI 生成数据")
 
+    itinerary["quality_checks"] = _build_quality_checks(itinerary)
+
     return itinerary
 
 
@@ -543,12 +545,14 @@ async def _enrich_one_segment(segment: dict, travel_date: str, budget: str = "")
         print(f"[TransportEnrich] 查询真实车次: {from_city} → {to_city} (tool={tool})")
 
         real_options = []
+        options_source = "ai_fallback"
 
         if tool == "train":
             # 查询火车
             try:
                 trains = await search_trains(from_city, to_city, travel_date, prefer_train_type=_resolve_train_type_pref(budget))
                 if trains:
+                    options_source = "real"
                     # 转换为 transport_guide options 格式
                     for t in trains[:8]:
                         # 始终使用估算函数得到合理的票价
@@ -578,6 +582,7 @@ async def _enrich_one_segment(segment: dict, travel_date: str, budget: str = "")
                             "to_station": t.get("to_station", ""),
                             "train_type": t.get("train_type", ""),
                             "seats": seats,
+                            "source": "12306",
                         }
                         real_options.append(option)
                 else:
@@ -592,6 +597,8 @@ async def _enrich_one_segment(segment: dict, travel_date: str, budget: str = "")
             try:
                 flights = await search_flights(from_city, to_city, travel_date)
                 if flights:
+                    flight_sources = {str(f.get("source", "")) for f in flights}
+                    options_source = "reference" if "典型航线数据" in flight_sources else "real"
                     for f in flights[:8]:
                         price = f.get("price", "")
                         if price and not str(price).startswith("¥"):
@@ -611,6 +618,7 @@ async def _enrich_one_segment(segment: dict, travel_date: str, budget: str = "")
                             "to_station": f.get("to_airport", ""),
                             "airline": f.get("airline", ""),
                             "aircraft": f.get("aircraft", ""),
+                            "source": f.get("source", ""),
                         }
                         real_options.append(option)
                 else:
@@ -622,14 +630,26 @@ async def _enrich_one_segment(segment: dict, travel_date: str, budget: str = "")
             real_options = segment.get("options", [])
 
         seg = segment.copy()
-        if real_options and (tool in ("train", "plane")):
+        real_options, removed_count = _filter_direction_options(real_options, from_city, to_city, tool)
+        if removed_count:
+            seg["direction_warning"] = f"已过滤 {removed_count} 个方向不一致的交通选项"
+
+        if real_options and tool == "train" and options_source == "real":
             seg["options"] = real_options
             seg["data_source"] = "real"
-            seg["source_label"] = "12306 实时数据" if tool == "train" else "实时航班数据"
+            seg["source_label"] = "12306 实时数据"
+        elif real_options and tool == "plane" and options_source in ("real", "reference"):
+            seg["options"] = real_options
+            if options_source == "reference":
+                seg["data_source"] = "reference"
+                seg["source_label"] = "典型参考数据"
+            else:
+                seg["data_source"] = "real"
+                seg["source_label"] = "实时航班数据"
         else:
             seg["options"] = real_options
             seg["data_source"] = "ai_fallback"
-            seg["source_label"] = "AI 预估"
+            seg["source_label"] = "AI 预估，需确认"
 
         return seg
     except Exception as e:
@@ -637,7 +657,7 @@ async def _enrich_one_segment(segment: dict, travel_date: str, budget: str = "")
         seg = segment.copy()
         seg["options"] = segment.get("options", [])
         seg["data_source"] = "ai_fallback"
-        seg.setdefault("source_label", "AI 预估")
+        seg.setdefault("source_label", "AI 预估，需确认")
         return seg
 
 
@@ -650,6 +670,112 @@ async def enrich_transport_guide(
     """用真实交通 API 数据增强/替换 transport_guide 中的 options（各分段并发查询，耗时≈最慢单段）"""
     enhanced = list(await asyncio.gather(*(_enrich_one_segment(seg, travel_date, budget) for seg in transport_guide)))
     return enhanced
+
+
+def _city_token(city: str) -> str:
+    return str(city or "").strip().rstrip("市")
+
+
+def _text_has_city(text: str, city: str) -> bool:
+    token = _city_token(city)
+    return bool(token and token in str(text or ""))
+
+
+def _arrow_sides(text: str) -> tuple[str, str] | None:
+    value = str(text or "")
+    for sep in ("→", "->", "到", "至"):
+        if sep in value:
+            left, right = value.split(sep, 1)
+            return left, right
+    return None
+
+
+def _option_matches_direction(option: dict, from_city: str, to_city: str, tool: str) -> bool:
+    """过滤明显反向的交通选项；缺少方向字段时保守放行并交给质检提示。"""
+    from_station = option.get("from_station") or option.get("from_airport") or ""
+    to_station = option.get("to_station") or option.get("to_airport") or ""
+    desc = option.get("desc", "")
+
+    if from_station or to_station:
+        if from_station and not _text_has_city(from_station, from_city):
+            return False
+        if to_station and not _text_has_city(to_station, to_city):
+            return False
+        return True
+
+    sides = _arrow_sides(desc)
+    if sides:
+        left, right = sides
+        if _text_has_city(left, to_city) and _text_has_city(right, from_city):
+            return False
+        if _text_has_city(left, from_city) and _text_has_city(right, to_city):
+            return True
+
+    return True
+
+
+def _filter_direction_options(options: list[dict], from_city: str, to_city: str, tool: str) -> tuple[list[dict], int]:
+    valid = [option for option in options if _option_matches_direction(option, from_city, to_city, tool)]
+    return valid, len(options) - len(valid)
+
+
+def _mentioned_transport_ids(text: str) -> set[str]:
+    ids = set()
+    for item in re.findall(r"\b(?:[A-Z]{1,3})?\d{2,5}\b", str(text or "").upper()):
+        # 跳过纯时间、日期、价格等常见数字噪音。
+        if item.isdigit():
+            continue
+        ids.add(item)
+    return ids
+
+
+def _build_quality_checks(itinerary: dict) -> dict:
+    items: list[dict] = []
+    guide = itinerary.get("transport_guide") or []
+
+    for segment in guide:
+        from_city = segment.get("from_city") or ""
+        to_city = segment.get("to_city") or ""
+        label = segment.get("segment") or f"{from_city} → {to_city}"
+        tool = segment.get("tool", "")
+        options = segment.get("options") or []
+        source_label = segment.get("source_label") or ""
+
+        if segment.get("direction_warning"):
+            items.append({"level": "error", "message": f"{label}：{segment['direction_warning']}。"})
+
+        if not options and tool != "driving":
+            items.append({"level": "warn", "message": f"{label}：暂无可用班次，需要人工确认交通。"})
+
+        if "AI 预估" in source_label or segment.get("data_source") == "ai_fallback":
+            items.append({"level": "warn", "message": f"{label}：交通为 AI 预估，交付前需核对。"})
+        elif segment.get("data_source") == "reference":
+            items.append({"level": "warn", "message": f"{label}：使用典型参考数据，不代表实时余票或票价。"})
+
+        for option in options:
+            if not _option_matches_direction(option, from_city, to_city, tool):
+                option_id = option.get("id") or "交通选项"
+                items.append({"level": "error", "message": f"{label}：{option_id} 方向与路线不一致。"})
+
+        advice_ids = _mentioned_transport_ids(segment.get("advice", ""))
+        if advice_ids and options:
+            option_ids = {str(option.get("id", "")).upper() for option in options}
+            if not advice_ids.intersection(option_ids):
+                items.append({"level": "warn", "message": f"{label}：交通建议提到的班次未出现在候选列表中。"})
+
+    if not items:
+        return {
+            "status": "pass",
+            "summary": "可交付",
+            "items": [{"level": "ok", "message": "交通方向和数据来源检查通过。"}],
+        }
+
+    has_error = any(item["level"] == "error" for item in items)
+    return {
+        "status": "error" if has_error else "review",
+        "summary": "存在问题" if has_error else "需人工确认",
+        "items": items,
+    }
 
 
 def _resolve_train_type_pref(budget: str) -> str:
@@ -946,7 +1072,7 @@ async def query_flights(
             "status": "ok",
             "flights": flights,
             "total": len(flights),
-            "source": "api" if flights and flights[0].get("source") != "典型航线数据" else "builtin",
+            "source": "api" if flights and flights[0].get("source") != "典型航线数据" else ("builtin" if flights else "none"),
             "from_city": from_city,
             "to_city": to_city,
             "date": date,

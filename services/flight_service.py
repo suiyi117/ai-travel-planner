@@ -434,38 +434,31 @@ def _search_builtin_flights(from_city: str, to_city: str) -> list[dict]:
     from_clean = from_city.rstrip("市")
     to_clean = to_city.rstrip("市")
 
-    # 尝试各种键组合
-    keys_to_try = [
-        f"{from_clean}-{to_clean}",
-        f"{to_clean}-{from_clean}",
-    ]
+    key = f"{from_clean}-{to_clean}"
+    if key in BUILTIN_FLIGHTS:
+        raw_flights = BUILTIN_FLIGHTS[key]
+        flights = []
+        for f in raw_flights:
+            from_airport = _find_airport(from_clean)
+            to_airport = _find_airport(to_clean)
 
-    for key in keys_to_try:
-        if key in BUILTIN_FLIGHTS:
-            raw_flights = BUILTIN_FLIGHTS[key]
-            # 标准化
-            flights = []
-            for f in raw_flights:
-                from_airport = _find_airport(from_clean)
-                to_airport = _find_airport(to_clean)
-
-                flights.append({
-                    "id": f.get("id", ""),
-                    "airline": f.get("airline", ""),
-                    "from_airport": f.get("depart_airport", from_airport["name"] if from_airport else from_clean),
-                    "to_airport": f.get("arrive_airport", to_airport["name"] if to_airport else to_clean),
-                    "from_code": from_airport["code"] if from_airport else "",
-                    "to_code": to_airport["code"] if to_airport else "",
-                    "departure": f.get("departure", ""),
-                    "arrival": f.get("arrival", ""),
-                    "time": f"{f.get('departure', '')} - {f.get('arrival', '')}",
-                    "duration": f.get("duration", ""),
-                    "aircraft": f.get("aircraft", ""),
-                    "price": f.get("price", ""),
-                    "desc": f"{f.get('airline', '')} · {f.get('depart_airport', '')} → {f.get('arrive_airport', '')}",
-                    "source": "典型航线数据",
-                })
-            return flights
+            flights.append({
+                "id": f.get("id", ""),
+                "airline": f.get("airline", ""),
+                "from_airport": f.get("depart_airport", from_airport["name"] if from_airport else from_clean),
+                "to_airport": f.get("arrive_airport", to_airport["name"] if to_airport else to_clean),
+                "from_code": from_airport["code"] if from_airport else "",
+                "to_code": to_airport["code"] if to_airport else "",
+                "departure": f.get("departure", ""),
+                "arrival": f.get("arrival", ""),
+                "time": f"{f.get('departure', '')} - {f.get('arrival', '')}",
+                "duration": f.get("duration", ""),
+                "aircraft": f.get("aircraft", ""),
+                "price": f.get("price", ""),
+                "desc": f"{f.get('airline', '')} · {f.get('depart_airport', '')} → {f.get('arrive_airport', '')}",
+                "source": "典型航线数据",
+            })
+        return flights
 
     return []
 
