@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from collections.abc import Callable
 
 from clients.ai import AiClientError, request_chat_completion
 from clients.amap import query_weather as amap_query_weather
@@ -22,17 +23,26 @@ async def generate_itinerary(request: PlanRequest, *, settings, logger: logging.
     if not settings.ai_api_key:
         raise ItineraryGenerationError("未配置 AI API Key (AI_API_KEY)")
 
+    def log_weather_error(exc: Exception, city_name: str) -> None:
+        _log_warning(
+            logger,
+            "weather_query_failed",
+            city=city_name,
+            error_type=exc.__class__.__name__,
+        )
+
+    def make_weather_error_handler(city_name: str) -> Callable[[Exception], None]:
+        def handle_weather_error(exc: Exception) -> None:
+            log_weather_error(exc, city_name)
+
+        return handle_weather_error
+
     weather_results = await asyncio.gather(
         *(
             amap_query_weather(
                 settings.amap_key,
                 city.name,
-                on_error=lambda exc, name=city.name: _log_warning(
-                    logger,
-                    "weather_query_failed",
-                    city=name,
-                    error_type=exc.__class__.__name__,
-                ),
+                on_error=make_weather_error_handler(city.name),
             )
             for city in request.destinations
         )

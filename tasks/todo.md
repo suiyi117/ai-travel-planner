@@ -65,3 +65,25 @@
 - [x] Decide persistence/auth scope.
   - Acceptance: explicit decision recorded: stay local-only, add shareable snapshots, or add authenticated cloud persistence.
   - Verify: ADR or task update.
+
+## Phase 4: Team Engineering Governance
+
+- [x] Add strict local and CI quality gates.
+  - Acceptance: local and CI share `scripts/check.ps1`; checks include Ruff, Mypy, coverage, unit tests, and all static JS files.
+  - Verify: `.\scripts\check.ps1`
+
+- [x] Add security and dependency governance.
+  - Acceptance: tracked-file secret scanning, dependency audit, Dependabot, and security workflow exist.
+  - Verify: `.\scripts\security.ps1`
+
+- [x] Document small-team collaboration workflow.
+  - Acceptance: PR/Issue templates, contributing guide, change management, and release process are present.
+  - Verify: documentation review.
+
+- [x] Improve directory boundaries.
+  - Acceptance: 12306 parsing/cache helpers and no-build frontend modules are split without API/runtime contract changes.
+  - Verify: `.\scripts\check.ps1` and browser smoke check.
+
+- [x] Mirror tests by source area.
+  - Acceptance: tests are grouped under `tests/clients`, `tests/core`, `tests/planner`, `tests/routers`, and `tests/services`.
+  - Verify: `python -m unittest discover -s tests -v`

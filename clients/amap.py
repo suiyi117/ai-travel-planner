@@ -13,10 +13,10 @@ WEATHER_CACHE_TTL = 30 * 60
 _weather_cache: dict = {}
 
 
-def pick_primary_district(districts: list) -> dict:
+def pick_primary_district(districts: list[dict]) -> dict:
     """Pick the most likely city/province district from ambiguous Amap keyword matches."""
     priority = {"city": 0, "province": 1, "district": 2, "street": 3}
-    return min(districts, key=lambda d: priority.get(d.get("level"), 9))
+    return min(districts, key=lambda d: priority.get(str(d.get("level", "")), 9))
 
 
 def parse_amap_pois(data: dict) -> list[dict]:

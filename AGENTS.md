@@ -21,6 +21,9 @@ Run commands from the repository root.
 # Install Python dependencies
 pip install -r requirements.txt
 
+# Install development quality/security tooling
+pip install -r requirements-dev.txt
+
 # Create local env file
 Copy-Item .env.example .env
 
@@ -33,13 +36,20 @@ python -m uvicorn server:app --reload --host 0.0.0.0 --port 8000
 
 # Full local quality gate
 .\scripts\check.ps1
+
+# Security gate
+.\scripts\security.ps1
 ```
 
 `.\scripts\check.ps1` runs:
 
-- `python -m compileall server.py services`
+- `python -m compileall server.py clients core planner routers schemas services`
+- `ruff check .` when dev dependencies are installed
+- `mypy server.py clients core planner routers schemas services` when dev dependencies are installed
 - `python -m unittest discover -s tests -v`
 - `node --check` for every `static/*.js` file when Node.js is installed
+
+`.\scripts\security.ps1` runs tracked-file secret scanning and Python dependency audit.
 
 Manual smoke checks after the server is running:
 
@@ -57,7 +67,7 @@ The server mounts `static/` at `/static` and redirects `/` to `/static/index.htm
 ### Data Flow
 
 ```text
-Browser (static/index.html + static/app-utils.js + static/app.js)
+Browser (static/index.html + no-build static/*.js modules)
   │
   ├─ GET /api/search_pois ──→ routers/location.py → clients/amap.py
   ├─ GET /api/city_center ──→ routers/location.py → clients/amap.py
@@ -91,13 +101,17 @@ Browser (static/index.html + static/app-utils.js + static/app.js)
 | `prompts/itinerary.md` | Reviewable itinerary prompt template |
 | `routers/` | FastAPI route modules |
 | `schemas/travel.py` | Pydantic request models |
-| `services/train_service.py` | 12306 station cache and train lookup |
+| `services/train_service.py` | Stable 12306 train lookup public entrypoints |
+| `services/train_parser.py` | 12306 result row parsing |
+| `services/train_station_cache.py` | Station cache loading, writing, normalization, reverse lookup |
 | `services/flight_service.py` | Juhe flight API plus built-in route fallback |
 | `static/app-utils.js` | No-build frontend utility module exposed as `window.AeroTravelUtils` |
-| `static/app.js` | Frontend state, rendering, map, API calls, storage, exports |
+| `static/state.js`, `static/api.js`, `static/map.js`, `static/storage.js`, `static/export-ics.js`, `static/render.js` | No-build frontend boundary modules |
+| `static/app.js` | Frontend startup, event binding, state orchestration, rendering coordination |
 | `docs/` | Deployment, smoke checks, ADRs |
+| `docs/engineering/` | Team collaboration, change management, release process |
 | `tasks/` | Productization spec and backlog |
-| `tests/` | Offline regression tests |
+| `tests/` | Offline regression tests mirrored by source area |
 
 ## Important Product Decisions
 
@@ -123,7 +137,8 @@ Browser (static/index.html + static/app-utils.js + static/app.js)
 
 - There is no bundler. Use plain browser scripts loaded from `static/index.html`.
 - Shared pure frontend utilities should go in `static/app-utils.js` and be exposed through `window.AeroTravelUtils`.
-- Keep `static/app.js` as the main UI/state file unless doing a deliberate incremental split.
+- Boundary-specific no-build modules should use `window.AeroTravel*` namespaces and be loaded from `static/index.html` before `static/app.js`.
+- Keep `static/app.js` as the startup/event/state orchestration file; avoid moving business behavior back into it when a focused no-build module exists.
 - Preserve the single mutable `state` object and `applyPlan()` as the main hydration path.
 - Preserve boot-time fallback itinerary behavior: the app should be useful before backend generation succeeds.
 - Preserve `fetchJson()` behavior that routes `/api` calls to `http://localhost:8000` when opened via `file://` or a non-8000 port.

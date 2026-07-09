@@ -1,37 +1,12 @@
-const STORAGE_KEY = 'aerotravel:trips';
-const MAX_SAVED_TRIPS = 8;
+const {
+      STORAGE_KEY,
+      MAX_SAVED_TRIPS,
+      fallbackCenters,
+      createInitialState
+    } = window.AeroTravelState;
 
-const state = {
-      cities: [
-        { name: '北京', transport: 'auto', days: 2 },
-        { name: '西安', transport: 'train', days: 1 }
-      ],
-      totalDays: 3,
-      pace: '适中均衡',
-      globalTransport: 'auto',
-      budget: '舒适型',
-      interests: '',
-      currentDay: 1,
-      currentFilter: 'all',
-      activeItemId: null,
-      itinerary: null,
-      cityCenters: {},
-      cityWeather: {},
-      selectedOptions: {}
-    };
-
-    const fallbackCenters = {
-      北京: { lat: 39.9042, lng: 116.4074 },
-      西安: { lat: 34.3416, lng: 108.9398 },
-      上海: { lat: 31.2304, lng: 121.4737 },
-      成都: { lat: 30.5728, lng: 104.0668 },
-      杭州: { lat: 30.2741, lng: 120.1551 },
-      广州: { lat: 23.1291, lng: 113.2644 },
-      深圳: { lat: 22.5431, lng: 114.0579 },
-      重庆: { lat: 29.563, lng: 106.5516 },
-      长沙: { lat: 28.2282, lng: 112.9388 },
-      南京: { lat: 32.0603, lng: 118.7969 }
-    };
+    const state = createInitialState();
+    const tripStorage = window.AeroTravelStorage.createTripStorage(STORAGE_KEY, MAX_SAVED_TRIPS);
 
     const el = {
       routeMeta: document.getElementById('routeMeta'),
@@ -147,48 +122,29 @@ const state = {
     }
 
     function loadSavedTrips() {
-      try {
-        const raw = window.localStorage.getItem(STORAGE_KEY);
-        if (!raw) return [];
-        const parsed = JSON.parse(raw);
-        return Array.isArray(parsed) ? parsed : [];
-      } catch (_) {
-        return [];
-      }
+      return tripStorage.load();
     }
 
     function saveTripSnapshot(rawPlan) {
-      try {
-        const trips = loadSavedTrips();
-        const entry = {
-          id: Date.now(),
-          savedAt: new Date().toISOString(),
-          title: rawPlan.title || '未命名行程',
-          cities: JSON.parse(JSON.stringify(state.cities)),
-          pace: state.pace,
-          budget: state.budget,
-          globalTransport: state.globalTransport,
-          interests: state.interests,
-          departureDate: el.departureDate.value,
-          selectedOptions: { ...state.selectedOptions },
-          plan: rawPlan
-        };
-        trips.unshift(entry);
-        trips.length = Math.min(trips.length, MAX_SAVED_TRIPS);
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(trips));
-      } catch (_) {
-        // 隐私模式/禁用存储时静默跳过，不影响主流程
-      }
+      const entry = {
+        id: Date.now(),
+        savedAt: new Date().toISOString(),
+        title: rawPlan.title || '未命名行程',
+        cities: JSON.parse(JSON.stringify(state.cities)),
+        pace: state.pace,
+        budget: state.budget,
+        globalTransport: state.globalTransport,
+        interests: state.interests,
+        departureDate: el.departureDate.value,
+        selectedOptions: { ...state.selectedOptions },
+        plan: rawPlan
+      };
+      tripStorage.save(entry);
       updateSavedTripsBadge();
     }
 
     function deleteTripSnapshot(id) {
-      try {
-        const trips = loadSavedTrips().filter(entry => entry.id !== id);
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(trips));
-      } catch (_) {
-        // 隐私模式/禁用存储时静默跳过
-      }
+      tripStorage.remove(id);
       updateSavedTripsBadge();
     }
 
@@ -412,31 +368,11 @@ const state = {
         el.mapEmpty.style.display = 'grid';
         return;
       }
-      map = L.map('map', { zoomControl: false }).setView([39.9042, 116.4074], 12);
-      L.control.zoom({ position: 'bottomright' }).addTo(map);
-      L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
-        subdomains: '1234',
-        attribution: '高德地图'
-      }).addTo(map);
+      map = window.AeroTravelMap.createMap('map', [39.9042, 116.4074], 12);
     }
 
     async function fetchJson(url, options) {
-      let targetUrl = url;
-      // 当通过 file:/// 协议直接打开，或当前网页端口不为 8000（如使用 Live Server 或在其他容器中运行）时，
-      // 自动将 /api 请求路由到本地后端服务端口 (http://localhost:8000)
-      if (url.startsWith('/api') && (window.location.protocol === 'file:' || window.location.port !== '8000')) {
-        targetUrl = `http://localhost:8000${url}`;
-      }
-      const response = await fetch(targetUrl, options);
-      if (!response.ok) {
-        let message = '请求失败';
-        try {
-          const err = await response.json();
-          message = err.detail || err.message || message;
-        } catch (_) {}
-        throw new Error(message);
-      }
-      return response.json();
+      return window.AeroTravelApi.fetchJson(url, options);
     }
 
     async function fetchCityData(city) {
@@ -1360,14 +1296,7 @@ const state = {
     }
 
     function downloadBlob(blob, filename) {
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      window.AeroTravelExport.downloadBlob(blob, filename);
     }
 
     function copyPlan() {
@@ -1420,11 +1349,7 @@ const state = {
     }
 
     function icsEscape(text) {
-      return String(text == null ? '' : text)
-        .replace(/\\/g, '\\\\')
-        .replace(/;/g, '\\;')
-        .replace(/,/g, '\\,')
-        .replace(/\r\n|\n|\r/g, '\\n');
+      return window.AeroTravelExport.icsEscape(text);
     }
 
     function icsDateStamp() {
@@ -1434,77 +1359,13 @@ const state = {
     }
 
     function buildIcsCalendar(plan) {
-      const days = plan?.days || [];
-      const dtstamp = icsDateStamp();
-      let seq = 0;
-      const events = [];
-
-      days.forEach(day => {
-        seq += 1;
-        const startDate = addDays(el.departureDate.value, day.day - 1).replace(/-/g, '');
-        const endDate = addDays(el.departureDate.value, day.day).replace(/-/g, '');
-        const summary = icsEscape(day.title || `Day ${day.day} · ${day.city}`);
-        const description = icsEscape((day.items || []).map(item => item.title).join(' / '));
-        const uid = `${Date.now()}-${seq}@aerotravel.local`;
-        if (startDate && endDate) {
-          events.push([
-            'BEGIN:VEVENT',
-            `UID:${uid}`,
-            `DTSTAMP:${dtstamp}`,
-            `DTSTART;VALUE=DATE:${startDate}`,
-            `DTEND;VALUE=DATE:${endDate}`,
-            `SUMMARY:${summary}`,
-            `DESCRIPTION:${description}`,
-            'END:VEVENT'
-          ].join('\r\n'));
-        }
-
-        (day.items || []).forEach(item => {
-          if (item.type !== 'transport') return;
-          seq += 1;
-          const transportUid = `${Date.now()}-${seq}@aerotravel.local`;
-          const segment = findSegment(item.fromCity, item.city);
-          const option = selectedOption(segment);
-          const timeStr = option?.time || item.time;
-          const range = parseTimeRange(timeStr);
-          const transportSummary = icsEscape(`${option?.id || '城际交通'} ${item.fromCity}→${item.city}`);
-          if (range && startDate) {
-            const dateBase = addDays(el.departureDate.value, day.day - 1).replace(/-/g, '');
-            const endDateBase = range[1] >= 1440
-              ? addDays(el.departureDate.value, day.day).replace(/-/g, '')
-              : dateBase;
-            const pad = n => String(n).padStart(2, '0');
-            const toTime = mins => `${pad(Math.floor(mins / 60) % 24)}${pad(mins % 60)}00`;
-            events.push([
-              'BEGIN:VEVENT',
-              `UID:${transportUid}`,
-              `DTSTAMP:${dtstamp}`,
-              `DTSTART:${dateBase}T${toTime(range[0])}`,
-              `DTEND:${endDateBase}T${toTime(range[1])}`,
-              `SUMMARY:${transportSummary}`,
-              'END:VEVENT'
-            ].join('\r\n'));
-          } else if (startDate && endDate) {
-            events.push([
-              'BEGIN:VEVENT',
-              `UID:${transportUid}`,
-              `DTSTAMP:${dtstamp}`,
-              `DTSTART;VALUE=DATE:${startDate}`,
-              `DTEND;VALUE=DATE:${endDate}`,
-              `SUMMARY:${transportSummary}`,
-              'END:VEVENT'
-            ].join('\r\n'));
-          }
-        });
+      return window.AeroTravelExport.buildIcsCalendar(plan, {
+        departureDate: el.departureDate.value,
+        addDays,
+        parseTimeRange,
+        findSegment,
+        selectedOption
       });
-
-      return [
-        'BEGIN:VCALENDAR',
-        'VERSION:2.0',
-        'PRODID:-//AeroTravel//CN',
-        ...events,
-        'END:VCALENDAR'
-      ].join('\r\n');
     }
 
     function exportItineraryToIcs() {
@@ -1515,14 +1376,7 @@ const state = {
       }
       const text = buildIcsCalendar(plan);
       const blob = new Blob([text], { type: 'text/calendar;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${cleanMetaValue(plan.title) || '行程'}.ics`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      downloadBlob(blob, `${cleanMetaValue(plan.title) || '行程'}.ics`);
       showToast('日历文件已导出，可导入手机日历。', 'success');
     }
 
