@@ -295,6 +295,11 @@
       || scheduledDay.node_ids.filter(id => id === node.id).length !== 1)) {
       throw new Error('fixed_day_mismatch');
     }
+    if (result.mode === 'self_drive' && node.constraints.fixed_order
+      && (!Array.isArray(result.route?.ordered_node_ids)
+        || !result.route.ordered_node_ids.includes(node.id))) {
+      throw new Error('fixed_order_route_missing');
+    }
     if (node.constraints.fixed_time
       && (node.schedule.time_window == null
         || String(node.schedule.time_window).trim() === '')) {
@@ -398,6 +403,9 @@
         && scheduledDayId != null
         && referenceDayByNode.get(node.id) === scheduledDayId;
       const fixedDayMismatch = node.constraints?.fixed_day === true && !scheduledInDay;
+      const fixedOrderRouteMissing = draft?.mode === 'self_drive'
+        && node.constraints?.fixed_order === true
+        && !routeNodeSet.has(node.id);
       const unscheduled = (node.status === 'wishlist' || node.status === 'removed')
         && referenceCount === 0
         && scheduledDayId == null;
@@ -406,8 +414,11 @@
       if (fixedDayMismatch) {
         errors.push({ code: 'fixed_day_mismatch', node_id: node.id });
       }
+      if (fixedOrderRouteMissing) {
+        errors.push({ code: 'fixed_order_route_missing', node_id: node.id });
+      }
       if (recognizedStatus && !routeOnlyCityStop && !scheduledInDay && !unscheduled
-        && !fixedDayMismatch) {
+        && !fixedDayMismatch && !fixedOrderRouteMissing) {
         errors.push({ code: 'status_schedule_mismatch', node_id: node.id });
       } else if (!recognizedStatus) {
         if (scheduledDayId != null && !dayIds.has(scheduledDayId)) {

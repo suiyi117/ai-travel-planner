@@ -213,6 +213,49 @@ test('structural validation reports one fixed-day mismatch per damaged node', ()
   ]);
 });
 
+test('self-drive order locks require route membership without changing the input', () => {
+  const wishlist = addNode(emptyDraft(), {
+    name: 'Route-locked place', city: 'Hangzhou', city_id: 'city-hz'
+  }, () => 'node-route-lock');
+  wishlist.mode = 'self_drive';
+  wishlist.route = { ordered_node_ids: [] };
+  const before = structuredClone(wishlist);
+
+  assert.throws(
+    () => updateConstraints(wishlist, 'node-route-lock', { fixed_order: true }),
+    /fixed_order_route_missing/
+  );
+  assert.deepEqual(wishlist, before);
+
+  const onRoute = structuredClone(wishlist);
+  onRoute.route.ordered_node_ids = ['node-route-lock'];
+  const locked = updateConstraints(onRoute, 'node-route-lock', { fixed_order: true });
+  assert.equal(locked.nodes[0].constraints.fixed_order, true);
+
+  const routeOnlyCity = addNode(emptyDraft(), {
+    name: 'Route city', city: 'Hangzhou', city_id: 'city-hz', source: 'city_stop'
+  }, () => 'node-route-city');
+  routeOnlyCity.mode = 'self_drive';
+  routeOnlyCity.nodes[0].status = 'scheduled';
+  routeOnlyCity.route = { ordered_node_ids: ['node-route-city'] };
+  const lockedCity = updateConstraints(routeOnlyCity, 'node-route-city', { fixed_order: true });
+  assert.equal(lockedCity.nodes[0].constraints.fixed_order, true);
+});
+
+test('structural validation reports one self-drive order-lock route error per damaged node', () => {
+  const damaged = addNode(emptyDraft(), {
+    name: 'Damaged route lock', city: 'Hangzhou', city_id: 'city-hz', source: 'city_stop'
+  }, () => 'node-damaged-route');
+  damaged.mode = 'self_drive';
+  damaged.nodes[0].status = 'scheduled';
+  damaged.nodes[0].constraints.fixed_order = true;
+  damaged.route = { ordered_node_ids: [] };
+
+  assert.deepEqual(validateStructure(damaged), [
+    { code: 'fixed_order_route_missing', node_id: 'node-damaged-route' }
+  ]);
+});
+
 test('node edits, deletion and city reordering keep canonical references consistent', () => {
   const draft = emptyDraft();
   draft.city_stops.push({
