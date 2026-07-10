@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+﻿from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
 from planner.generator import ItineraryGenerationError, generate_itinerary
@@ -24,5 +24,89 @@ def create_planning_router(settings, logger) -> APIRouter:
             raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
 
         return JSONResponse(content=itinerary)
+
+    @router.post("/api/plan/optimize")
+    async def optimize_plan(request: dict):
+        """Deterministic draft optimizer endpoint — reorders unlocked nodes within scope."""
+        from planner.constraints import validate_constraints
+        from planner.draft_optimizer import optimize_draft
+        from schemas.draft import OptimizeRequest
+
+        try:
+            body = OptimizeRequest.model_validate(request)
+        except Exception as exc:
+            raise HTTPException(status_code=422, detail=f"请求格式错误: {str(exc)}") from exc
+
+        # Verify base revision matches
+        if body.draft.revision != body.base_revision:
+            raise HTTPException(
+                status_code=409,
+                detail=f"草稿版本冲突：客户端版本 {body.base_revision}，实际版本 {body.draft.revision}",
+            )
+
+        # Validate constraints first
+        violations = validate_constraints(body.draft)
+        if violations:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "message": "硬约束违规",
+                    "violations": violations,
+                },
+            )
+
+        try:
+            candidate, diff = optimize_draft(body.draft, body.scope)
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"优化失败: {str(exc)}") from exc
+
+        return {
+            "base_revision": body.base_revision,
+            "candidate": candidate.model_dump(),
+            "diff": [d.model_dump() for d in diff],
+            "warnings": [],
+        }
+
+    @router.post("/api/plan/optimize")
+    async def optimize_plan(request: dict):
+        """Deterministic draft optimizer endpoint — reorders unlocked nodes within scope."""
+        from planner.constraints import validate_constraints
+        from planner.draft_optimizer import optimize_draft
+        from schemas.draft import OptimizeRequest
+
+        try:
+            body = OptimizeRequest.model_validate(request)
+        except Exception as exc:
+            raise HTTPException(status_code=422, detail=f"请求格式错误: {str(exc)}") from exc
+
+        # Verify base revision matches
+        if body.draft.revision != body.base_revision:
+            raise HTTPException(
+                status_code=409,
+                detail=f"草稿版本冲突：客户端版本 {body.base_revision}，实际版本 {body.draft.revision}",
+            )
+
+        # Validate constraints first
+        violations = validate_constraints(body.draft)
+        if violations:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "message": "硬约束违规",
+                    "violations": violations,
+                },
+            )
+
+        try:
+            candidate, diff = optimize_draft(body.draft, body.scope)
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"优化失败: {str(exc)}") from exc
+
+        return {
+            "base_revision": body.base_revision,
+            "candidate": candidate.model_dump(),
+            "diff": [d.model_dump() for d in diff],
+            "warnings": [],
+        }
 
     return router
