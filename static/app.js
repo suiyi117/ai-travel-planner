@@ -893,6 +893,45 @@ let draggedDraftNodeId = null;
 
 
 
+    function addPlaceFromResult(place, source) {
+      if (!state.workingDraft) return;
+      try {
+        commitDraft(window.AeroTravelDraftOps.addNode(state.workingDraft, {
+          source: source || 'manual',
+          name: cleanMetaValue(place.name),
+          city_id: findBestCityId(place.city),
+          city: cleanMetaValue(place.city) || '',
+          lat: Number(place.lat) || 0,
+          lng: Number(place.lng) || 0,
+          provider_id: cleanMetaValue(place.provider_id),
+          metadata: {
+            address: cleanMetaValue(place.address),
+            rating: cleanMetaValue(place.rating),
+            tel: cleanMetaValue(place.tel),
+            opentime: cleanMetaValue(place.opentime)
+          }
+        }));
+        showToast('已添加"' + escapeHtml(place.name) + '"到想去清单');
+      } catch (e) {
+        showToast(e.message || '添加失败', 'error');
+      }
+    }
+
+    function addPlaceFromAmapResult(place) {
+      addPlaceFromResult(place, 'amap_search');
+    }
+
+    function findBestCityId(cityName) {
+      if (!state.workingDraft || !cityName) {
+        var day = state.workingDraft && state.workingDraft.days.find(function (d) { return d.day === state.currentDay; });
+        return day ? day.primary_city_id : (state.workingDraft && state.workingDraft.city_stops[0] ? state.workingDraft.city_stops[0].id : '');
+      }
+      var match = state.workingDraft.city_stops.find(function (c) { return c.name === cityName; });
+      if (match) return match.id;
+      return state.workingDraft.city_stops[0] ? state.workingDraft.city_stops[0].id : '';
+    }
+
+
     function addPlaceByName(name) {
       if (!state.workingDraft) return;
       const day = state.workingDraft.days.find(d => d.day === state.currentDay);
@@ -1492,6 +1531,7 @@ let draggedDraftNodeId = null;
         if (!name) return;
         addPlaceByName(name);
         el.addPlaceDialog.close();
+
       });
 
     function copyTextToClipboard(text) {
