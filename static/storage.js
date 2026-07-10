@@ -17,8 +17,9 @@
         trips.unshift(entry);
         trips.length = Math.min(trips.length, maxSavedTrips);
         window.localStorage.setItem(storageKey, JSON.stringify(trips));
+        return { ok: true };
       } catch (_) {
-        // Storage may be unavailable in private mode; ignore to keep planning usable.
+        return { ok: false, error: 'storage_unavailable' };
       }
     }
 
@@ -26,8 +27,9 @@
       try {
         const trips = load().filter(entry => entry.id !== id);
         window.localStorage.setItem(storageKey, JSON.stringify(trips));
+        return { ok: true };
       } catch (_) {
-        // Storage may be unavailable in private mode; ignore to keep planning usable.
+        return { ok: false, error: 'storage_unavailable' };
       }
     }
 

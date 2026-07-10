@@ -50,7 +50,36 @@ const {
       plannerPane: document.querySelector('.planner-pane'),
       plannerBody: document.querySelector('.planner-pane .pane-body'),
       resultsPane: document.querySelector('.results-pane'),
-      resultsBody: document.querySelector('.results-pane .pane-body')
+      resultsBody: document.querySelector('.results-pane .pane-body'),
+    planModeBar: document.getElementById('planModeBar'),
+    planModeGroup: document.getElementById('planModeGroup'),
+    itineraryEditor: document.getElementById('itineraryEditor'),
+    cityStopOrder: document.getElementById('cityStopOrder'),
+    wishlistList: document.getElementById('wishlistList'),
+    addWishBtn: document.getElementById('addWishBtn'),
+    draftDayTabs: document.getElementById('draftDayTabs'),
+    draftNodeList: document.getElementById('draftNodeList'),
+    draftActionBar: document.getElementById('draftActionBar'),
+    draftStatus: document.getElementById('draftStatus'),
+    undoDraftBtn: document.getElementById('undoDraftBtn'),
+    redoDraftBtn: document.getElementById('redoDraftBtn'),
+    undoAppliedBtn: document.getElementById('undoAppliedBtn'),
+    saveDraftBtn: document.getElementById('saveDraftBtn'),
+    optimizeDraftBtn: document.getElementById('optimizeDraftBtn'),
+    constraintDialog: document.getElementById('constraintDialog'),
+    constraintForm: document.getElementById('constraintForm'),
+    constraintRequired: document.getElementById('constraintRequired'),
+    constraintFixedDay: document.getElementById('constraintFixedDay'),
+    constraintFixedTime: document.getElementById('constraintFixedTime'),
+    constraintFixedOrder: document.getElementById('constraintFixedOrder'),
+    constraintTime: document.getElementById('constraintTime'),
+    cancelConstraintBtn: document.getElementById('cancelConstraintBtn'),
+    addPlaceDialog: document.getElementById('addPlaceDialog'),
+    addPlaceForm: document.getElementById('addPlaceForm'),
+    addPlaceQuery: document.getElementById('addPlaceQuery'),
+    usePlaceNameBtn: document.getElementById('usePlaceNameBtn'),
+    pickPlaceOnMapBtn: document.getElementById('pickPlaceOnMapBtn'),
+    addPlaceResults: document.getElementById('addPlaceResults')
     };
 
     let map = null;
@@ -88,6 +117,8 @@ const {
       return group.querySelector('.is-active')?.dataset.value || '';
     }
 
+let editingConstraintNodeId = null;
+let draggedDraftNodeId = null;
     function setStatus(message, tone = 'neutral') {
       el.statusNote.textContent = message;
       el.statusNote.dataset.tone = tone;
@@ -125,11 +156,12 @@ const {
       return tripStorage.load();
     }
 
-    function saveTripSnapshot(rawPlan) {
+    function saveTripSnapshot() {
       const entry = {
         id: Date.now(),
+        schema_version: 2,
         savedAt: new Date().toISOString(),
-        title: rawPlan.title || '未命名行程',
+        title: state.itinerary?.title || '未命名行程',
         cities: JSON.parse(JSON.stringify(state.cities)),
         pace: state.pace,
         budget: state.budget,
@@ -137,10 +169,15 @@ const {
         interests: state.interests,
         departureDate: el.departureDate.value,
         selectedOptions: { ...state.selectedOptions },
-        plan: rawPlan
+        appliedPlan: JSON.parse(JSON.stringify(state.itinerary)),
+        draft: JSON.parse(JSON.stringify(state.workingDraft))
       };
-      tripStorage.save(entry);
+      const result = tripStorage.save(entry);
+      if (!result.ok) {
+        showToast('本次修改尚未保存到浏览器，请保留当前页面。', 'error');
+      }
       updateSavedTripsBadge();
+      return result;
     }
 
     function deleteTripSnapshot(id) {
@@ -178,12 +215,42 @@ const {
         setActiveByValue(el.transportGroup, state.globalTransport);
         setActiveByValue(el.budgetGroup, state.budget);
 
-        applyPlan(entry.plan, '已恢复本地保存的行程，无需联网重新生成。', {
-          selectedOptions: selectedOptionsSnapshot
-        });
+        if (entry.schema_version === 2) {
+          const validDraft = window.AeroTravelDraft.isTripDraft(entry.draft)
+            && window.AeroTravelDraftOps.validateStructure(entry.draft).length === 0;
+          if (entry.appliedPlan && validDraft) {
+            applyPlan(entry.appliedPlan, '已恢复本地保存的行程，无需联网重新生成。', {
+              daysAreMapped: true,
+              draft: entry.draft,
+              selectedOptions: selectedOptionsSnapshot
+            });
+          } else {
+            const fallbackPlan = entry.appliedPlan || entry.plan;
+            if (!fallbackPlan) throw new Error('snapshot_plan_missing');
+            applyPlan(fallbackPlan, '本地草稿已损坏，当前按只读模式恢复。', {
+              daysAreMapped: Boolean(entry.appliedPlan),
+              selectedOptions: selectedOptionsSnapshot,
+              readOnly: true
+            });
+            showToast('本地草稿校验失败，原始快照未被覆盖。', 'error');
+          }
+        } else {
+          try {
+            applyPlan(entry.plan, '已恢复本地保存的行程，无需联网重新生成。', {
+              selectedOptions: selectedOptionsSnapshot,
+              seed: `snapshot-${entry.id}`
+            });
+          } catch (_) {
+            applyPlan(entry.plan, '旧行程已按只读模式恢复，当前数据无法迁移为可编辑草稿。', {
+              selectedOptions: selectedOptionsSnapshot,
+              readOnly: true
+            });
+            showToast('此旧快照暂时只能浏览，原始数据未被覆盖。', 'error');
+          }
+        }
         renderCities();
       } catch (_) {
-        // 恢复失败时静默跳过，不影响主流程
+        showToast('本地快照无法恢复，原始数据未被覆盖。', 'error');
       }
     }
 
@@ -736,7 +803,7 @@ const {
         });
         setStatus('正在校验交通方向并整理客户版行程...');
         applyPlan(plan, '已生成 AI 行程，内部检查和客户版行程已就绪。');
-        saveTripSnapshot(plan);
+        saveTripSnapshot();
       } catch (error) {
         const plan = buildFallbackItinerary(cityData);
         applyPlan(plan, `后端暂不可用，已切换为本地演示规划：${error.message}`);
@@ -747,8 +814,14 @@ const {
 
     function applyPlan(plan, message, options = {}) {
       const selectedOptionsSnapshot = options.selectedOptions || {};
+      state.activeOptimizationController?.abort();
+      state.activeRouteController?.abort();
+      state.activeOptimizationController = null;
+      state.activeRouteController = null;
       state.cityWeather = plan.city_weather || {};
-      const mappedDays = mapPlanToItems(plan);
+      const mappedDays = options.daysAreMapped
+        ? JSON.parse(JSON.stringify(plan.days || []))
+        : mapPlanToItems(plan);
       const tips = (plan.tips || []).slice();
       const rainTips = buildRainWeatherTips(mappedDays);
       rainTips.reverse().forEach(tip => {
@@ -760,6 +833,19 @@ const {
         days: mappedDays,
         _serverQualityChecks: plan.quality_checks || null
       };
+      if (options.readOnly) {
+        state.workingDraft = null;
+        state.draftHistory = null;
+        state.editMode = false;
+      } else {
+        state.workingDraft = options.draft
+          ? JSON.parse(JSON.stringify(options.draft))
+          : window.AeroTravelDraft.itineraryToDraft(state.itinerary, state.cities, {
+            seed: options.seed || `${plan.title || 'trip'}-${el.departureDate.value}`,
+            startDate: el.departureDate.value
+          });
+        state.draftHistory = window.AeroTravelHistory.createHistory(state.workingDraft, 50);
+      }
       state.selectedOptions = { ...selectedOptionsSnapshot };
       refreshQualityChecks();
       state.currentDay = 1;
@@ -805,13 +891,154 @@ const {
       });
     }
 
+
+
+    function addPlaceByName(name) {
+      if (!state.workingDraft) return;
+      const day = state.workingDraft.days.find(d => d.day === state.currentDay);
+      const cityStop = day ? state.workingDraft.city_stops.find(c => c.id === day.primary_city_id) : state.workingDraft.city_stops[0];
+      try {
+        commitDraft(window.AeroTravelDraftOps.addNode(state.workingDraft, {
+          source: 'manual',
+          name: name.trim(),
+          city: cityStop?.name || '',
+          city_id: cityStop?.id || state.workingDraft.city_stops[0]?.id || '',
+          lat: 0,
+          lng: 0
+        }));
+        showToast(`已添加"${escapeHtml(name)}"到想去清单`);
+      } catch (e) {
+        showToast(e.message || '添加失败', 'error');
+      }
+    }
+    function commitDraft(nextDraft) {
+      if (!nextDraft || nextDraft.revision === state.workingDraft?.revision) return;
+      state.draftHistory = window.AeroTravelHistory.push(state.draftHistory, nextDraft);
+      state.workingDraft = state.draftHistory.present;
+      state.candidatePlan = null;
+      renderEditor();
+      renderMap();
+    }
+
+    function restoreDraftHistory(nextHistory) {
+      if (nextHistory === state.draftHistory) return;
+      state.activeOptimizationController?.abort();
+      state.activeRouteController?.abort();
+      state.draftHistory = nextHistory;
+      state.workingDraft = nextHistory.present;
+      state.candidatePlan = null;
+      renderEditor();
+      renderMap();
+    }
+
+    function renderDraftTabs() {
+      if (!state.workingDraft) return;
+      const days = state.workingDraft.days || [];
+      el.draftDayTabs.innerHTML = days.map(day => {
+        const cityStop = state.workingDraft.city_stops.find(c => c.id === day.primary_city_id);
+        return `
+        <button class="day-tab ${day.day === state.currentDay ? 'is-active' : ''}" type="button" data-draft-day="${day.day}">
+          Day ${day.day}<small>${escapeHtml(cityStop?.name || '')}</small>
+        </button>
+      `;
+      }).join('');
+    }
+
+    function renderEditor() {
+      if (!state.workingDraft || !state.editMode) {
+        el.itineraryEditor.hidden = true;
+        el.draftActionBar.hidden = true;
+        return;
+      }
+      const nodeById = new Map(state.workingDraft.nodes.map(node => [node.id, node]));
+      const wishlist = state.workingDraft.nodes.filter(node => node.status === 'wishlist' && node.source !== 'system');
+      const day = state.workingDraft.days.find(d => d.day === state.currentDay) || state.workingDraft.days[0];
+      el.cityStopOrder.innerHTML = window.AeroTravelEditor.renderCityStops(state.workingDraft.city_stops, escapeHtml);
+      el.wishlistList.innerHTML = window.AeroTravelEditor.renderWishlist(wishlist, escapeHtml);
+      renderDraftTabs();
+      el.draftNodeList.innerHTML = window.AeroTravelEditor.renderDayNodes(
+        (day?.node_ids || []).map(id => nodeById.get(id)).filter(Boolean),
+        escapeHtml
+      );
+      el.itineraryEditor.hidden = false;
+      el.draftActionBar.hidden = false;
+      el.undoAppliedBtn.hidden = !state.appliedUndo;
+      const pastCount = state.draftHistory?.past?.length || 0;
+      el.draftStatus.textContent = pastCount ? `${pastCount} 处修改尚未应用` : '没有未应用修改';
+    }
+
+    function handleDraftListAction(event) {
+      const button = event.target.closest('[data-action]');
+      if (!button) return;
+      const nodeId = button.dataset.nodeId || button.closest('[data-node-id]')?.dataset.nodeId;
+      if (button.dataset.action === 'schedule') {
+        const day = state.workingDraft.days.find(d => d.day === state.currentDay);
+        if (!day) return;
+        commitDraft(window.AeroTravelDraftOps.moveNode(state.workingDraft, nodeId, day.id, day.node_ids.length));
+      } else if (button.dataset.action === 'constraints') {
+        openConstraintDialog(nodeId);
+      } else if (button.dataset.action === 'remove-node') {
+        if (window.confirm('从当前草稿删除这个地点？')) {
+          commitDraft(window.AeroTravelDraftOps.removeNode(state.workingDraft, nodeId));
+        }
+      } else if (button.dataset.action === 'edit-node') {
+        const node = state.workingDraft.nodes.find(n => n.id === nodeId);
+        const name = window.prompt('地点名称', node?.name || '');
+        if (name !== null && name.trim()) {
+          commitDraft(window.AeroTravelDraftOps.updateNode(state.workingDraft, nodeId, { name: name.trim() }));
+        }
+      } else if (button.dataset.action === 'move-up' || button.dataset.action === 'move-down') {
+        const day = state.workingDraft.days.find(d => d.day === state.currentDay);
+        if (!day) return;
+        const idx = day.node_ids.indexOf(nodeId);
+        const target = idx + (button.dataset.action === 'move-up' ? -1 : 1);
+        if (target >= 0 && target < day.node_ids.length) {
+          commitDraft(window.AeroTravelDraftOps.moveNode(state.workingDraft, nodeId, day.id, target));
+        }
+      } else if (button.dataset.action === 'move-day') {
+        const day = state.workingDraft.days.find(d => d.day === state.currentDay);
+        if (!day) return;
+        const node = state.workingDraft.nodes.find(n => n.id === nodeId);
+        const otherDays = state.workingDraft.days.filter(d => d.id !== day.id);
+        const dayNames = otherDays.map(d => `Day ${d.day}`).join(', ');
+        const targetDay = window.prompt(`移动到哪个日期？可选: ${dayNames}`, '');
+        if (!targetDay) return;
+        const target = otherDays.find(d => String(d.day) === targetDay.trim());
+        if (!target) { showToast('无效的日期选择', 'error'); return; }
+        if (node && node.city_id !== target.primary_city_id) {
+          if (!window.confirm('该地点属于其他城市，是否将这一天标记为跨城日？')) return;
+        }
+        commitDraft(window.AeroTravelDraftOps.moveNode(state.workingDraft, nodeId, target.id, target.node_ids.length));
+      }
+    }
+
+    function openConstraintDialog(nodeId) {
+      const node = state.workingDraft?.nodes.find(n => n.id === nodeId);
+      if (!node) return;
+      editingConstraintNodeId = nodeId;
+      el.constraintRequired.checked = node.constraints.required;
+      el.constraintFixedDay.checked = node.constraints.fixed_day;
+      el.constraintFixedDay.disabled = node.status !== 'scheduled';
+      el.constraintFixedTime.checked = node.constraints.fixed_time;
+      el.constraintTime.value = node.schedule.time_window || '';
+      el.constraintTime.disabled = !node.constraints.fixed_time;
+      el.constraintFixedOrder.checked = node.constraints.fixed_order;
+      el.constraintFixedOrder.disabled = node.status !== 'scheduled';
+      el.constraintDialog.showModal();
+    }
+
     function renderAll() {
-      renderCities();
+      renderCities(); if (state.editMode) { renderEditor(); return; }
       renderPlan();
       renderMap();
     }
 
     function renderPlan() {
+      if (!state.itinerary) return;
+      el.planModeBar.hidden = !state.workingDraft;
+      if (state.editMode) { renderEditor(); return; }
+      el.itineraryEditor.hidden = true;
+      el.draftActionBar.hidden = true;
       const plan = state.itinerary;
       if (!plan) return;
       refreshQualityChecks();
@@ -1113,6 +1340,159 @@ const {
       });
       if (view === 'map' && map) setTimeout(() => map.invalidateSize(), 50);
     }
+      // === Editor event bindings ===
+      el.planModeGroup.addEventListener('click', event => {
+        const button = event.target.closest('[data-value]');
+        if (!button) return;
+        const mode = button.dataset.value;
+        state.editMode = mode === 'edit';
+        setActiveByValue(el.planModeGroup, mode);
+        renderAll();
+      });
+
+      el.wishlistList.addEventListener('click', handleDraftListAction);
+      el.draftNodeList.addEventListener('click', handleDraftListAction);
+
+      el.cityStopOrder.addEventListener('click', event => {
+        const button = event.target.closest('[data-action^="city-"]');
+        if (!button) return;
+        const from = Number(button.dataset.index);
+        const to = from + (button.dataset.action === 'city-up' ? -1 : 1);
+        commitDraft(window.AeroTravelDraftOps.reorderCityStops(state.workingDraft, from, to));
+      });
+
+      el.draftDayTabs.addEventListener('click', event => {
+        const button = event.target.closest('[data-draft-day]');
+        if (!button) return;
+        state.currentDay = Number(button.dataset.draftDay);
+        state.currentFilter = 'all';
+        renderEditor();
+        renderMap();
+      });
+
+      el.draftNodeList.addEventListener('dragstart', event => {
+        const node = event.target.closest('.draft-node[draggable="true"]');
+        if (!node) { event.preventDefault(); return; }
+        draggedDraftNodeId = node.dataset.nodeId;
+        event.dataTransfer.effectAllowed = 'move';
+      });
+
+      el.draftNodeList.addEventListener('dragover', event => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+      });
+
+      el.draftNodeList.addEventListener('drop', event => {
+        event.preventDefault();
+        if (!draggedDraftNodeId) return;
+        const target = event.target.closest('.draft-node');
+        if (!target) return;
+        const day = state.workingDraft.days.find(d => d.day === state.currentDay);
+        if (!day) return;
+        const targetIdx = Number(target.dataset.index);
+        if (isNaN(targetIdx)) return;
+        try { commitDraft(window.AeroTravelDraftOps.moveNode(state.workingDraft, draggedDraftNodeId, day.id, targetIdx)); }
+        catch (e) { showToast(e.message || '移动失败', 'error'); }
+        draggedDraftNodeId = null;
+      });
+
+      el.draftNodeList.addEventListener('dragend', () => { draggedDraftNodeId = null; });
+
+      // Constraint dialog
+      el.constraintFixedTime.addEventListener('change', () => {
+        el.constraintTime.disabled = !el.constraintFixedTime.checked;
+      });
+
+      el.constraintForm.addEventListener('submit', event => {
+        event.preventDefault();
+        if (!editingConstraintNodeId) return;
+        const patch = {
+          required: el.constraintRequired.checked,
+          fixed_day: el.constraintFixedDay.checked,
+          fixed_time: el.constraintFixedTime.checked,
+          fixed_order: el.constraintFixedOrder.checked
+        };
+        try {
+          commitDraft(window.AeroTravelDraftOps.updateConstraints(
+            state.workingDraft, editingConstraintNodeId, patch,
+            patch.fixed_time ? el.constraintTime.value : null
+          ));
+        } catch (e) { showToast(e.message, 'error'); }
+        editingConstraintNodeId = null;
+        el.constraintDialog.close();
+      });
+
+      el.cancelConstraintBtn.addEventListener('click', () => {
+        editingConstraintNodeId = null;
+        el.constraintDialog.close();
+      });
+
+      // Toolbar: undo / redo
+      el.undoDraftBtn.addEventListener('click', () => {
+        restoreDraftHistory(window.AeroTravelHistory.undo(state.draftHistory));
+      });
+
+      el.redoDraftBtn.addEventListener('click', () => {
+        restoreDraftHistory(window.AeroTravelHistory.redo(state.draftHistory));
+      });
+
+      el.undoAppliedBtn.addEventListener('click', () => {
+        if (!state.appliedUndo || !state.workingDraft) return;
+        state.draftHistory = window.AeroTravelHistory.push(state.draftHistory, state.appliedUndo);
+        state.workingDraft = state.draftHistory.present;
+        state.appliedUndo = null;
+        state.candidatePlan = null;
+        renderEditor();
+        renderMap();
+        showToast('已撤销上次应用的优化');
+      });
+
+      // Save-only
+      el.saveDraftBtn.addEventListener('click', () => {
+        if (!state.workingDraft) return;
+        const errors = window.AeroTravelDraftOps.validateStructure(state.workingDraft);
+        if (errors.length) {
+          showToast(`存在 ${errors.length} 处结构问题，请修正后再保存`, 'error');
+          return;
+        }
+        try {
+          const itinerary = window.AeroTravelDraft.draftToItinerary(state.workingDraft, state.itinerary);
+          const cities = window.AeroTravelDraft.draftToCities(state.workingDraft);
+          state.itinerary = { ...state.itinerary, ...itinerary, days: itinerary.days };
+          state.cities = cities;
+          state.totalDays = cities.reduce((sum, c) => sum + c.days, 0);
+          state.editMode = false;
+          setActiveByValue(el.planModeGroup, 'browse');
+          renderCities();
+          renderAll();
+          saveTripSnapshot();
+          showToast('已按当前编辑结果保存行程');
+        } catch (e) {
+          showToast(`保存失败：${e.message}`, 'error');
+        }
+      });
+
+      // Add place
+      el.addWishBtn.addEventListener('click', () => {
+        el.addPlaceQuery.value = '';
+        el.addPlaceResults.innerHTML = '';
+        el.addPlaceDialog.showModal();
+      });
+
+      el.addPlaceForm.addEventListener('submit', event => {
+        event.preventDefault();
+        const query = el.addPlaceQuery.value.trim();
+        if (!query) return;
+        addPlaceByName(query);
+        el.addPlaceDialog.close();
+      });
+
+      el.usePlaceNameBtn.addEventListener('click', () => {
+        const name = el.addPlaceQuery.value.trim();
+        if (!name) return;
+        addPlaceByName(name);
+        el.addPlaceDialog.close();
+      });
 
     function copyTextToClipboard(text) {
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -1563,6 +1943,7 @@ const {
 
       window.addEventListener('resize', () => {
         if (map) setTimeout(() => map.invalidateSize(), 50);
+
       });
     }
 

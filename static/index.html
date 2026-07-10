@@ -223,6 +223,58 @@
               <div class="metric-card"><div class="metric-value" id="metricStops">8</div><div class="metric-label">行程节点</div></div>
             </div>
 
+            <!-- === 可编辑行程工作台 === -->
+            <div class="plan-mode-bar" id="planModeBar" hidden>
+              <div class="segmented" id="planModeGroup" style="--segments:2">
+                <button class="is-active" type="button" data-value="browse">浏览</button>
+                <button type="button" data-value="edit">编辑</button>
+              </div>
+            </div>
+            <div class="itinerary-editor" id="itineraryEditor" hidden>
+              <aside class="wishlist-panel">
+                <div class="row-between"><h3 class="section-label">城市顺序</h3></div>
+                <div id="cityStopOrder"></div>
+                <div class="row-between"><h3 class="section-label">想去清单</h3><button class="btn btn-icon" id="addWishBtn" type="button" aria-label="添加想去地点">+</button></div>
+                <div id="wishlistList"></div>
+              </aside>
+              <section class="day-editor">
+                <div id="draftDayTabs"></div>
+                <div id="draftNodeList"></div>
+              </section>
+            </div>
+            <div class="draft-action-bar" id="draftActionBar" hidden>
+              <span id="draftStatus">没有未应用修改</span>
+              <button class="btn btn-ghost" id="undoDraftBtn" type="button">撤销</button>
+              <button class="btn btn-ghost" id="redoDraftBtn" type="button">重做</button>
+              <button class="btn btn-ghost" id="undoAppliedBtn" type="button" hidden>撤销已应用优化</button>
+              <button class="btn btn-ghost" id="saveDraftBtn" type="button">仅保存</button>
+              <button class="btn btn-primary" id="optimizeDraftBtn" type="button">智能优化</button>
+            </div>
+            <dialog id="constraintDialog" aria-labelledby="constraintDialogTitle">
+              <form id="constraintForm">
+                <h2 id="constraintDialogTitle">地点约束</h2>
+                <label class="constraint-dialog-label"><input id="constraintRequired" type="checkbox"> 必去</label>
+                <label class="constraint-dialog-label"><input id="constraintFixedDay" type="checkbox"> 固定日期</label>
+                <label class="constraint-dialog-label"><input id="constraintFixedTime" type="checkbox"> 固定时段</label>
+                <label class="constraint-dialog-label">到达时间 <input id="constraintTime" type="text" placeholder="例如 09:00"></label>
+                <label class="constraint-dialog-label"><input id="constraintFixedOrder" type="checkbox"> 固定顺序</label>
+                <div class="dialog-actions">
+                  <button class="btn btn-ghost" id="cancelConstraintBtn" type="button">取消</button>
+                  <button class="btn btn-primary" type="submit">保存约束</button>
+                </div>
+              </form>
+            </dialog>
+            <dialog id="addPlaceDialog" aria-labelledby="addPlaceDialogTitle">
+              <form id="addPlaceForm">
+                <h2 id="addPlaceDialogTitle">添加想去地点</h2>
+                <input id="addPlaceQuery" type="text" placeholder="搜索景点名称或粘贴名称...">
+                <div class="dialog-actions">
+                  <button class="btn btn-ghost" id="usePlaceNameBtn" type="button">按名称添加</button>
+                  <button class="btn btn-ghost" id="pickPlaceOnMapBtn" type="button">从地图选点</button>
+                </div>
+                <div id="addPlaceResults"></div>
+              </form>
+            </dialog>
             <div class="quality-panel" id="qualityPanel" data-status="pass"></div>
 
             <div class="day-tabs" id="dayTabs" data-od-id="day-tabs"></div>
@@ -294,6 +346,7 @@
   <script src="draft.js?v=editable-itinerary-20260710"></script>
   <script src="draft-ops.js?v=editable-itinerary-20260710"></script>
   <script src="history.js?v=editable-itinerary-20260710"></script>
+  <script src="editor.js?v=editable-itinerary-20260710"></script>
   <script src="api.js?v=engineering-20260709"></script>
   <script src="map.js?v=engineering-20260709"></script>
   <script src="storage.js?v=engineering-20260709"></script>
