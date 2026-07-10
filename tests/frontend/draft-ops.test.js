@@ -99,7 +99,10 @@ test('constraint updates are explicit and structural validation finds duplicates
 
   const broken = structuredClone(locked);
   broken.days[0].node_ids = ['node-user', 'node-user'];
-  assert.deepEqual(validateStructure(broken).map(error => error.code), ['duplicate_node']);
+  assert.deepEqual(validateStructure(broken).map(error => error.code), [
+    'duplicate_node',
+    'status_schedule_mismatch'
+  ]);
 
   const brokenRoute = structuredClone(added);
   brokenRoute.route = { ordered_node_ids: ['node-user', 'node-user'] };
@@ -151,7 +154,13 @@ test('node edits, deletion and city reordering keep canonical references consist
   assert.deepEqual(removed.route.ordered_node_ids, []);
   assert.equal(removed.nodes[0].status, 'removed');
   assert.deepEqual(removed.nodes[0].schedule, { day_id: null, time_window: null });
-  assert.equal(removed.nodes[0].constraints.required, false);
+  assert.deepEqual(removed.nodes[0].constraints, {
+    required: false,
+    fixed_day: false,
+    fixed_time: false,
+    fixed_order: false
+  });
+  assert.equal(removed.nodes[0].manual_rank, null);
   assert.equal(isTripDraft(removed), true);
 });
 
@@ -268,4 +277,128 @@ test('self-drive moves preserve locked anchor indexes in the route order', () =>
     /fixed_order_locked/
   );
   assert.deepEqual(locked, before);
+});
+
+test('removing a locked target is rejected without changing the input', () => {
+  const cases = [
+    ['fixed_day', 'fixed_day_locked'],
+    ['fixed_order', 'fixed_order_locked'],
+    ['fixed_time', 'fixed_time_locked']
+  ];
+
+  for (const [constraint, errorCode] of cases) {
+    const scheduled = scheduleNodes(emptyDraft(), 'day-1', [`target-${constraint}`]);
+    const locked = updateConstraints(scheduled, `target-${constraint}`, { [constraint]: true });
+    const before = structuredClone(locked);
+
+    assert.throws(
+      () => removeNode(locked, `target-${constraint}`),
+      new RegExp(errorCode)
+    );
+    assert.deepEqual(locked, before);
+  }
+});
+
+test('removing another node cannot shift fixed-order or fixed-time anchors', () => {
+  let orderLocked = scheduleNodes(emptyDraft(), 'day-1', ['a', 'b', 'c']);
+  orderLocked = updateConstraints(orderLocked, 'b', { fixed_order: true });
+  const orderBefore = structuredClone(orderLocked);
+
+  assert.throws(() => removeNode(orderLocked, 'a'), /fixed_order_locked/);
+  assert.deepEqual(orderLocked, orderBefore);
+
+  let timeLocked = scheduleNodes(emptyDraft(), 'day-1', ['a', 'b', 'c']);
+  timeLocked = updateConstraints(timeLocked, 'b', { fixed_time: true }, '10:00');
+  const timeBefore = structuredClone(timeLocked);
+
+  assert.throws(() => removeNode(timeLocked, 'a'), /fixed_time_order_locked/);
+  assert.deepEqual(timeLocked, timeBefore);
+});
+
+test('removing a trailing node preserves anchors and fully clears the removed node', () => {
+  let draft = scheduleNodes(emptyDraft(), 'day-1', ['a', 'b', 'c']);
+  draft = updateConstraints(draft, 'b', { fixed_order: true });
+
+  const removed = removeNode(draft, 'c');
+  const removedNode = removed.nodes.find(node => node.id === 'c');
+
+  assert.deepEqual(removed.days[0].node_ids, ['a', 'b']);
+  assert.equal(removed.nodes.find(node => node.id === 'b').manual_rank, 1);
+  assert.deepEqual(removedNode, {
+    ...draft.nodes.find(node => node.id === 'c'),
+    status: 'removed',
+    schedule: { day_id: null, time_window: null },
+    constraints: {
+      required: false,
+      fixed_day: false,
+      fixed_time: false,
+      fixed_order: false
+    },
+    manual_rank: null
+  });
+});
+
+test('self-drive removal cannot shift a route-only locked city stop', () => {
+  let draft = addNode(emptyDraft(), {
+    name: 'Route start', city: 'Hangzhou', city_id: 'city-hz', source: 'city_stop'
+  }, () => 'route-start');
+  draft = addNode(draft, {
+    name: 'Route anchor', city: 'Hangzhou', city_id: 'city-hz', source: 'city_stop'
+  }, () => 'route-anchor');
+  draft.mode = 'self_drive';
+  draft.nodes.forEach(node => {
+    node.status = 'scheduled';
+  });
+  draft.route = { ordered_node_ids: ['route-start', 'route-anchor'] };
+  draft = updateConstraints(draft, 'route-anchor', { fixed_order: true });
+  const before = structuredClone(draft);
+
+  assert.throws(() => removeNode(draft, 'route-start'), /fixed_order_locked/);
+  assert.deepEqual(draft, before);
+});
+
+test('structural validation reports one stable status and schedule mismatch per node', () => {
+  const scheduled = scheduleNodes(addDay(emptyDraft()), 'day-1', ['scheduled-node']);
+
+  const removedWithSchedule = structuredClone(scheduled);
+  removedWithSchedule.nodes[0].status = 'removed';
+  assert.deepEqual(validateStructure(removedWithSchedule).map(error => error.code), [
+    'status_schedule_mismatch'
+  ]);
+
+  const scheduledWithoutDay = structuredClone(scheduled);
+  scheduledWithoutDay.days[0].node_ids = [];
+  scheduledWithoutDay.nodes[0].schedule.day_id = null;
+  scheduledWithoutDay.nodes[0].manual_rank = null;
+  assert.deepEqual(validateStructure(scheduledWithoutDay).map(error => error.code), [
+    'status_schedule_mismatch'
+  ]);
+
+  const scheduledOnWrongDay = structuredClone(scheduled);
+  scheduledOnWrongDay.nodes[0].schedule.day_id = 'day-2';
+  assert.deepEqual(validateStructure(scheduledOnWrongDay).map(error => error.code), [
+    'status_schedule_mismatch'
+  ]);
+
+  const wishlistWithDay = addNode(emptyDraft(), {
+    name: 'Wishlist place', city: 'Hangzhou', city_id: 'city-hz'
+  }, () => 'wishlist-node');
+  wishlistWithDay.days[0].node_ids = ['wishlist-node'];
+  assert.deepEqual(validateStructure(wishlistWithDay).map(error => error.code), [
+    'status_schedule_mismatch'
+  ]);
+});
+
+test('self-drive city stops may be scheduled only in the route', () => {
+  const draft = addNode(emptyDraft(), {
+    name: 'Route city', city: 'Hangzhou', city_id: 'city-hz', source: 'city_stop'
+  }, () => 'route-city');
+  draft.mode = 'self_drive';
+  draft.nodes[0].status = 'scheduled';
+  draft.route = { ordered_node_ids: ['route-city'] };
+
+  assert.equal(
+    validateStructure(draft).some(error => error.code === 'status_schedule_mismatch'),
+    false
+  );
 });

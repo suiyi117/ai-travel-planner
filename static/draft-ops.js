@@ -82,18 +82,19 @@
     const routeIndexByNode = new Map(routeIds.map((nodeId, index) => [nodeId, index]));
 
     return draft.nodes.flatMap(node => {
-      if (node.schedule.day_id == null
-        || (!node.constraints.fixed_order && !node.constraints.fixed_time)) {
+      const dayPosition = dayPositionByNode.get(node.id);
+      const routeIndex = routeIndexByNode.get(node.id) ?? -1;
+      if ((!node.constraints.fixed_order && !node.constraints.fixed_time)
+        || (node.schedule.day_id == null && dayPosition == null && routeIndex < 0)) {
         return [];
       }
-      const dayPosition = dayPositionByNode.get(node.id);
       return [{
         id: node.id,
         fixedOrder: node.constraints.fixed_order,
         fixedTime: node.constraints.fixed_time,
-        dayId: dayPosition?.dayId ?? node.schedule.day_id,
+        dayId: dayPosition?.dayId ?? node.schedule.day_id ?? null,
         dayIndex: dayPosition?.index ?? -1,
-        routeIndex: routeIndexByNode.get(node.id) ?? -1
+        routeIndex
       }];
     });
   }
@@ -290,7 +291,12 @@
 
   function removeNode(draft, nodeId) {
     const result = next(draft);
+    const lockedAnchors = lockedAnchorPositions(result);
     const node = findNode(result, nodeId);
+    if (node.constraints.fixed_day) throw new Error('fixed_day_locked');
+    if (node.constraints.fixed_order) throw new Error('fixed_order_locked');
+    if (node.constraints.fixed_time) throw new Error('fixed_time_locked');
+
     result.days.forEach(day => {
       day.node_ids = day.node_ids.filter(id => id !== nodeId);
     });
@@ -298,11 +304,17 @@
     node.schedule.day_id = null;
     node.schedule.time_window = null;
     node.manual_rank = null;
-    node.constraints.required = false;
+    node.constraints = {
+      required: false,
+      fixed_day: false,
+      fixed_time: false,
+      fixed_order: false
+    };
     if (Array.isArray(result.route?.ordered_node_ids)) {
       result.route.ordered_node_ids = result.route.ordered_node_ids.filter(id => id !== nodeId);
     }
     updateManualRanks(result);
+    assertLockedAnchorsStable(lockedAnchors, result);
     return finish(draft, result);
   }
 
@@ -315,13 +327,16 @@
     const dayIds = new Set(days.map(day => day.id));
     const nodeById = new Map(nodes.map(node => [node.id, node]));
     const seenNodes = new Set();
-    const referencedNodes = new Set();
     const cityDayCounts = new Map();
     const referenceCounts = new Map();
+    const referenceDayByNode = new Map();
+    const routeNodeIds = draft?.route == null ? [] : draft.route.ordered_node_ids;
+    const routeNodeSet = new Set(Array.isArray(routeNodeIds) ? routeNodeIds : []);
 
     for (const day of days) {
       for (const id of Array.isArray(day.node_ids) ? day.node_ids : []) {
         referenceCounts.set(id, (referenceCounts.get(id) || 0) + 1);
+        if (!referenceDayByNode.has(id)) referenceDayByNode.set(id, day.id);
       }
     }
 
@@ -337,11 +352,6 @@
           errors.push({ code: 'unknown_node', node_id: id, day_id: day.id });
         } else if (seenNodes.has(id)) {
           errors.push({ code: 'duplicate_node', node_id: id, day_id: day.id });
-        } else {
-          referencedNodes.add(id);
-          if (referenceCounts.get(id) === 1 && node.schedule?.day_id !== day.id) {
-            errors.push({ code: 'schedule_day_mismatch', node_id: id, day_id: day.id });
-          }
         }
         seenNodes.add(id);
       }
@@ -357,15 +367,34 @@
         errors.push({ code: 'unknown_node_city', node_id: node.id, city_id: node.city_id });
       }
       const scheduledDayId = node.schedule?.day_id;
-      if (scheduledDayId != null && !dayIds.has(scheduledDayId)) {
-        errors.push({ code: 'unknown_schedule_day', node_id: node.id, day_id: scheduledDayId });
-      } else if (scheduledDayId != null && !referencedNodes.has(node.id)) {
-        errors.push({ code: 'missing_day_reference', node_id: node.id, day_id: scheduledDayId });
+      const referenceCount = referenceCounts.get(node.id) || 0;
+      const routeOnlyCityStop = draft?.mode === 'self_drive'
+        && node.source === 'city_stop'
+        && node.status === 'scheduled'
+        && scheduledDayId == null
+        && referenceCount === 0
+        && routeNodeSet.has(node.id);
+      const scheduledInDay = node.status === 'scheduled'
+        && referenceCount === 1
+        && scheduledDayId != null
+        && referenceDayByNode.get(node.id) === scheduledDayId;
+      const unscheduled = (node.status === 'wishlist' || node.status === 'removed')
+        && referenceCount === 0
+        && scheduledDayId == null;
+      const recognizedStatus = ['scheduled', 'wishlist', 'removed'].includes(node.status);
+
+      if (recognizedStatus && !routeOnlyCityStop && !scheduledInDay && !unscheduled) {
+        errors.push({ code: 'status_schedule_mismatch', node_id: node.id });
+      } else if (!recognizedStatus) {
+        if (scheduledDayId != null && !dayIds.has(scheduledDayId)) {
+          errors.push({ code: 'unknown_schedule_day', node_id: node.id, day_id: scheduledDayId });
+        } else if (scheduledDayId != null && referenceCount === 0) {
+          errors.push({ code: 'missing_day_reference', node_id: node.id, day_id: scheduledDayId });
+        }
       }
     }
 
     const routeSeen = new Set();
-    const routeNodeIds = draft?.route == null ? [] : draft.route.ordered_node_ids;
     for (const id of Array.isArray(routeNodeIds) ? routeNodeIds : []) {
       if (!nodeById.has(id)) {
         errors.push({ code: 'unknown_route_node', node_id: id });
