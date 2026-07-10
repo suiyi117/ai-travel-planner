@@ -89,11 +89,11 @@ test('constraint updates are explicit and structural validation finds duplicates
     name: '西湖', city: '杭州', city_id: 'city-hz'
   }, () => 'node-user');
   const locked = updateConstraints(added, 'node-user', {
-    fixed_day: true,
+    fixed_order: true,
     unexpected_key: true
   });
 
-  assert.equal(locked.nodes[0].constraints.fixed_day, true);
+  assert.equal(locked.nodes[0].constraints.fixed_order, true);
   assert.equal(Object.hasOwn(locked.nodes[0].constraints, 'unexpected_key'), false);
   assert.equal(isTripDraft(locked), true);
 
@@ -168,6 +168,48 @@ test('structural validation reports one fixed-time error per damaged node', () =
   blankWindow.nodes[0].schedule.time_window = '  ';
   assert.deepEqual(validateStructure(blankWindow), [
     { code: 'fixed_time_missing', node_id: 'node-damaged' }
+  ]);
+});
+
+test('fixed-day constraints require an assigned day without changing the input', () => {
+  const wishlist = addNode(emptyDraft(), {
+    name: 'Fixed-day place', city: 'Hangzhou', city_id: 'city-hz'
+  }, () => 'node-fixed-day');
+  const before = structuredClone(wishlist);
+
+  assert.throws(
+    () => updateConstraints(wishlist, 'node-fixed-day', { fixed_day: true }),
+    /fixed_day_mismatch/
+  );
+  assert.deepEqual(wishlist, before);
+
+  const scheduled = moveNode(wishlist, 'node-fixed-day', 'day-1', 0);
+  const enabled = updateConstraints(scheduled, 'node-fixed-day', { fixed_day: true });
+  assert.equal(enabled.nodes[0].constraints.fixed_day, true);
+  assert.equal(enabled.nodes[0].schedule.day_id, 'day-1');
+});
+
+test('structural validation reports one fixed-day mismatch per damaged node', () => {
+  const wishlist = addNode(emptyDraft(), {
+    name: 'Damaged fixed-day place', city: 'Hangzhou', city_id: 'city-hz'
+  }, () => 'node-damaged-day');
+  wishlist.nodes[0].constraints.fixed_day = true;
+
+  assert.deepEqual(validateStructure(wishlist), [
+    { code: 'fixed_day_mismatch', node_id: 'node-damaged-day' }
+  ]);
+
+  const scheduled = moveNode(wishlist, 'node-damaged-day', 'day-1', 0);
+  const missingDay = structuredClone(scheduled);
+  missingDay.nodes[0].schedule.day_id = null;
+  assert.deepEqual(validateStructure(missingDay), [
+    { code: 'fixed_day_mismatch', node_id: 'node-damaged-day' }
+  ]);
+
+  const wrongReference = structuredClone(scheduled);
+  wrongReference.nodes[0].schedule.day_id = 'day-other';
+  assert.deepEqual(validateStructure(wrongReference), [
+    { code: 'fixed_day_mismatch', node_id: 'node-damaged-day' }
   ]);
 });
 

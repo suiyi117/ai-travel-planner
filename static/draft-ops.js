@@ -286,6 +286,15 @@
         node.constraints[key] = patch[key];
       }
     }
+    const scheduledDay = result.days.find(day => day.id === node.schedule.day_id);
+    if (node.constraints.fixed_day && (node.status !== 'scheduled'
+      || typeof node.schedule.day_id !== 'string'
+      || node.schedule.day_id.trim() === ''
+      || !scheduledDay
+      || !Array.isArray(scheduledDay.node_ids)
+      || scheduledDay.node_ids.filter(id => id === node.id).length !== 1)) {
+      throw new Error('fixed_day_mismatch');
+    }
     if (node.constraints.fixed_time
       && (node.schedule.time_window == null
         || String(node.schedule.time_window).trim() === '')) {
@@ -388,12 +397,17 @@
         && referenceCount === 1
         && scheduledDayId != null
         && referenceDayByNode.get(node.id) === scheduledDayId;
+      const fixedDayMismatch = node.constraints?.fixed_day === true && !scheduledInDay;
       const unscheduled = (node.status === 'wishlist' || node.status === 'removed')
         && referenceCount === 0
         && scheduledDayId == null;
       const recognizedStatus = ['scheduled', 'wishlist', 'removed'].includes(node.status);
 
-      if (recognizedStatus && !routeOnlyCityStop && !scheduledInDay && !unscheduled) {
+      if (fixedDayMismatch) {
+        errors.push({ code: 'fixed_day_mismatch', node_id: node.id });
+      }
+      if (recognizedStatus && !routeOnlyCityStop && !scheduledInDay && !unscheduled
+        && !fixedDayMismatch) {
         errors.push({ code: 'status_schedule_mismatch', node_id: node.id });
       } else if (!recognizedStatus) {
         if (scheduledDayId != null && !dayIds.has(scheduledDayId)) {
