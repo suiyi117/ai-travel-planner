@@ -146,20 +146,20 @@ def compute_diff(before: TripDraft, after: TripDraft) -> list[CandidateDiff]:
         if before_pos is None and after_pos is not None:
             diffs.append(CandidateDiff(
                 type="add", node_id=node_id, node_name=name,
-                to_position=ChangePosition(**after_pos),
+                to_position=ChangePosition(day_id=(after_pos.get('day_id') if after_pos else None), index=(after_pos.get('index') if after_pos else None), route_index=(after_pos.get('route_index') if after_pos else None)),
                 reason="用户手动添加",
             ))
         elif before_pos is not None and after_pos is None:
             diffs.append(CandidateDiff(
                 type="remove", node_id=node_id, node_name=name,
-                from_position=ChangePosition(**before_pos),
+                from_position=ChangePosition(day_id=(before_pos.get('day_id') if before_pos else None), index=(before_pos.get('index') if before_pos else None), route_index=(before_pos.get('route_index') if before_pos else None)),
                 reason="优化器建议移除",
             ))
         elif before_pos != after_pos:
             diffs.append(CandidateDiff(
                 type="move", node_id=node_id, node_name=name,
-                from_position=ChangePosition(**before_pos),
-                to_position=ChangePosition(**after_pos),
+                from_position=ChangePosition(day_id=(before_pos.get('day_id') if before_pos else None), index=(before_pos.get('index') if before_pos else None), route_index=(before_pos.get('route_index') if before_pos else None)),
+                to_position=ChangePosition(day_id=(after_pos.get('day_id') if after_pos else None), index=(after_pos.get('index') if after_pos else None), route_index=(after_pos.get('route_index') if after_pos else None)),
                 reason="优化器调整顺序",
             ))
 

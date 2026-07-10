@@ -116,7 +116,7 @@ def build_route_segments(
     node_by_id: dict,
     cost_matrix: list[list[dict]],
     id_to_index: dict,
-) -> list[dict]:
+) -> dict:
     """Build route segments from the ordered node list and cost matrix."""
     segments = []
     total_km = 0.0
@@ -139,9 +139,12 @@ def build_route_segments(
         total_min += cell["duration_minutes"]
         total_toll += cell["toll_yuan"]
 
-    return segments, {
+    return {
+        "segments": segments,
         "total_km": round(total_km, 1),
         "total_driving_minutes": total_min,
         "toll_yuan": round(total_toll, 1),
-        "segments": segments,
-    }
+        "total_km": round(total_km, 1),
+        "total_driving_minutes": total_min,
+        "toll_yuan": round(total_toll, 1),
+        "segments": segments,    }
