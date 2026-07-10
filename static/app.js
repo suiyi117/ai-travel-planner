@@ -950,6 +950,58 @@ let draggedDraftNodeId = null;
         showToast(e.message || '添加失败', 'error');
       }
     }
+
+
+    function renderCandidatePanel() {
+      var panel = document.getElementById('candidateDiffPanel');
+      if (!panel) {
+        panel = document.createElement('div');
+        panel.id = 'candidateDiffPanel';
+        panel.className = 'candidate-diff-panel';
+        var resultsPane = document.querySelector('.results-pane .pane-body');
+        if (resultsPane) {
+          resultsPane.insertBefore(panel, resultsPane.firstChild);
+        }
+      }
+      if (state.candidatePlan) {
+        panel.innerHTML = window.AeroTravelCandidate.renderCandidatePanel(
+          state.candidatePlan.draft,
+          state.candidatePlan.diff,
+          escapeHtml
+        ) + '' +
+        '<div class="candidate-actions">' +
+          '<button class="btn btn-primary" id="applyCandidateBtn" type="button">应用优化</button>' +
+          '<button class="btn btn-ghost" id="dismissCandidateBtn" type="button">放弃</button>' +
+        '</div>';
+        panel.hidden = false;
+        setTimeout(function () {
+          var applyBtn = document.getElementById('applyCandidateBtn');
+          var dismissBtn = document.getElementById('dismissCandidateBtn');
+          if (applyBtn) applyBtn.onclick = function () { applyCandidate(); };
+          if (dismissBtn) dismissBtn.onclick = function () { dismissCandidate(); };
+        }, 0);
+      } else {
+        panel.hidden = true;
+      }
+    }
+
+    function applyCandidate() {
+      if (!state.candidatePlan || !state.workingDraft) return;
+      state.appliedUndo = JSON.parse(JSON.stringify(state.workingDraft));
+      state.draftHistory = window.AeroTravelHistory.push(state.draftHistory, state.candidatePlan.draft);
+      state.workingDraft = state.draftHistory.present;
+      state.candidatePlan = null;
+      renderEditor();
+      renderMap();
+      showToast('优化已应用，可点击"撤销已应用优化"回退');
+    }
+
+    function dismissCandidate() {
+      state.candidatePlan = null;
+      renderCandidatePanel();
+      showToast('已放弃此次优化建议');
+    }
+
     function commitDraft(nextDraft) {
       if (!nextDraft || nextDraft.revision === state.workingDraft?.revision) return;
       state.draftHistory = window.AeroTravelHistory.push(state.draftHistory, nextDraft);
@@ -1490,6 +1542,47 @@ let draggedDraftNodeId = null;
       el.saveDraftBtn.addEventListener('click', () => {
         if (!state.workingDraft) return;
         const errors = window.AeroTravelDraftOps.validateStructure(state.workingDraft);
+
+      // Smart optimize - call backend API
+      el.optimizeDraftBtn.addEventListener('click', async () => {
+        if (!state.workingDraft) return;
+        const errors = window.AeroTravelDraftOps.validateStructure(state.workingDraft);
+        if (errors.length) {
+          showToast('存在 ' + errors.length + ' 处结构问题，请修正后再优化', 'error');
+          return;
+        }
+        setStatus('正在优化行程...', 'active');
+        el.optimizeDraftBtn.disabled = true;
+        try {
+          const scope = { type: 'day', id: state.workingDraft.days.find(function (d) { return d.day === state.currentDay; })?.id || null };
+          const controller = new AbortController();
+          state.activeOptimizationController = controller;
+          const data = await fetchJson('/api/plan/optimize', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              base_revision: state.workingDraft.revision,
+              scope: scope,
+              draft: state.workingDraft
+            }),
+            signal: controller.signal
+          });
+          state.candidatePlan = {
+            revision: data.base_revision,
+            draft: data.candidate,
+            diff: data.diff || []
+          };
+          renderCandidatePanel();
+          showToast('优化完成，请查看变更建议');
+        } catch (err) {
+          if (err.name !== 'AbortError') {
+            showToast('优化请求失败：' + (err.message || '服务器错误'), 'error');
+          }
+        } finally {
+          el.optimizeDraftBtn.disabled = false;
+          setStatus('优化完成', 'neutral');
+        }
+      });
         if (errors.length) {
           showToast(`存在 ${errors.length} 处结构问题，请修正后再保存`, 'error');
           return;
