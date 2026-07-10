@@ -1,3 +1,40 @@
+﻿# IMPLEMENTATION — 可编辑行程与自驾规划实施记录
+
+> 实施日期：2026-07-11
+> 分支：`codex/editable-itinerary-self-drive`
+> 方法：TDD + 里程碑交付
+> 状态：**全部 15 项任务完成，质量门通过，已推送 GitHub**
+
+## 实施范围
+
+本轮将 AeroTravel 从"AI 行程生成器"升级为"约束驱动的可编辑规划工作台"：
+
+- 三阶段状态模型（AppliedPlan → WorkingDraft → CandidatePlan）
+- 想去清单 + 每日编辑器 + 约束面板（增/删/移/锁定）
+- 确定性局部优化（最近邻+2-opt）+ human-readable diff
+- 自驾规划模式（环线/单程、三种策略、真实道路数据）
+- 高德驾车距离矩阵 + 反向地理编码
+- 撤销/重做 + 快照 v2 兼容 v1
+
+## 文件变更统计
+
+| 类型 | 文件数 | 说明 |
+|---|---|---|
+| 新建前端 | 6 | draft.js, draft-ops.js, history.js, editor.js, candidate.js, self-drive.js |
+| 新建后端 | 7 | schemas/draft.py, schemas/location.py, planner/constraints.py, planner/draft_optimizer.py, planner/route_optimizer.py, services/driving_route_service.py |
+| 新建测试 | 6 | tests/frontend/*.test.js (4), tests/planner/*.py (2) |
+| 修改文件 | 10 | app.js, storage.js, state.js, api.js, index.html, styles.css, map.js, routers, check.ps1, docs |
+
+## 质量门
+
+- `.\scripts\check.ps1`: Python compile + Ruff + Mypy + 29 Python tests + 12 JS syntax checks + 51 frontend tests
+- `git diff --check`: no whitespace errors
+- 无数据库、无登录系统、无前端框架、无构建步骤
+- `/api/plan` 保持兼容
+
+详见 [CHANGELOG.md](./CHANGELOG.md) 和 [ADR-002](./docs/decisions/ADR-002-constraint-driven-editable-planning.md)。
+
+---
 # IMPLEMENTATION — 差异化优化实施记录
 
 > 实施日期：2026-07-09
@@ -484,3 +521,4 @@ static/styles.css         |  96 ++++
 - 本地 uvicorn + Chrome headless 打开 `/static/index.html`：`window.AeroTravelUtils` 存在，首屏示例行程渲染，3 个 day tab、4 个 timeline item、Leaflet 地图存在，控制台无 error/warning。
 
 当前产品化 backlog 已全部打勾。后续若继续优化，可进一步把 `app.js` 拆成 `api/render/map/storage/export` 等更细模块，但这已经不再是当前验收阻塞项。
+

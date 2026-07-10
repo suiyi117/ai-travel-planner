@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 本项目的所有重要变更记录，遵循 [语义化版本](https://semver.org/lang/zh-CN/) 规范。
 
@@ -24,6 +24,38 @@
 
 ### Security 安全
 - 安全门禁当前通过：未发现跟踪文件疑似密钥，`pip-audit` 未发现已知漏洞。
+
+
+## [1.2.0] - 2026-07-11
+
+### Added 新增
+- 可编辑行程工作台：三阶段状态模型（AppliedPlan / WorkingDraft / CandidatePlan）
+- 想去清单：支持手动添加、POI 搜索、地图点选三种入口
+- 每日编辑器：拖拽排序、上移/下移、跨日移动、名称编辑
+- 四种硬约束：必去、固定日期、固定时段、固定顺序
+- 约束驱动优化：最近邻+2-opt 重排未锁定节点，变更以 human-readable diff 展示
+- 智能优化 API (`/api/plan/optimize`)：带 revision 冲突检测的无状态优化
+- 候选方案面板：差异分组、应用/放弃/撤销已应用优化
+- 自驾规划模式：环线/单程、三种策略（少开车/均衡/多体验）
+- 自驾路线优化：约束感知节点排序、按天拆分
+- 高德驾车距离矩阵：真实道路距离、驾驶时间、过路费估算、降级回退
+- 反向地理编码 (`/api/reverse_geocode`)：地图选点自动解析地点名称
+- 仅保存模式：按编辑结果直接保存，不触发 AI 或路线重算
+- 撤销/重做：有界历史记录（上限 50 步）
+- 快照版本升级：schema v2，兼容 v1 只读恢复
+
+### Changed 变更
+- `state.js` 扩展：新增 draft、candidate、edit mode、self-drive settings、request controllers
+- `storage.js` 升级：save/remove 返回显式结果，支持 v2 快照
+- `app.js` 重构：新增 commitDraft / renderEditor / handleDraftListAction / openConstraintDialog
+- `scripts/check.ps1` 扩展：新增前端单元测试（`node --test tests/frontend/*.test.js`）
+
+### Technical Notes
+- 29 Python 测试 + 51 前端单元测试通过
+- Mypy 类型检查通过
+- 全部 12 个 JS 文件语法检查通过
+- 保持无数据库、无登录系统、无前端框架、无构建步骤
+- 持久化仍为浏览器 localStorage
 
 ## [1.1.0] - 2026-07-09
 
@@ -72,3 +104,4 @@
 - 后端：Python 3.10+ / FastAPI / Uvicorn
 - 前端：纯 HTML/CSS/JS（无框架），Claude Design System 暖色主题
 - 47+ 城市车站-电报码映射，55+ 城市机场 IATA 码映射
+
