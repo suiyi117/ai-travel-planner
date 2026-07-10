@@ -52,7 +52,8 @@ if (Get-Command node -ErrorAction SilentlyContinue) {
     $frontendTests = Get-ChildItem tests/frontend -Filter *.test.js -ErrorAction SilentlyContinue
     if ($frontendTests) {
         Write-Host "== Frontend unit tests =="
-        Invoke-Checked node --test @($frontendTests.FullName)
+        $frontendTestArgs = @("--test") + @($frontendTests.FullName)
+        Invoke-Checked node @frontendTestArgs
     }
 } else {
     Write-Warning "Node.js not found; skipped static/*.js syntax check."
