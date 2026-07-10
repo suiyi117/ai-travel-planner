@@ -109,6 +109,68 @@ test('constraint updates are explicit and structural validation finds duplicates
   assert.deepEqual(validateStructure(brokenRoute).map(error => error.code), ['duplicate_route_node']);
 });
 
+test('fixed-time constraints require a time window without changing the input', () => {
+  const added = addNode(emptyDraft(), {
+    name: 'Timed place', city: 'Hangzhou', city_id: 'city-hz'
+  }, () => 'node-timed');
+  const before = structuredClone(added);
+
+  assert.throws(
+    () => updateConstraints(added, 'node-timed', { fixed_time: true }),
+    /fixed_time_missing/
+  );
+  assert.throws(
+    () => updateConstraints(added, 'node-timed', { fixed_time: true }, null),
+    /fixed_time_missing/
+  );
+  assert.throws(
+    () => updateConstraints(added, 'node-timed', { fixed_time: true }, '  '),
+    /fixed_time_missing/
+  );
+  assert.deepEqual(added, before);
+
+  const enabled = updateConstraints(
+    added,
+    'node-timed',
+    { fixed_time: true },
+    '09:00'
+  );
+  assert.equal(enabled.nodes[0].constraints.fixed_time, true);
+  assert.equal(enabled.nodes[0].schedule.time_window, '09:00');
+
+  const withTime = updateConstraints(added, 'node-timed', {}, '10:00-11:00');
+  const enabledExisting = updateConstraints(withTime, 'node-timed', { fixed_time: true });
+  assert.equal(enabledExisting.nodes[0].constraints.fixed_time, true);
+  assert.equal(enabledExisting.nodes[0].schedule.time_window, '10:00-11:00');
+
+  const disabled = updateConstraints(enabled, 'node-timed', { fixed_time: false });
+  assert.equal(disabled.nodes[0].constraints.fixed_time, false);
+  assert.equal(disabled.nodes[0].schedule.time_window, '09:00');
+});
+
+test('structural validation reports one fixed-time error per damaged node', () => {
+  const damaged = addNode(emptyDraft(), {
+    name: 'Damaged timed place', city: 'Hangzhou', city_id: 'city-hz'
+  }, () => 'node-damaged');
+  damaged.nodes[0].constraints.fixed_time = true;
+
+  assert.deepEqual(validateStructure(damaged), [
+    { code: 'fixed_time_missing', node_id: 'node-damaged' }
+  ]);
+
+  const missingField = structuredClone(damaged);
+  delete missingField.nodes[0].schedule.time_window;
+  assert.deepEqual(validateStructure(missingField), [
+    { code: 'fixed_time_missing', node_id: 'node-damaged' }
+  ]);
+
+  const blankWindow = structuredClone(damaged);
+  blankWindow.nodes[0].schedule.time_window = '  ';
+  assert.deepEqual(validateStructure(blankWindow), [
+    { code: 'fixed_time_missing', node_id: 'node-damaged' }
+  ]);
+});
+
 test('node edits, deletion and city reordering keep canonical references consistent', () => {
   const draft = emptyDraft();
   draft.city_stops.push({
@@ -288,7 +350,12 @@ test('removing a locked target is rejected without changing the input', () => {
 
   for (const [constraint, errorCode] of cases) {
     const scheduled = scheduleNodes(emptyDraft(), 'day-1', [`target-${constraint}`]);
-    const locked = updateConstraints(scheduled, `target-${constraint}`, { [constraint]: true });
+    const locked = updateConstraints(
+      scheduled,
+      `target-${constraint}`,
+      { [constraint]: true },
+      constraint === 'fixed_time' ? '10:00' : undefined
+    );
     const before = structuredClone(locked);
 
     assert.throws(

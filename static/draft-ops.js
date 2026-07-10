@@ -276,15 +276,20 @@
   function updateConstraints(draft, nodeId, patch = {}, timeWindow) {
     const result = next(draft);
     const node = findNode(result, nodeId);
+    if (timeWindow !== undefined) {
+      node.schedule.time_window = timeWindow == null || String(timeWindow).trim() === ''
+        ? null
+        : boundedText(timeWindow, 'time_window');
+    }
     for (const key of CONSTRAINT_KEYS) {
       if (Object.hasOwn(patch, key) && typeof patch[key] === 'boolean') {
         node.constraints[key] = patch[key];
       }
     }
-    if (timeWindow !== undefined) {
-      node.schedule.time_window = timeWindow == null || String(timeWindow).trim() === ''
-        ? null
-        : boundedText(timeWindow, 'time_window');
+    if (node.constraints.fixed_time
+      && (node.schedule.time_window == null
+        || String(node.schedule.time_window).trim() === '')) {
+      throw new Error('fixed_time_missing');
     }
     return finish(draft, result);
   }
@@ -363,6 +368,11 @@
       }
     }
     for (const node of nodes) {
+      if (node.constraints?.fixed_time === true
+        && (node.schedule?.time_window == null
+          || String(node.schedule.time_window).trim() === '')) {
+        errors.push({ code: 'fixed_time_missing', node_id: node.id });
+      }
       if (!cityIds.has(node.city_id)) {
         errors.push({ code: 'unknown_node_city', node_id: node.id, city_id: node.city_id });
       }
