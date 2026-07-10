@@ -68,6 +68,53 @@
     }
   }
 
+  function lockedAnchorPositions(draft) {
+    const dayPositionByNode = new Map();
+    for (const day of draft.days) {
+      day.node_ids.forEach((nodeId, index) => {
+        dayPositionByNode.set(nodeId, { dayId: day.id, index });
+      });
+    }
+
+    const routeIds = draft.mode === 'self_drive' && Array.isArray(draft.route?.ordered_node_ids)
+      ? draft.route.ordered_node_ids
+      : [];
+    const routeIndexByNode = new Map(routeIds.map((nodeId, index) => [nodeId, index]));
+
+    return draft.nodes.flatMap(node => {
+      if (node.schedule.day_id == null
+        || (!node.constraints.fixed_order && !node.constraints.fixed_time)) {
+        return [];
+      }
+      const dayPosition = dayPositionByNode.get(node.id);
+      return [{
+        id: node.id,
+        fixedOrder: node.constraints.fixed_order,
+        fixedTime: node.constraints.fixed_time,
+        dayId: dayPosition?.dayId ?? node.schedule.day_id,
+        dayIndex: dayPosition?.index ?? -1,
+        routeIndex: routeIndexByNode.get(node.id) ?? -1
+      }];
+    });
+  }
+
+  function assertLockedAnchorsStable(before, draft) {
+    const after = new Map(lockedAnchorPositions(draft).map(anchor => [anchor.id, anchor]));
+    const moved = anchor => {
+      const current = after.get(anchor.id);
+      return current == null
+        || current.dayId !== anchor.dayId
+        || current.dayIndex !== anchor.dayIndex
+        || current.routeIndex !== anchor.routeIndex;
+    };
+    if (before.some(anchor => anchor.fixedOrder && moved(anchor))) {
+      throw new Error('fixed_order_locked');
+    }
+    if (before.some(anchor => anchor.fixedTime && moved(anchor))) {
+      throw new Error('fixed_time_order_locked');
+    }
+  }
+
   function addNode(draft, place, idFactory = () => globalThis.crypto.randomUUID()) {
     const result = next(draft);
     if (result.nodes.length >= 200) throw new Error('node_limit_reached');
@@ -120,6 +167,7 @@
 
   function moveNode(draft, nodeId, dayId, targetIndex = 0) {
     const result = next(draft);
+    const lockedAnchors = lockedAnchorPositions(result);
     const node = findNode(result, nodeId);
     const targetDay = dayId == null ? null : result.days.find(day => day.id === dayId);
     if (dayId != null && !targetDay) throw new Error(`unknown day: ${dayId}`);
@@ -153,6 +201,7 @@
         result.route.ordered_node_ids = result.route.ordered_node_ids.filter(id => id !== nodeId);
       }
       updateManualRanks(result);
+      assertLockedAnchorsStable(lockedAnchors, result);
       return finish(draft, result);
     }
 
@@ -164,6 +213,7 @@
       result.route.ordered_node_ids.push(nodeId);
     }
     updateManualRanks(result);
+    assertLockedAnchorsStable(lockedAnchors, result);
     return finish(draft, result);
   }
 

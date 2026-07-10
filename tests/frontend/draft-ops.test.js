@@ -41,6 +41,30 @@ function emptyDraft() {
   };
 }
 
+function addDay(draft, id = 'day-2') {
+  draft.city_stops[0].days += 1;
+  draft.days.push({
+    id,
+    day: draft.days.length + 1,
+    date: '2026-08-02',
+    primary_city_id: 'city-hz',
+    node_ids: [],
+    max_driving_minutes: null
+  });
+  return draft;
+}
+
+function scheduleNodes(draft, dayId, nodeIds) {
+  return nodeIds.reduce((current, nodeId, index) => {
+    const added = addNode(current, {
+      name: `Place ${nodeId}`,
+      city: 'Hangzhou',
+      city_id: 'city-hz'
+    }, () => nodeId);
+    return moveNode(added, nodeId, dayId, index);
+  }, draft);
+}
+
 test('user-added nodes default to required and can move into a day', () => {
   const base = emptyDraft();
   const added = addNode(base, {
@@ -169,4 +193,79 @@ test('operations remain compatible with the minimal task fixture', () => {
 
   assert.equal(moved.revision, 2);
   assert.deepEqual(moved.days[0].node_ids, ['node-minimal']);
+});
+
+test('moving another node cannot change a fixed-order anchor position', () => {
+  const scheduled = scheduleNodes(emptyDraft(), 'day-1', ['a', 'b', 'c']);
+  const locked = updateConstraints(scheduled, 'b', { fixed_order: true });
+  const before = structuredClone(locked);
+
+  assert.throws(
+    () => moveNode(locked, 'c', 'day-1', 0),
+    /fixed_order_locked/
+  );
+  assert.deepEqual(locked, before);
+});
+
+test('moving another node cannot cross a fixed-time anchor position', () => {
+  const scheduled = scheduleNodes(emptyDraft(), 'day-1', ['a', 'b', 'c']);
+  const locked = updateConstraints(
+    scheduled,
+    'b',
+    { fixed_time: true },
+    '10:00-11:00'
+  );
+  const before = structuredClone(locked);
+
+  assert.throws(
+    () => moveNode(locked, 'c', 'day-1', 0),
+    /fixed_time_order_locked/
+  );
+  assert.deepEqual(locked, before);
+});
+
+test('cross-day moves preserve anchors in both source and target days', () => {
+  let sourceLocked = scheduleNodes(addDay(emptyDraft()), 'day-1', ['moving', 'source-anchor']);
+  sourceLocked = updateConstraints(sourceLocked, 'source-anchor', { fixed_order: true });
+
+  assert.throws(
+    () => moveNode(sourceLocked, 'moving', 'day-2', 0),
+    /fixed_order_locked/
+  );
+
+  let targetLocked = scheduleNodes(addDay(emptyDraft()), 'day-1', ['moving']);
+  targetLocked = scheduleNodes(targetLocked, 'day-2', ['target-anchor']);
+  targetLocked = updateConstraints(targetLocked, 'target-anchor', { fixed_time: true }, '09:00');
+
+  assert.throws(
+    () => moveNode(targetLocked, 'moving', 'day-2', 0),
+    /fixed_time_order_locked/
+  );
+});
+
+test('fixed-order anchor errors take priority over fixed-time anchor errors', () => {
+  let draft = scheduleNodes(emptyDraft(), 'day-1', ['moving', 'time-anchor', 'order-anchor']);
+  draft = updateConstraints(draft, 'time-anchor', { fixed_time: true }, '09:00');
+  draft = updateConstraints(draft, 'order-anchor', { fixed_order: true });
+
+  assert.throws(
+    () => moveNode(draft, 'moving', null),
+    /fixed_order_locked/
+  );
+});
+
+test('self-drive moves preserve locked anchor indexes in the route order', () => {
+  let draft = addDay(emptyDraft());
+  draft.mode = 'self_drive';
+  draft = scheduleNodes(draft, 'day-1', ['moving']);
+  draft = scheduleNodes(draft, 'day-2', ['route-anchor']);
+  draft.route = { ordered_node_ids: ['moving', 'route-anchor'] };
+  const locked = updateConstraints(draft, 'route-anchor', { fixed_order: true });
+  const before = structuredClone(locked);
+
+  assert.throws(
+    () => moveNode(locked, 'moving', null),
+    /fixed_order_locked/
+  );
+  assert.deepEqual(locked, before);
 });
