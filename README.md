@@ -219,6 +219,7 @@ ai-travel-planner/
 - 部署与回滚清单：[docs/deployment-checklist.md](docs/deployment-checklist.md)
 - 人工冒烟清单：[docs/smoke-checklist.md](docs/smoke-checklist.md)
 - 工程变更管理：[docs/engineering/change-management.md](docs/engineering/change-management.md)
+- 分支用途与清理规则：[docs/engineering/branch-management.md](docs/engineering/branch-management.md)
 - 发布流程：[docs/engineering/release-process.md](docs/engineering/release-process.md)
 - 持久化/auth 决策：[docs/decisions/ADR-001-local-only-persistence.md](docs/decisions/ADR-001-local-only-persistence.md)
 - 页面向导重设计规格：[docs/superpowers/specs/2026-07-11-page-redesign-wizard-design.md](docs/superpowers/specs/2026-07-11-page-redesign-wizard-design.md)
