@@ -9,10 +9,10 @@
 | 分支 | 用途 | 创建与维护方 | 生命周期与删除条件 |
 |---|---|---|---|
 | `master` | 稳定主分支，保存已通过质量与安全检查的可发布代码 | 仓库维护者 | 永久保留；只能通过 Pull Request 合并，禁止强推和删除 |
-| `dependabot/github_actions/github-actions-6ebb6fc752` | GitHub Actions 依赖分组升级，对应 PR #13 | GitHub Dependabot | 临时分支；PR 合并或关闭后删除 |
-| `dependabot/pip/python-dependencies-315ee4c38f` | Python 运行与开发依赖分组升级，对应 PR #14 | GitHub Dependabot | 临时分支；PR 合并或关闭后删除 |
+| `dependabot/github_actions/github-actions-6ebb6fc752` | GitHub Actions 依赖分组升级，对应 [PR #13](https://github.com/suiyi117/ai-travel-planner/pull/13) | GitHub Dependabot | 临时分支；PR 合并或关闭后删除 |
+| `dependabot/pip/python-dependencies-315ee4c38f` | Python 运行与开发依赖分组升级，对应 [PR #14](https://github.com/suiyi117/ai-travel-planner/pull/14) | GitHub Dependabot | 临时分支；PR 合并或关闭后删除 |
 
-GitHub 没有通用的“分支备注”字段，因此分支用途以本文件和对应 Pull Request 的标题、说明为准。实时状态以 GitHub 的 Branches 和 Pull requests 页面为准。
+GitHub 没有通用的“分支备注”字段，因此分支用途以 [README 当前 GitHub 分支表](../../README.md#当前-github-分支)、本文件和对应 Pull Request 的标题、说明为准。实时状态以 GitHub 的 Branches 和 Pull requests 页面为准。
 
 ## 分支命名与用途
 
