@@ -155,7 +155,29 @@
               <p class="field-help">城市顺序就是旅行顺序。每个城市之间可单独指定高铁、飞机或自驾。</p>
             </div>
 
+            <div class="field">
+              <label>规划模式</label>
+              <div class="segmented" style="--segments: 2" id="planningModeGroup">
+                <button class="is-active" type="button" data-value="itinerary">城市行程</button>
+                <button type="button" data-value="self_drive">自驾路线</button>
+              </div>
+            </div>
+
+            <div class="field" id="selfDriveControls" hidden>
+              <label>自驾设置</label>
+              <div class="segmented" style="--segments: 2" id="routeShapeGroup">
+                <button class="is-active" type="button" data-value="one_way">单程</button>
+                <button type="button" data-value="round_trip">环线</button>
+              </div>
+              <div class="segmented" style="--segments: 3; margin-top: var(--space-3);" id="routeStrategyGroup">
+                <button type="button" data-value="efficient">少开车</button>
+                <button class="is-active" type="button" data-value="balanced">均衡</button>
+                <button type="button" data-value="experience">多体验</button>
+              </div>
+            </div>
+
             <div class="city-list" id="cityList" data-od-id="city-list"></div>
+
 
             <div class="field" data-od-id="date-field">
               <label for="departureDate">出发日期</label>
@@ -238,6 +260,14 @@
                 <div id="wishlistList"></div>
               </aside>
               <section class="day-editor">
+                <div id="selfDrivePanel" hidden>
+                  <div id="selfDriveSummary"></div>
+                  <div class="row-between" style="margin: var(--space-3) 0;">
+                    <h3 class="section-label">自驾节点</h3>
+                    <button class="btn btn-ghost" id="recalcRouteBtn" type="button">重算道路</button>
+                  </div>
+                  <div id="selfDriveNodeList"></div>
+                </div>
                 <div id="draftDayTabs"></div>
                 <div id="draftNodeList"></div>
               </section>
@@ -250,6 +280,7 @@
               <button class="btn btn-ghost" id="saveDraftBtn" type="button">仅保存</button>
               <button class="btn btn-primary" id="optimizeDraftBtn" type="button">智能优化</button>
             </div>
+
             <dialog id="constraintDialog" aria-labelledby="constraintDialogTitle">
               <form id="constraintForm">
                 <h2 id="constraintDialogTitle">地点约束</h2>
@@ -350,10 +381,11 @@
   <script src="candidate.js?v=editable-itinerary-20260710"></script>
   <script src="self-drive.js?v=editable-itinerary-20260710"></script>
   <script src="api.js?v=engineering-20260709"></script>
-  <script src="map.js?v=engineering-20260709"></script>
+  <script src="map.js?v=editable-itinerary-20260711"></script>
   <script src="storage.js?v=engineering-20260709"></script>
   <script src="export-ics.js?v=engineering-20260709"></script>
   <script src="render.js?v=engineering-20260709"></script>
-  <script src="app.js?v=engineering-20260709"></script>
+  <script src="app.js?v=editable-itinerary-20260711"></script>
+
 </body>
 </html>

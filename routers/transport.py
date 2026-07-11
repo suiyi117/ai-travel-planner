@@ -1,8 +1,12 @@
 from typing import Any
+import logging
 
 from fastapi import APIRouter, HTTPException, Query
 
+from core.observability import log_event
 from planner.transport import estimate_train_price, resolve_train_type_pref
+from schemas.draft import DrivingRouteRequest
+from services.driving_route_service import build_driving_route
 from services.flight_service import CITY_AIRPORT_MAP, get_airport_info, search_flights
 from services.train_service import _get_station_map, search_train_by_number, search_trains
 
@@ -145,3 +149,36 @@ async def query_stations(
         "stations": stations,
         "airports": airports,
     }
+
+
+def create_driving_router(settings, logger=None) -> APIRouter:
+    driving_router = APIRouter(prefix="/api/transport", tags=["transport"])
+
+    @driving_router.post("/driving-route")
+    async def driving_route(request: DrivingRouteRequest):
+        nodes = [
+            {
+                "id": node.id,
+                "name": node.name,
+                "lat": node.location.lat,
+                "lng": node.location.lng,
+            }
+            for node in request.nodes
+            if node.location.status == "resolved"
+        ]
+        if len(nodes) != len(request.nodes):
+            raise HTTPException(
+                status_code=422,
+                detail={"code": "unresolved_route_node", "message": "路线中存在尚未定位的节点"},
+            )
+        result = await build_driving_route(settings.amap_key, nodes, request.route_shape)
+        if result["status"] == "unavailable" and logger:
+            log_event(
+                logger,
+                logging.WARNING,
+                "driving_route_partial_failure",
+                segment_count=len(result["segments"]),
+            )
+        return result
+
+    return driving_router

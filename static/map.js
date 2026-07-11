@@ -1,4 +1,4 @@
-﻿(function () {
+(function () {
   function createMap(targetId, center, zoom) {
     const map = L.map(targetId, { zoomControl: false }).setView(center, zoom);
     L.control.zoom({ position: 'bottomright' }).addTo(map);
@@ -8,9 +8,6 @@
     }).addTo(map);
     return map;
   }
-
-  window.AeroTravelMap = Object.freeze({ createMap });
-})();
 
   function enablePointPicker(map, onPick) {
     if (!map) return () => {};
@@ -28,10 +25,21 @@
     };
   }
 
+  function replaceRoutePolyline(map, currentLayer, points, options) {
+    if (currentLayer) currentLayer.remove();
+    if (!points || points.length < 2 || !map || !window.L) return null;
+    const status = (options && options.status) || 'estimate';
+    return L.polyline(points, {
+      color: status === 'provider' ? '#c96442' : '#77736b',
+      weight: 4,
+      opacity: 0.9,
+      dashArray: status === 'provider' ? null : '8 8'
+    }).addTo(map);
+  }
+
   window.AeroTravelMap = Object.freeze({
-    initMap: window.AeroTravelMap ? window.AeroTravelMap.initMap : undefined,
-    updateMarkers: window.AeroTravelMap ? window.AeroTravelMap.updateMarkers : undefined,
-    drawRouteLine: window.AeroTravelMap ? window.AeroTravelMap.drawRouteLine : undefined,
-    fitRoute: window.AeroTravelMap ? window.AeroTravelMap.fitRoute : undefined,
-    enablePointPicker
+    createMap,
+    enablePointPicker,
+    replaceRoutePolyline
   });
+})();

@@ -91,10 +91,26 @@ class DrivingRouteRequest(StrictModel):
     nodes: list[PlaceNode] = Field(min_length=2, max_length=20)
 
 
+class DrivingRouteResponse(StrictModel):
+    source: str
+    status: Literal["provider", "estimate", "unavailable"]
+    route_shape: Literal["one_way", "round_trip"]
+    ordered_node_ids: list[str] = Field(default_factory=list)
+    segments: list[dict[str, Any]] = Field(default_factory=list)
+    totals: dict[str, Any] = Field(default_factory=dict)
+    polyline: list[list[float]] = Field(default_factory=list)
+    warnings: list[dict[str, Any]] = Field(default_factory=list)
+    fetched_at: str = ""
+    total_km: float | None = None
+    total_driving_minutes: int | None = None
+    toll_yuan: float | None = None
+
+
 class ApiWarning(StrictModel):
     code: str
     message: str
     node_id: str | None = None
+
 
 
 class ChangePosition(StrictModel):

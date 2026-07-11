@@ -3,7 +3,7 @@
 > 实施日期：2026-07-11
 > 分支：`codex/editable-itinerary-self-drive`
 > 方法：TDD + 里程碑交付
-> 状态：**全部 15 项任务完成，质量门通过，已推送 GitHub**
+> 状态：**里程碑 A/B 完成；里程碑 C 已补齐主闭环，待浏览器人工验收**
 
 ## 实施范围
 
@@ -521,4 +521,18 @@ static/styles.css         |  96 ++++
 - 本地 uvicorn + Chrome headless 打开 `/static/index.html`：`window.AeroTravelUtils` 存在，首屏示例行程渲染，3 个 day tab、4 个 timeline item、Leaflet 地图存在，控制台无 error/warning。
 
 当前产品化 backlog 已全部打勾。后续若继续优化，可进一步把 `app.js` 拆成 `api/render/map/storage/export` 等更细模块，但这已经不再是当前验收阻塞项。
+
+
+
+## 进度对齐补丁（2026-07-11）
+
+在原 1.2.0 实施基础上补齐自驾闭环缺口：
+
+- 修复 `static/map.js` 点选导出与道路 polyline 辅助函数
+- 落地 `/api/transport/driving-route` 与 `create_driving_router`
+- 将 `optimize_draft` 升级为 async，并接入 self-drive 成本矩阵/道路回填
+- 重写 `planner/route_optimizer.py` 为 plan 约定的稳定接口
+- 补齐自驾前端控件、重算请求、候选优化与地图预览接线
+- 修复 `app.js` 中“仅保存 / 智能优化”事件绑定嵌套错误
+- 补充 driving / route optimizer 测试，并更新 smoke checklist
 

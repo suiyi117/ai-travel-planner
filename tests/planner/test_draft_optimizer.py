@@ -1,4 +1,5 @@
-﻿import unittest
+import asyncio
+import unittest
 
 from planner.draft_optimizer import optimize_draft, compute_diff
 from schemas.draft import TripDraft, OptimizeScope
@@ -49,40 +50,40 @@ def make_draft(**overrides) -> TripDraft:
     return TripDraft.model_validate(payload)
 
 
+def run_optimize(draft, scope):
+    return asyncio.run(optimize_draft(draft, scope))
+
+
 class DraftOptimizerTests(unittest.TestCase):
     def test_optimize_day_reorders_unlocked_nodes(self):
         draft = make_draft()
         scope = OptimizeScope(type="day", id="day-1")
-        optimized, diff = optimize_draft(draft, scope)
+        optimized, diff, sources = run_optimize(draft, scope)
         self.assertEqual(len(optimized.days[0].node_ids), 3)
         self.assertGreater(optimized.revision, draft.revision)
-        # All three nodes should remain
         self.assertEqual(set(optimized.days[0].node_ids), {"n1", "n2", "n3"})
+        self.assertIn("draft", sources)
 
     def test_locked_nodes_are_preserved(self):
         draft = make_draft()
-        draft.nodes[0].constraints.fixed_order = True  # lock n1 at position 0
+        draft.nodes[0].constraints.fixed_order = True
         scope = OptimizeScope(type="day", id="day-1")
-        optimized, diff = optimize_draft(draft, scope)
-        # n1 must stay at index 0
+        optimized, diff, _sources = run_optimize(draft, scope)
         self.assertEqual(optimized.days[0].node_ids[0], "n1")
 
     def test_scope_day_only_affects_target_day(self):
-        # Two-day draft
         draft = make_draft(days=[
             {"id": "day-1", "day": 1, "primary_city_id": "city-hz", "node_ids": ["n1", "n2"]},
             {"id": "day-2", "day": 2, "primary_city_id": "city-hz", "node_ids": ["n3"]},
         ])
         scope = OptimizeScope(type="day", id="day-1")
-        optimized, diff = optimize_draft(draft, scope)
-        # day-2 should be untouched
+        optimized, diff, _sources = run_optimize(draft, scope)
         self.assertEqual(optimized.days[1].node_ids, ["n3"])
 
     def test_diff_detects_move(self):
         draft = make_draft()
         scope = OptimizeScope(type="day", id="day-1")
-        optimized, diff = optimize_draft(draft, scope)
-        # Diff should exist if order changed
+        optimized, diff, _sources = run_optimize(draft, scope)
         move_diffs = [d for d in diff if d.type == "move"]
         if move_diffs:
             self.assertIsNotNone(move_diffs[0].from_position)
@@ -92,13 +93,13 @@ class DraftOptimizerTests(unittest.TestCase):
         draft = make_draft()
         draft.days[0].node_ids = []
         scope = OptimizeScope(type="day", id="day-1")
-        optimized, diff = optimize_draft(draft, scope)
+        optimized, diff, _sources = run_optimize(draft, scope)
         self.assertEqual(optimized.days[0].node_ids, [])
 
     def test_optimize_trip_scope(self):
         draft = make_draft()
         scope = OptimizeScope(type="trip")
-        optimized, diff = optimize_draft(draft, scope)
+        optimized, diff, _sources = run_optimize(draft, scope)
         self.assertEqual(len(optimized.days[0].node_ids), 3)
 
 

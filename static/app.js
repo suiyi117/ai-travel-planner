@@ -79,7 +79,15 @@ const {
     addPlaceQuery: document.getElementById('addPlaceQuery'),
     usePlaceNameBtn: document.getElementById('usePlaceNameBtn'),
     pickPlaceOnMapBtn: document.getElementById('pickPlaceOnMapBtn'),
-    addPlaceResults: document.getElementById('addPlaceResults')
+    addPlaceResults: document.getElementById('addPlaceResults'),
+    planningModeGroup: document.getElementById('planningModeGroup'),
+    selfDriveControls: document.getElementById('selfDriveControls'),
+    routeShapeGroup: document.getElementById('routeShapeGroup'),
+    routeStrategyGroup: document.getElementById('routeStrategyGroup'),
+    selfDrivePanel: document.getElementById('selfDrivePanel'),
+    selfDriveSummary: document.getElementById('selfDriveSummary'),
+    selfDriveNodeList: document.getElementById('selfDriveNodeList'),
+    recalcRouteBtn: document.getElementById('recalcRouteBtn')
     };
 
     let map = null;
@@ -847,6 +855,12 @@ let draggedDraftNodeId = null;
         state.draftHistory = window.AeroTravelHistory.createHistory(state.workingDraft, 50);
       }
       state.selectedOptions = { ...selectedOptionsSnapshot };
+      if (state.workingDraft) {
+        state.planningMode = state.workingDraft.mode || 'itinerary';
+        state.routeShape = state.workingDraft.route_shape || state.routeShape || 'one_way';
+        state.routeStrategy = state.workingDraft.strategy || state.routeStrategy || 'balanced';
+      }
+      syncPlanningModeControls();
       refreshQualityChecks();
       state.currentDay = 1;
       state.currentFilter = 'all';
@@ -892,6 +906,74 @@ let draggedDraftNodeId = null;
     }
 
 
+
+
+    function ensureSelfDriveDraft(draft) {
+      if (!draft) return draft;
+      if (draft.mode === 'self_drive' && draft.route && Array.isArray(draft.route.ordered_node_ids) && draft.route.ordered_node_ids.length) {
+        return draft;
+      }
+      return window.AeroTravelSelfDrive.initializeSelfDriveRoute(
+        draft,
+        state.cityCenters,
+        () => (crypto.randomUUID ? crypto.randomUUID() : ('node-' + Date.now() + '-' + Math.random().toString(16).slice(2)))
+      );
+    }
+
+    function syncPlanningModeControls() {
+      const mode = state.planningMode || 'itinerary';
+      setActiveByValue(el.planningModeGroup, mode);
+      if (el.selfDriveControls) el.selfDriveControls.hidden = mode !== 'self_drive';
+      setActiveByValue(el.routeShapeGroup, state.routeShape || 'one_way');
+      setActiveByValue(el.routeStrategyGroup, state.routeStrategy || 'balanced');
+    }
+
+    function scheduleDrivingRouteRefresh() {
+      window.clearTimeout(state.routeRequestTimer);
+      state.routeRequestTimer = window.setTimeout(refreshDrivingRoute, 300);
+    }
+
+    async function refreshDrivingRoute() {
+      if (!state.workingDraft || state.workingDraft.mode !== 'self_drive') return;
+      state.activeRouteController?.abort();
+      const controller = new AbortController();
+      state.activeRouteController = controller;
+      const requestedRevision = state.workingDraft.revision;
+      const request = window.AeroTravelSelfDrive.buildRouteRequest(state.workingDraft);
+      if (request.nodes.length < 2) {
+        showToast('至少添加两个已定位节点后再重算道路', 'error');
+        return;
+      }
+      if (request.nodes.length > 20) {
+        showToast('单条自驾路线最多 20 个已定位节点', 'error');
+        return;
+      }
+      try {
+        const response = await fetchJson('/api/transport/driving-route', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify(request)
+        });
+        if (requestedRevision !== state.workingDraft.revision) return;
+        const previousRoute = state.workingDraft.route || {};
+        const updatedDraft = JSON.parse(JSON.stringify(state.workingDraft));
+        updatedDraft.route = {
+          ...previousRoute,
+          ...response,
+          ordered_node_ids: [...(previousRoute.ordered_node_ids || [])],
+          day_segments: previousRoute.day_segments || []
+        };
+        state.workingDraft = updatedDraft;
+        if (state.draftHistory) state.draftHistory = { ...state.draftHistory, present: updatedDraft };
+        renderEditor();
+        renderMap();
+      } catch (error) {
+        if (error.name !== 'AbortError') showToast('道路指标暂不可用，节点顺序已保留。', 'error');
+      } finally {
+        if (state.activeRouteController === controller) state.activeRouteController = null;
+      }
+    }
 
     function addPlaceFromResult(place, source) {
       if (!state.workingDraft) return;
@@ -1041,27 +1123,55 @@ let draggedDraftNodeId = null;
         el.draftActionBar.hidden = true;
         return;
       }
+      syncPlanningModeControls();
+      const isSelfDrive = state.workingDraft.mode === 'self_drive';
       const nodeById = new Map(state.workingDraft.nodes.map(node => [node.id, node]));
       const wishlist = state.workingDraft.nodes.filter(node => node.status === 'wishlist' && node.source !== 'system');
       const day = state.workingDraft.days.find(d => d.day === state.currentDay) || state.workingDraft.days[0];
       el.cityStopOrder.innerHTML = window.AeroTravelEditor.renderCityStops(state.workingDraft.city_stops, escapeHtml);
       el.wishlistList.innerHTML = window.AeroTravelEditor.renderWishlist(wishlist, escapeHtml);
-      renderDraftTabs();
-      el.draftNodeList.innerHTML = window.AeroTravelEditor.renderDayNodes(
-        (day?.node_ids || []).map(id => nodeById.get(id)).filter(Boolean),
-        escapeHtml
-      );
+      if (el.selfDrivePanel) el.selfDrivePanel.hidden = !isSelfDrive;
+      if (isSelfDrive) {
+        if (el.selfDriveSummary) {
+          el.selfDriveSummary.innerHTML = window.AeroTravelSelfDrive.renderRouteSummary(
+            state.workingDraft.route,
+            state.workingDraft.mode,
+            state.workingDraft.route_shape,
+            state.workingDraft.strategy,
+            escapeHtml
+          );
+        }
+        if (el.selfDriveNodeList) {
+          el.selfDriveNodeList.innerHTML = window.AeroTravelSelfDrive.renderRouteNodes(state.workingDraft, escapeHtml);
+        }
+        el.draftDayTabs.innerHTML = '';
+        el.draftNodeList.innerHTML = '';
+      } else {
+        renderDraftTabs();
+        el.draftNodeList.innerHTML = window.AeroTravelEditor.renderDayNodes(
+          (day?.node_ids || []).map(id => nodeById.get(id)).filter(Boolean),
+          escapeHtml
+        );
+      }
       el.itineraryEditor.hidden = false;
       el.draftActionBar.hidden = false;
       el.undoAppliedBtn.hidden = !state.appliedUndo;
       const pastCount = state.draftHistory?.past?.length || 0;
       el.draftStatus.textContent = pastCount ? `${pastCount} 处修改尚未应用` : '没有未应用修改';
+      renderCandidatePanel();
     }
 
     function handleDraftListAction(event) {
       const button = event.target.closest('[data-action]');
       if (!button) return;
       const nodeId = button.dataset.nodeId || button.closest('[data-node-id]')?.dataset.nodeId;
+      if (button.dataset.action === 'route-up' || button.dataset.action === 'route-down') {
+        const fromIndex = Number(button.dataset.index);
+        const toIndex = fromIndex + (button.dataset.action === 'route-up' ? -1 : 1);
+        commitDraft(window.AeroTravelSelfDrive.reorderRoute(state.workingDraft, fromIndex, toIndex));
+        scheduleDrivingRouteRefresh();
+        return;
+      }
       if (button.dataset.action === 'schedule') {
         const day = state.workingDraft.days.find(d => d.day === state.currentDay);
         if (!day) return;
@@ -1302,7 +1412,7 @@ let draggedDraftNodeId = null;
     }
 
     function renderMap() {
-      renderPlan();
+      if (!state.editMode) renderPlan();
       if (!map) return;
       markers.forEach(marker => marker.remove());
       markers = [];
@@ -1311,32 +1421,63 @@ let draggedDraftNodeId = null;
         routeLine = null;
       }
 
-      const items = activeItems().filter(item => Number(item.lat) && Number(item.lng));
-      if (!items.length) return;
-
-      const points = [];
-      items.forEach((item, index) => {
-        const point = [Number(item.lat), Number(item.lng)];
-        points.push(point);
-        const icon = L.divIcon({
-          className: '',
-          html: `<div class="marker-pin">${index + 1}</div>`,
-          iconSize: [22, 22],
-          iconAnchor: [11, 11]
+      let points = [];
+      if (state.editMode && state.workingDraft) {
+        const draftNodes = state.workingDraft.mode === 'self_drive'
+          ? window.AeroTravelSelfDrive.orderedNodes(state.workingDraft)
+          : (() => {
+              const day = state.workingDraft.days.find(d => d.day === state.currentDay) || state.workingDraft.days[0];
+              const byId = new Map(state.workingDraft.nodes.map(n => [n.id, n]));
+              return (day?.node_ids || []).map(id => byId.get(id)).filter(Boolean);
+            })();
+        draftNodes.forEach((node, index) => {
+          if (!(Number(node.location?.lat) && Number(node.location?.lng))) return;
+          const point = [Number(node.location.lat), Number(node.location.lng)];
+          points.push(point);
+          const icon = L.divIcon({
+            className: '',
+            html: `<div class="marker-pin">${index + 1}</div>`,
+            iconSize: [22, 22],
+            iconAnchor: [11, 11]
+          });
+          const marker = L.marker(point, { icon }).addTo(map);
+          marker.bindPopup(`<strong>${escapeHtml(node.name)}</strong>`);
+          markers.push(marker);
         });
-        const marker = L.marker(point, { icon }).addTo(map);
-        marker.bindPopup(`<strong>${escapeHtml(item.title)}</strong><br>${escapeHtml(item.time)} · ${normalizeType(item.type)}${renderPopupMeta(item)}`);
-        marker.on('click', () => focusItem(item.id, false));
-        markers.push(marker);
-      });
+        const polyline = state.workingDraft.route?.polyline;
+        if (Array.isArray(polyline) && polyline.length > 1 && window.AeroTravelMap?.replaceRoutePolyline) {
+          routeLine = window.AeroTravelMap.replaceRoutePolyline(map, null, polyline, {
+            status: state.workingDraft.route?.status || 'estimate'
+          });
+        }
+      } else {
+        const items = activeItems().filter(item => Number(item.lat) && Number(item.lng));
+        items.forEach((item, index) => {
+          const point = [Number(item.lat), Number(item.lng)];
+          points.push(point);
+          const icon = L.divIcon({
+            className: '',
+            html: `<div class="marker-pin">${index + 1}</div>`,
+            iconSize: [22, 22],
+            iconAnchor: [11, 11]
+          });
+          const marker = L.marker(point, { icon }).addTo(map);
+          marker.bindPopup(`<strong>${escapeHtml(item.title)}</strong><br>${escapeHtml(item.time)} · ${normalizeType(item.type)}${renderPopupMeta(item)}`);
+          marker.on('click', () => focusItem(item.id, false));
+          markers.push(marker);
+        });
+      }
 
-      if (points.length > 1) {
+      if (!points.length) return;
+      if (!routeLine && points.length > 1) {
         routeLine = L.polyline(points, {
           color: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim(),
           weight: 3,
           opacity: 0.8,
           dashArray: '6 8'
         }).addTo(map);
+      }
+      if (points.length > 1) {
         map.fitBounds(L.latLngBounds(points), { padding: [34, 34] });
       } else {
         map.setView(points[0], 13);
@@ -1431,202 +1572,6 @@ let draggedDraftNodeId = null;
       });
       if (view === 'map' && map) setTimeout(() => map.invalidateSize(), 50);
     }
-      // === Editor event bindings ===
-      el.planModeGroup.addEventListener('click', event => {
-        const button = event.target.closest('[data-value]');
-        if (!button) return;
-        const mode = button.dataset.value;
-        state.editMode = mode === 'edit';
-        setActiveByValue(el.planModeGroup, mode);
-        renderAll();
-      });
-
-      el.wishlistList.addEventListener('click', handleDraftListAction);
-      el.draftNodeList.addEventListener('click', handleDraftListAction);
-
-      el.cityStopOrder.addEventListener('click', event => {
-        const button = event.target.closest('[data-action^="city-"]');
-        if (!button) return;
-        const from = Number(button.dataset.index);
-        const to = from + (button.dataset.action === 'city-up' ? -1 : 1);
-        commitDraft(window.AeroTravelDraftOps.reorderCityStops(state.workingDraft, from, to));
-      });
-
-      el.draftDayTabs.addEventListener('click', event => {
-        const button = event.target.closest('[data-draft-day]');
-        if (!button) return;
-        state.currentDay = Number(button.dataset.draftDay);
-        state.currentFilter = 'all';
-        renderEditor();
-        renderMap();
-      });
-
-      el.draftNodeList.addEventListener('dragstart', event => {
-        const node = event.target.closest('.draft-node[draggable="true"]');
-        if (!node) { event.preventDefault(); return; }
-        draggedDraftNodeId = node.dataset.nodeId;
-        event.dataTransfer.effectAllowed = 'move';
-      });
-
-      el.draftNodeList.addEventListener('dragover', event => {
-        event.preventDefault();
-        event.dataTransfer.dropEffect = 'move';
-      });
-
-      el.draftNodeList.addEventListener('drop', event => {
-        event.preventDefault();
-        if (!draggedDraftNodeId) return;
-        const target = event.target.closest('.draft-node');
-        if (!target) return;
-        const day = state.workingDraft.days.find(d => d.day === state.currentDay);
-        if (!day) return;
-        const targetIdx = Number(target.dataset.index);
-        if (isNaN(targetIdx)) return;
-        try { commitDraft(window.AeroTravelDraftOps.moveNode(state.workingDraft, draggedDraftNodeId, day.id, targetIdx)); }
-        catch (e) { showToast(e.message || '移动失败', 'error'); }
-        draggedDraftNodeId = null;
-      });
-
-      el.draftNodeList.addEventListener('dragend', () => { draggedDraftNodeId = null; });
-
-      // Constraint dialog
-      el.constraintFixedTime.addEventListener('change', () => {
-        el.constraintTime.disabled = !el.constraintFixedTime.checked;
-      });
-
-      el.constraintForm.addEventListener('submit', event => {
-        event.preventDefault();
-        if (!editingConstraintNodeId) return;
-        const patch = {
-          required: el.constraintRequired.checked,
-          fixed_day: el.constraintFixedDay.checked,
-          fixed_time: el.constraintFixedTime.checked,
-          fixed_order: el.constraintFixedOrder.checked
-        };
-        try {
-          commitDraft(window.AeroTravelDraftOps.updateConstraints(
-            state.workingDraft, editingConstraintNodeId, patch,
-            patch.fixed_time ? el.constraintTime.value : null
-          ));
-        } catch (e) { showToast(e.message, 'error'); }
-        editingConstraintNodeId = null;
-        el.constraintDialog.close();
-      });
-
-      el.cancelConstraintBtn.addEventListener('click', () => {
-        editingConstraintNodeId = null;
-        el.constraintDialog.close();
-      });
-
-      // Toolbar: undo / redo
-      el.undoDraftBtn.addEventListener('click', () => {
-        restoreDraftHistory(window.AeroTravelHistory.undo(state.draftHistory));
-      });
-
-      el.redoDraftBtn.addEventListener('click', () => {
-        restoreDraftHistory(window.AeroTravelHistory.redo(state.draftHistory));
-      });
-
-      el.undoAppliedBtn.addEventListener('click', () => {
-        if (!state.appliedUndo || !state.workingDraft) return;
-        state.draftHistory = window.AeroTravelHistory.push(state.draftHistory, state.appliedUndo);
-        state.workingDraft = state.draftHistory.present;
-        state.appliedUndo = null;
-        state.candidatePlan = null;
-        renderEditor();
-        renderMap();
-        showToast('已撤销上次应用的优化');
-      });
-
-      // Save-only
-      el.saveDraftBtn.addEventListener('click', () => {
-        if (!state.workingDraft) return;
-        const errors = window.AeroTravelDraftOps.validateStructure(state.workingDraft);
-
-      // Smart optimize - call backend API
-      el.optimizeDraftBtn.addEventListener('click', async () => {
-        if (!state.workingDraft) return;
-        const errors = window.AeroTravelDraftOps.validateStructure(state.workingDraft);
-        if (errors.length) {
-          showToast('存在 ' + errors.length + ' 处结构问题，请修正后再优化', 'error');
-          return;
-        }
-        setStatus('正在优化行程...', 'active');
-        el.optimizeDraftBtn.disabled = true;
-        try {
-          const scope = { type: 'day', id: state.workingDraft.days.find(function (d) { return d.day === state.currentDay; })?.id || null };
-          const controller = new AbortController();
-          state.activeOptimizationController = controller;
-          const data = await fetchJson('/api/plan/optimize', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              base_revision: state.workingDraft.revision,
-              scope: scope,
-              draft: state.workingDraft
-            }),
-            signal: controller.signal
-          });
-          state.candidatePlan = {
-            revision: data.base_revision,
-            draft: data.candidate,
-            diff: data.diff || []
-          };
-          renderCandidatePanel();
-          showToast('优化完成，请查看变更建议');
-        } catch (err) {
-          if (err.name !== 'AbortError') {
-            showToast('优化请求失败：' + (err.message || '服务器错误'), 'error');
-          }
-        } finally {
-          el.optimizeDraftBtn.disabled = false;
-          setStatus('优化完成', 'neutral');
-        }
-      });
-        if (errors.length) {
-          showToast(`存在 ${errors.length} 处结构问题，请修正后再保存`, 'error');
-          return;
-        }
-        try {
-          const itinerary = window.AeroTravelDraft.draftToItinerary(state.workingDraft, state.itinerary);
-          const cities = window.AeroTravelDraft.draftToCities(state.workingDraft);
-          state.itinerary = { ...state.itinerary, ...itinerary, days: itinerary.days };
-          state.cities = cities;
-          state.totalDays = cities.reduce((sum, c) => sum + c.days, 0);
-          state.editMode = false;
-          setActiveByValue(el.planModeGroup, 'browse');
-          renderCities();
-          renderAll();
-          saveTripSnapshot();
-          showToast('已按当前编辑结果保存行程');
-        } catch (e) {
-          showToast(`保存失败：${e.message}`, 'error');
-        }
-      });
-
-      // Add place
-      el.addWishBtn.addEventListener('click', () => {
-        el.addPlaceQuery.value = '';
-        el.addPlaceResults.innerHTML = '';
-        el.addPlaceDialog.showModal();
-      });
-
-      el.addPlaceForm.addEventListener('submit', event => {
-        event.preventDefault();
-        const query = el.addPlaceQuery.value.trim();
-        if (!query) return;
-        addPlaceByName(query);
-        el.addPlaceDialog.close();
-      });
-
-      el.usePlaceNameBtn.addEventListener('click', () => {
-        const name = el.addPlaceQuery.value.trim();
-        if (!name) return;
-        addPlaceByName(name);
-        el.addPlaceDialog.close();
-
-      });
-
     function copyTextToClipboard(text) {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         return navigator.clipboard.writeText(text);
@@ -2074,9 +2019,271 @@ let draggedDraftNodeId = null;
         });
       }
 
+
+      // === Editor event bindings ===
+      if (el.planModeGroup) {
+        el.planModeGroup.addEventListener('click', event => {
+          const button = event.target.closest('[data-value]');
+          if (!button) return;
+          const mode = button.dataset.value;
+          state.editMode = mode === 'edit';
+          setActiveByValue(el.planModeGroup, mode);
+          renderAll();
+        });
+      }
+
+      if (el.planningModeGroup) {
+        el.planningModeGroup.addEventListener('click', event => {
+          const button = event.target.closest('[data-value]');
+          if (!button || !state.workingDraft) return;
+          const mode = button.dataset.value;
+          state.planningMode = mode;
+          let next = JSON.parse(JSON.stringify(state.workingDraft));
+          if (mode === 'self_drive') {
+            next = ensureSelfDriveDraft(next);
+            next.route_shape = state.routeShape || next.route_shape || 'one_way';
+            next.strategy = state.routeStrategy || next.strategy || 'balanced';
+          } else {
+            next.mode = 'itinerary';
+          }
+          next.revision = Number(next.revision || 0) + 1;
+          commitDraft(next);
+          syncPlanningModeControls();
+          if (mode === 'self_drive') scheduleDrivingRouteRefresh();
+        });
+      }
+
+      function applyRouteSetting(patch) {
+        if (!state.workingDraft) return;
+        if (state.workingDraft.mode !== 'self_drive') {
+          state.workingDraft = ensureSelfDriveDraft(state.workingDraft);
+        }
+        const next = window.AeroTravelSelfDrive.updateRouteSettings(state.workingDraft, patch);
+        state.routeShape = next.route_shape;
+        state.routeStrategy = next.strategy;
+        commitDraft(next);
+        scheduleDrivingRouteRefresh();
+      }
+
+      if (el.routeShapeGroup) {
+        el.routeShapeGroup.addEventListener('click', event => {
+          const button = event.target.closest('[data-value]');
+          if (!button) return;
+          applyRouteSetting({ route_shape: button.dataset.value });
+          setActiveByValue(el.routeShapeGroup, button.dataset.value);
+        });
+      }
+      if (el.routeStrategyGroup) {
+        el.routeStrategyGroup.addEventListener('click', event => {
+          const button = event.target.closest('[data-value]');
+          if (!button) return;
+          applyRouteSetting({ strategy: button.dataset.value });
+          setActiveByValue(el.routeStrategyGroup, button.dataset.value);
+        });
+      }
+      if (el.recalcRouteBtn) {
+        el.recalcRouteBtn.addEventListener('click', () => refreshDrivingRoute());
+      }
+      if (el.selfDriveNodeList) {
+        el.selfDriveNodeList.addEventListener('click', handleDraftListAction);
+      }
+
+      el.wishlistList.addEventListener('click', handleDraftListAction);
+      el.draftNodeList.addEventListener('click', handleDraftListAction);
+
+      el.cityStopOrder.addEventListener('click', event => {
+        const button = event.target.closest('[data-action^="city-"]');
+        if (!button) return;
+        const from = Number(button.dataset.index);
+        const to = from + (button.dataset.action === 'city-up' ? -1 : 1);
+        commitDraft(window.AeroTravelDraftOps.reorderCityStops(state.workingDraft, from, to));
+      });
+
+      el.draftDayTabs.addEventListener('click', event => {
+        const button = event.target.closest('[data-draft-day]');
+        if (!button) return;
+        state.currentDay = Number(button.dataset.draftDay);
+        state.currentFilter = 'all';
+        renderEditor();
+        renderMap();
+      });
+
+      el.draftNodeList.addEventListener('dragstart', event => {
+        const node = event.target.closest('.draft-node[draggable="true"]');
+        if (!node) { event.preventDefault(); return; }
+        draggedDraftNodeId = node.dataset.nodeId;
+        event.dataTransfer.effectAllowed = 'move';
+      });
+      el.draftNodeList.addEventListener('dragover', event => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+      });
+      el.draftNodeList.addEventListener('drop', event => {
+        event.preventDefault();
+        if (!draggedDraftNodeId) return;
+        const target = event.target.closest('.draft-node');
+        if (!target) return;
+        const day = state.workingDraft.days.find(d => d.day === state.currentDay);
+        if (!day) return;
+        const targetIdx = Number(target.dataset.index);
+        if (isNaN(targetIdx)) return;
+        try { commitDraft(window.AeroTravelDraftOps.moveNode(state.workingDraft, draggedDraftNodeId, day.id, targetIdx)); }
+        catch (e) { showToast(e.message || '移动失败', 'error'); }
+        draggedDraftNodeId = null;
+      });
+      el.draftNodeList.addEventListener('dragend', () => { draggedDraftNodeId = null; });
+
+      el.constraintFixedTime.addEventListener('change', () => {
+        el.constraintTime.disabled = !el.constraintFixedTime.checked;
+      });
+      el.constraintForm.addEventListener('submit', event => {
+        event.preventDefault();
+        if (!editingConstraintNodeId) return;
+        const patch = {
+          required: el.constraintRequired.checked,
+          fixed_day: el.constraintFixedDay.checked,
+          fixed_time: el.constraintFixedTime.checked,
+          fixed_order: el.constraintFixedOrder.checked
+        };
+        try {
+          commitDraft(window.AeroTravelDraftOps.updateConstraints(
+            state.workingDraft, editingConstraintNodeId, patch,
+            patch.fixed_time ? el.constraintTime.value : null
+          ));
+        } catch (e) { showToast(e.message, 'error'); }
+        editingConstraintNodeId = null;
+        el.constraintDialog.close();
+      });
+      el.cancelConstraintBtn.addEventListener('click', () => {
+        editingConstraintNodeId = null;
+        el.constraintDialog.close();
+      });
+
+      el.undoDraftBtn.addEventListener('click', () => {
+        restoreDraftHistory(window.AeroTravelHistory.undo(state.draftHistory));
+      });
+      el.redoDraftBtn.addEventListener('click', () => {
+        restoreDraftHistory(window.AeroTravelHistory.redo(state.draftHistory));
+      });
+      el.undoAppliedBtn.addEventListener('click', () => {
+        if (!state.appliedUndo || !state.workingDraft) return;
+        state.draftHistory = window.AeroTravelHistory.push(state.draftHistory, state.appliedUndo);
+        state.workingDraft = state.draftHistory.present;
+        state.appliedUndo = null;
+        state.candidatePlan = null;
+        renderEditor();
+        renderMap();
+        showToast('已撤销上次应用的优化');
+      });
+
+      el.saveDraftBtn.addEventListener('click', () => {
+        if (!state.workingDraft) return;
+        const errors = window.AeroTravelDraftOps.validateStructure(state.workingDraft);
+        if (errors.length) {
+          showToast(`存在 ${errors.length} 处结构问题，请修正后再保存`, 'error');
+          return;
+        }
+        try {
+          const itinerary = window.AeroTravelDraft.draftToItinerary(state.workingDraft, state.itinerary);
+          const cities = window.AeroTravelDraft.draftToCities(state.workingDraft);
+          state.itinerary = { ...state.itinerary, ...itinerary, days: itinerary.days };
+          state.cities = cities;
+          state.totalDays = cities.reduce((sum, c) => sum + c.days, 0);
+          state.editMode = false;
+          setActiveByValue(el.planModeGroup, 'browse');
+          renderCities();
+          renderAll();
+          saveTripSnapshot();
+          showToast('已按当前编辑结果保存行程');
+        } catch (e) {
+          showToast(`保存失败：${e.message}`, 'error');
+        }
+      });
+
+      el.optimizeDraftBtn.addEventListener('click', async () => {
+        if (!state.workingDraft) return;
+        const errors = window.AeroTravelDraftOps.validateStructure(state.workingDraft);
+        if (errors.length) {
+          showToast('存在 ' + errors.length + ' 处结构问题，请修正后再优化', 'error');
+          return;
+        }
+        setStatus('正在优化行程...', 'active');
+        el.optimizeDraftBtn.disabled = true;
+        try {
+          const currentDay = state.workingDraft.days.find(d => d.day === state.currentDay);
+          const scope = state.workingDraft.mode === 'self_drive'
+            ? { type: 'trip', id: null }
+            : { type: 'day', id: currentDay?.id || null };
+          const controller = new AbortController();
+          state.activeOptimizationController = controller;
+          const data = await fetchJson('/api/plan/optimize', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              base_revision: state.workingDraft.revision,
+              scope,
+              draft: state.workingDraft
+            }),
+            signal: controller.signal
+          });
+          state.candidatePlan = {
+            revision: data.base_revision,
+            draft: data.candidate,
+            diff: data.diff || []
+          };
+          renderCandidatePanel();
+          showToast('优化完成，请查看变更建议');
+        } catch (err) {
+          if (err.name !== 'AbortError') {
+            showToast('优化请求失败：' + (err.message || '服务器错误'), 'error');
+          }
+        } finally {
+          el.optimizeDraftBtn.disabled = false;
+          setStatus('优化完成', 'neutral');
+        }
+      });
+
+      el.addWishBtn.addEventListener('click', () => {
+        el.addPlaceQuery.value = '';
+        el.addPlaceResults.innerHTML = '';
+        el.addPlaceDialog.showModal();
+      });
+      el.addPlaceForm.addEventListener('submit', event => {
+        event.preventDefault();
+        const query = el.addPlaceQuery.value.trim();
+        if (!query) return;
+        addPlaceByName(query);
+        el.addPlaceDialog.close();
+      });
+      el.usePlaceNameBtn.addEventListener('click', () => {
+        const name = el.addPlaceQuery.value.trim();
+        if (!name) return;
+        addPlaceByName(name);
+        el.addPlaceDialog.close();
+      });
+      if (el.pickPlaceOnMapBtn) {
+        el.pickPlaceOnMapBtn.addEventListener('click', () => {
+          if (!map || !window.AeroTravelMap?.enablePointPicker) {
+            showToast('地图点选暂不可用', 'error');
+            return;
+          }
+          el.addPlaceDialog.close();
+          showToast('请在地图上点击选择地点');
+          state.cancelPointPicker?.();
+          state.cancelPointPicker = window.AeroTravelMap.enablePointPicker(map, async ({ lat, lng }) => {
+            try {
+              const data = await fetchJson(`/api/reverse_geocode?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`);
+              if (data.status !== 'ok' || !data.place) throw new Error(data.info || '反地理编码失败');
+              addPlaceFromResult(data.place, 'map_pick');
+            } catch (error) {
+              showToast(error.message || '地图选点失败', 'error');
+            }
+          });
+        });
+      }
+
       window.addEventListener('resize', () => {
         if (map) setTimeout(() => map.invalidateSize(), 50);
-
       });
     }
 
