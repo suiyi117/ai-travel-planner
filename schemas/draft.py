@@ -110,8 +110,8 @@ class ApiWarning(StrictModel):
     code: str
     message: str
     node_id: str | None = None
-
-
+    from_node_id: str | None = None
+    to_node_id: str | None = None
 
 class ChangePosition(StrictModel):
     day_id: str | None = None
@@ -133,3 +133,4 @@ class OptimizeResponse(StrictModel):
     candidate: TripDraft
     diff: list[CandidateDiff] = Field(default_factory=list)
     warnings: list[ApiWarning] = Field(default_factory=list)
+    data_sources: list[str] = Field(default_factory=list)
