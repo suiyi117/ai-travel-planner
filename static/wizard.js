@@ -12,7 +12,7 @@
       if (!name) {
         return { ok: false, message: '城市名称不能为空。' };
       }
-      if (!Number.isFinite(days) || days < 1 || days > 7) {
+      if (!Number.isInteger(days) || days < 1 || days > 7) {
         return { ok: false, message: `「${name}」的停留天数需在 1–7 天之间。` };
       }
     }
