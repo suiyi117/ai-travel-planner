@@ -8,6 +8,8 @@ const {
     const state = createInitialState();
     const tripStorage = window.AeroTravelStorage.createTripStorage(STORAGE_KEY, MAX_SAVED_TRIPS);
 
+    const Wizard = window.AeroTravelWizard;
+
     const el = {
       routeMeta: document.getElementById('routeMeta'),
       cityInput: document.getElementById('cityInput'),
@@ -21,7 +23,7 @@ const {
       transportGroup: document.getElementById('transportGroup'),
       budgetGroup: document.getElementById('budgetGroup'),
       generateBtn: document.getElementById('generateBtn'),
-      generateBtnTop: document.getElementById('generateBtnTop'),
+      regenerateBtn: document.getElementById('regenerateBtn'),
       statusNote: document.getElementById('statusNote'),
       planTitle: document.getElementById('planTitle'),
       planSummary: document.getElementById('planSummary'),
@@ -46,7 +48,21 @@ const {
       savedTripsBtn: document.getElementById('savedTripsBtn'),
       savedTripsPanel: document.getElementById('savedTripsPanel'),
       qualityPanel: document.getElementById('qualityPanel'),
-      workspaceTabs: document.getElementById('workspaceTabs'),
+      wizardSteps: document.getElementById('wizardSteps'),
+      wizardSummaryRoute: document.getElementById('wizardSummaryRoute'),
+      wizardSummaryMeta: document.getElementById('wizardSummaryMeta'),
+      wizardCompactSummary: document.getElementById('wizardCompactSummary'),
+      wizardNextBtn: document.getElementById('wizardNextBtn'),
+      wizardBackBtn: document.getElementById('wizardBackBtn'),
+      wizardEditPrefsBtn: document.getElementById('wizardEditPrefsBtn'),
+      stepRouteNote: document.getElementById('stepRouteNote'),
+      openMapDrawerBtn: document.getElementById('openMapDrawerBtn'),
+      closeMapDrawerBtn: document.getElementById('closeMapDrawerBtn'),
+      mapDrawer: document.getElementById('mapDrawer'),
+      mapDrawerBackdrop: document.getElementById('mapDrawerBackdrop'),
+      mobileMoreBtn: document.getElementById('mobileMoreBtn'),
+      mobileMorePanel: document.getElementById('mobileMorePanel'),
+      mobileMoreWrap: document.getElementById('mobileMoreWrap'),
       plannerPane: document.querySelector('.planner-pane'),
       plannerBody: document.querySelector('.planner-pane .pane-body'),
       resultsPane: document.querySelector('.results-pane'),
@@ -89,8 +105,81 @@ const {
     }
 
     function setStatus(message, tone = 'neutral') {
+      if (!el.statusNote) return;
       el.statusNote.textContent = message;
       el.statusNote.dataset.tone = tone;
+    }
+
+    function wizardFlags() {
+      return {
+        step1Done: Boolean(state.step1Done),
+        hasPlan: Boolean(state.itinerary && (state.itinerary.days || []).length)
+      };
+    }
+
+    function renderWizardChrome() {
+      const flags = wizardFlags();
+      document.body.dataset.wizardStep = String(state.wizardStep);
+      document.querySelectorAll('[data-step-panel]').forEach(panel => {
+        const step = Number(panel.getAttribute('data-step-panel'));
+        panel.hidden = step !== state.wizardStep;
+      });
+      document.querySelectorAll('.wizard-step').forEach(btn => {
+        const step = Number(btn.dataset.step);
+        const allowed = Wizard.canEnterStep(step, flags);
+        btn.classList.toggle('is-active', step === state.wizardStep);
+        btn.classList.toggle('is-locked', !allowed);
+        btn.disabled = !allowed;
+      });
+      const summary = Wizard.buildSummary(state);
+      if (el.wizardSummaryRoute) el.wizardSummaryRoute.textContent = summary.route;
+      if (el.wizardSummaryMeta) el.wizardSummaryMeta.textContent = summary.meta;
+      if (el.wizardCompactSummary) el.wizardCompactSummary.textContent = `${summary.route} · ${summary.meta}`;
+      updateHeaderMeta();
+    }
+
+    function setWizardStep(step) {
+      const target = Number(step);
+      if (!Wizard.canEnterStep(target, wizardFlags())) {
+        showToast('请先完成前面的步骤。', 'error');
+        return;
+      }
+      state.wizardStep = target;
+      renderWizardChrome();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function goNextFromStep1() {
+      const result = Wizard.validateStep1({ cities: state.cities });
+      if (!result.ok) {
+        if (el.stepRouteNote) {
+          el.stepRouteNote.hidden = false;
+          el.stepRouteNote.textContent = result.message;
+        }
+        showToast(result.message, 'error');
+        return;
+      }
+      if (el.stepRouteNote) el.stepRouteNote.hidden = true;
+      state.step1Done = true;
+      setWizardStep(2);
+    }
+
+    function openMapDrawer() {
+      state.mapDrawerOpen = true;
+      if (el.mapDrawer) {
+        el.mapDrawer.hidden = false;
+        el.mapDrawer.setAttribute('aria-hidden', 'false');
+      }
+      document.body.classList.add('map-drawer-open');
+    }
+
+    function closeMapDrawer() {
+      state.mapDrawerOpen = false;
+      if (el.mapDrawer) {
+        el.mapDrawer.hidden = true;
+        el.mapDrawer.setAttribute('aria-hidden', 'true');
+      }
+      document.body.classList.remove('map-drawer-open');
     }
 
     function showToast(message, type = 'success') {
@@ -323,7 +412,7 @@ const {
         const select = card.querySelector('.city-transport');
         if (select) select.value = city.transport || 'auto';
       });
-      updateHeaderMeta();
+      renderWizardChrome();
     }
 
     function clearCityDragState() {
@@ -346,11 +435,11 @@ const {
     function updateHeaderMeta() {
       const route = state.cities.map(c => c.name).join(' → ');
       state.totalDays = computeTotalDays();
-      el.routeMeta.textContent = `${route} · ${state.totalDays} 天 · ${state.pace}`;
-      el.daysValue.textContent = `${state.totalDays} 天`;
-      el.daysRange.value = Math.min(state.totalDays, 15);
-      el.metricDays.textContent = state.totalDays;
-      el.metricCities.textContent = state.cities.length;
+      if (el.routeMeta) el.routeMeta.textContent = `${route} · ${state.totalDays} 天 · ${state.pace}`;
+      if (el.daysValue) el.daysValue.textContent = `${state.totalDays} 天`;
+      if (el.daysRange) el.daysRange.value = Math.min(state.totalDays, 15);
+      if (el.metricDays) el.metricDays.textContent = state.totalDays;
+      if (el.metricCities) el.metricCities.textContent = state.cities.length;
     }
 
     function syncPaneBriefState(pane, body) {
@@ -799,16 +888,25 @@ const {
     }
 
     function setLoading(isLoading) {
-      [el.generateBtn, el.generateBtnTop].forEach(button => {
+      [el.generateBtn, el.regenerateBtn].filter(Boolean).forEach(button => {
         button.disabled = isLoading;
-        button.textContent = isLoading ? '生成中...' : (button === el.generateBtn ? '生成 AI 旅行规划' : '生成规划');
+        if (button === el.generateBtn) {
+          button.textContent = isLoading ? '生成中...' : '生成 AI 旅行规划';
+        } else if (button === el.regenerateBtn) {
+          button.textContent = isLoading ? '生成中...' : '重新生成';
+        }
       });
     }
 
     function renderAll() {
       renderCities();
       renderPlan();
-      renderMap();
+      renderWizardChrome();
+      try {
+        renderMap();
+      } catch (_) {
+        // Map may live in a hidden drawer until Task 6 fully wires it.
+      }
     }
 
     function renderPlan() {
@@ -1105,13 +1203,15 @@ const {
 
     function switchMobileView(view) {
       document.body.dataset.mobileView = view;
-      document.querySelectorAll('.mobile-nav button').forEach(button => {
-        button.classList.toggle('is-active', button.dataset.view === view);
-      });
-      document.querySelectorAll('.w-tab').forEach(button => {
-        button.classList.toggle('is-active', button.dataset.view === view);
-      });
-      if (view === 'map' && map) setTimeout(() => map.invalidateSize(), 50);
+      if (view === 'results') {
+        if (Wizard.canEnterStep(3, wizardFlags())) setWizardStep(3);
+        return;
+      }
+      if (view === 'planner') {
+        setWizardStep(1);
+        return;
+      }
+      if (view === 'map') openMapDrawer();
     }
 
     function copyTextToClipboard(text) {
@@ -1409,10 +1509,11 @@ const {
         const daysSelect = event.target.closest('.city-days');
         if (select) {
           state.cities[Number(select.dataset.index)].transport = select.value;
+          renderWizardChrome();
         }
         if (daysSelect) {
           state.cities[Number(daysSelect.dataset.index)].days = Number(daysSelect.value);
-          updateHeaderMeta();
+          renderWizardChrome();
         }
       });
 
@@ -1458,11 +1559,13 @@ const {
       el.cityList.addEventListener('dragend', clearCityDragState);
 
       // 天数滑块现为只读展示，由各城市天数自动求和
-      el.daysRange.addEventListener('input', () => {
-        updateHeaderMeta();
-      });
+      if (el.daysRange) {
+        el.daysRange.addEventListener('input', () => {
+          renderWizardChrome();
+        });
+      }
 
-      [el.paceGroup, el.transportGroup, el.budgetGroup].forEach(group => {
+      [el.paceGroup, el.transportGroup, el.budgetGroup].filter(Boolean).forEach(group => {
         group.querySelectorAll('button[data-value]').forEach(button => {
           button.addEventListener('click', () => {
             group.querySelectorAll('button').forEach(item => item.classList.remove('is-active'));
@@ -1473,16 +1576,29 @@ const {
             if (group === el.budgetGroup && state.itinerary) {
               renderPlan();
             }
-            updateHeaderMeta();
+            renderWizardChrome();
           });
         });
       });
 
-      el.generateBtn.addEventListener('click', generatePlan);
-      el.generateBtnTop.addEventListener('click', generatePlan);
-      el.copyPlanBtn.addEventListener('click', copyPlan);
-      el.exportLongImageBtn.addEventListener('click', exportLongImage);
-      el.exportIcsBtn.addEventListener('click', exportItineraryToIcs);
+      if (el.generateBtn) el.generateBtn.addEventListener('click', generatePlan);
+      if (el.regenerateBtn) el.regenerateBtn.addEventListener('click', generatePlan);
+      if (el.wizardNextBtn) el.wizardNextBtn.addEventListener('click', goNextFromStep1);
+      if (el.wizardBackBtn) el.wizardBackBtn.addEventListener('click', () => setWizardStep(1));
+      if (el.wizardEditPrefsBtn) el.wizardEditPrefsBtn.addEventListener('click', () => setWizardStep(2));
+      if (el.wizardSteps) {
+        el.wizardSteps.addEventListener('click', event => {
+          const button = event.target.closest('[data-step]');
+          if (!button) return;
+          setWizardStep(button.dataset.step);
+        });
+      }
+      if (el.openMapDrawerBtn) el.openMapDrawerBtn.addEventListener('click', openMapDrawer);
+      if (el.closeMapDrawerBtn) el.closeMapDrawerBtn.addEventListener('click', closeMapDrawer);
+      if (el.mapDrawerBackdrop) el.mapDrawerBackdrop.addEventListener('click', closeMapDrawer);
+      if (el.copyPlanBtn) el.copyPlanBtn.addEventListener('click', copyPlan);
+      if (el.exportLongImageBtn) el.exportLongImageBtn.addEventListener('click', exportLongImage);
+      if (el.exportIcsBtn) el.exportIcsBtn.addEventListener('click', exportItineraryToIcs);
 
       if (el.savedTripsBtn && el.savedTripsPanel) {
         el.savedTripsBtn.setAttribute('aria-haspopup', 'menu');
@@ -1514,48 +1630,75 @@ const {
         }, true);
       }
 
-      el.refreshTransportBtn.addEventListener('click', refreshTransport);
-      el.fitMapBtn.addEventListener('click', renderMap);
+      if (el.mobileMoreBtn && el.mobileMorePanel) {
+        el.mobileMoreBtn.addEventListener('click', event => {
+          event.stopPropagation();
+          el.mobileMorePanel.hidden = !el.mobileMorePanel.hidden;
+        });
+        el.mobileMorePanel.addEventListener('click', event => {
+          const button = event.target.closest('[data-action]');
+          if (!button) return;
+          const action = button.dataset.action;
+          el.mobileMorePanel.hidden = true;
+          if (action === 'saved-trips' && el.savedTripsBtn) el.savedTripsBtn.click();
+          else if (action === 'copy') copyPlan();
+          else if (action === 'export-image') exportLongImage();
+          else if (action === 'export-ics') exportItineraryToIcs();
+        });
+        document.addEventListener('pointerdown', event => {
+          if (el.mobileMorePanel.hidden) return;
+          if (el.mobileMoreWrap?.contains(event.target)) return;
+          el.mobileMorePanel.hidden = true;
+        }, true);
+      }
+
+      if (el.refreshTransportBtn) el.refreshTransportBtn.addEventListener('click', refreshTransport);
+      if (el.fitMapBtn) el.fitMapBtn.addEventListener('click', renderMap);
       if (el.plannerBody) el.plannerBody.addEventListener('scroll', () => syncPaneBriefState(el.plannerPane, el.plannerBody), { passive: true });
       if (el.resultsBody) el.resultsBody.addEventListener('scroll', () => syncPaneBriefState(el.resultsPane, el.resultsBody), { passive: true });
 
-      el.dayTabs.addEventListener('click', event => {
-        const button = event.target.closest('[data-day]');
-        if (!button) return;
-        state.currentDay = Number(button.dataset.day);
-        state.currentFilter = 'all';
-        state.activeItemId = activeItems()[0]?.id || null;
-        renderMap();
-      });
+      if (el.dayTabs) {
+        el.dayTabs.addEventListener('click', event => {
+          const button = event.target.closest('[data-day]');
+          if (!button) return;
+          state.currentDay = Number(button.dataset.day);
+          state.currentFilter = 'all';
+          state.activeItemId = activeItems()[0]?.id || null;
+          renderPlan();
+          try { renderMap(); } catch (_) { /* drawer map may be closed */ }
+        });
+      }
 
-      el.filterTabs.addEventListener('click', event => {
-        const button = event.target.closest('[data-filter]');
-        if (!button) return;
-        state.currentFilter = button.dataset.filter;
-        renderPlan();
-      });
+      if (el.filterTabs) {
+        el.filterTabs.addEventListener('click', event => {
+          const button = event.target.closest('[data-filter]');
+          if (!button) return;
+          state.currentFilter = button.dataset.filter;
+          renderPlan();
+        });
+      }
 
-      el.timelineList.addEventListener('click', event => {
-        const card = event.target.closest('[data-item]');
-        if (!card) return;
-        focusItem(card.dataset.item);
-      });
+      if (el.timelineList) {
+        el.timelineList.addEventListener('click', event => {
+          const card = event.target.closest('[data-item]');
+          if (!card) return;
+          focusItem(card.dataset.item);
+        });
+      }
 
-      el.transportList.addEventListener('click', event => {
-        const option = event.target.closest('[data-segment][data-option]');
-        if (!option || !state.itinerary) return;
-        const segment = state.itinerary.transport_guide[Number(option.dataset.segment)];
-        state.selectedOptions[segment.segment] = Number(option.dataset.option);
-        renderPlan();
-      });
+      if (el.transportList) {
+        el.transportList.addEventListener('click', event => {
+          const option = event.target.closest('[data-segment][data-option]');
+          if (!option || !state.itinerary) return;
+          const segment = state.itinerary.transport_guide[Number(option.dataset.segment)];
+          state.selectedOptions[segment.segment] = Number(option.dataset.option);
+          renderPlan();
+        });
+      }
 
-      document.querySelector('.mobile-nav').addEventListener('click', event => {
-        const button = event.target.closest('[data-view]');
-        if (button) switchMobileView(button.dataset.view);
-      });
-
-      if (el.workspaceTabs) {
-        el.workspaceTabs.addEventListener('click', event => {
+      const mobileNav = document.querySelector('.mobile-nav');
+      if (mobileNav) {
+        mobileNav.addEventListener('click', event => {
           const button = event.target.closest('[data-view]');
           if (button) switchMobileView(button.dataset.view);
         });
@@ -1575,6 +1718,7 @@ const {
       bindEvents();
       syncBriefStates();
       updateSavedTripsBadge();
+      renderWizardChrome();
     }
 
     document.addEventListener('DOMContentLoaded', boot);
