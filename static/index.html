@@ -101,6 +101,7 @@
         }
   </style>
   <link rel="stylesheet" href="styles.css?v=page-redesign-20260711">
+  <link rel="stylesheet" href="delivery.css?v=project-cleanup-20260711">
 </head>
 <body data-wizard-step="1">
   <div class="app">
@@ -118,16 +119,21 @@
       <div class="topbar-actions">
         <button class="btn btn-ghost" id="savedTripsBtn" type="button">我的行程</button>
         <div id="savedTripsPanel" class="snapshot-dropdown" hidden></div>
-        <button class="btn btn-ghost" id="copyPlanBtn" type="button" data-od-id="copy-plan">复制客户行程</button>
-        <button class="btn btn-ghost" id="exportLongImageBtn" type="button">导出客户长图</button>
-        <button class="btn btn-ghost" id="exportIcsBtn" type="button">导出日历</button>
-        <div class="mobile-more" id="mobileMoreWrap">
-          <button class="btn btn-ghost" id="mobileMoreBtn" type="button">更多</button>
-          <div class="mobile-more-panel" id="mobileMorePanel" hidden>
-            <button type="button" data-action="saved-trips">我的行程</button>
-            <button type="button" data-action="copy">复制客户行程</button>
-            <button type="button" data-action="export-image">导出客户长图</button>
-            <button type="button" data-action="export-ics">导出日历</button>
+        <div class="topbar-menu export-menu" id="exportMenuWrap">
+          <button class="btn btn-ghost" id="exportMenuBtn" type="button" aria-haspopup="menu" aria-expanded="false">导出</button>
+          <div class="topbar-menu-panel" id="exportMenuPanel" role="menu" hidden>
+            <button type="button" role="menuitem" data-action="copy">复制客户行程</button>
+            <button type="button" role="menuitem" data-action="export-image">导出客户长图</button>
+            <button type="button" role="menuitem" data-action="export-ics">导出日历</button>
+          </div>
+        </div>
+        <div class="topbar-menu mobile-more" id="mobileMoreWrap">
+          <button class="btn btn-ghost btn-icon topbar-more-btn" id="mobileMoreBtn" type="button" aria-label="更多操作" title="更多操作" aria-haspopup="menu" aria-expanded="false"><span aria-hidden="true">&#8943;</span></button>
+          <div class="topbar-menu-panel" id="mobileMorePanel" role="menu" hidden>
+            <button type="button" role="menuitem" data-action="saved-trips">我的行程</button>
+            <button type="button" role="menuitem" data-action="copy">复制客户行程</button>
+            <button type="button" role="menuitem" data-action="export-image">导出客户长图</button>
+            <button type="button" role="menuitem" data-action="export-ics">导出日历</button>
           </div>
         </div>
       </div>
@@ -288,13 +294,14 @@
               </div>
 
               <!-- === 可编辑行程工作台 === -->
-            <div class="plan-mode-bar" id="planModeBar" hidden>
-              <div class="segmented" id="planModeGroup" style="--segments:2">
-                <button class="is-active" type="button" data-value="browse">浏览</button>
-                <button type="button" data-value="edit">编辑</button>
-              </div>
-            </div>
-            <div class="itinerary-editor" id="itineraryEditor" hidden>
+                <div class="plan-mode-bar" id="planModeBar" hidden>
+                  <div class="segmented" id="planModeGroup" style="--segments:2">
+                    <button class="is-active" type="button" data-value="browse">浏览</button>
+                    <button type="button" data-value="edit">编辑</button>
+                  </div>
+                </div>
+                <div class="candidate-diff-panel" id="candidateDiffPanel" hidden></div>
+                <div class="itinerary-editor" id="itineraryEditor" hidden>
               <aside class="wishlist-panel">
                 <div class="row-between"><h3 class="section-label">城市顺序</h3></div>
                 <div id="cityStopOrder"></div>
@@ -427,8 +434,8 @@
   <script src="api.js?v=page-redesign-20260711"></script>
   <script src="map.js?v=editable-itinerary-20260711"></script>
   <script src="storage.js?v=page-redesign-20260711"></script>
+  <script src="delivery.js?v=project-cleanup-20260711"></script>
   <script src="export-ics.js?v=page-redesign-20260711"></script>
-  <script src="render.js?v=page-redesign-20260711"></script>
   <script src="app.js?v=merge-master-20260711"></script>
 </body>
 </html>

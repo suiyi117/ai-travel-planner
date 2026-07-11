@@ -42,11 +42,11 @@ const {
       placeDetail: document.getElementById('placeDetail'),
       fitMapBtn: document.getElementById('fitMapBtn'),
       refreshTransportBtn: document.getElementById('refreshTransportBtn'),
-      copyPlanBtn: document.getElementById('copyPlanBtn'),
-      exportLongImageBtn: document.getElementById('exportLongImageBtn'),
-      exportIcsBtn: document.getElementById('exportIcsBtn'),
       savedTripsBtn: document.getElementById('savedTripsBtn'),
       savedTripsPanel: document.getElementById('savedTripsPanel'),
+      exportMenuBtn: document.getElementById('exportMenuBtn'),
+      exportMenuPanel: document.getElementById('exportMenuPanel'),
+      exportMenuWrap: document.getElementById('exportMenuWrap'),
       qualityPanel: document.getElementById('qualityPanel'),
     planModeBar: document.getElementById('planModeBar'),
     planModeGroup: document.getElementById('planModeGroup'),
@@ -413,6 +413,41 @@ let draggedDraftNodeId = null;
       if (isOpen) renderSavedTripsPanel();
       el.savedTripsPanel.hidden = !isOpen;
       el.savedTripsBtn.setAttribute('aria-expanded', String(isOpen));
+    }
+
+    function setTopbarMenuOpen(button, panel, isOpen) {
+      panel.hidden = !isOpen;
+      button.setAttribute('aria-expanded', String(isOpen));
+    }
+
+    function runTopbarAction(action) {
+      if (action === 'saved-trips' && el.savedTripsBtn) el.savedTripsBtn.click();
+      else if (action === 'copy') copyPlan();
+      else if (action === 'export-image') exportLongImage();
+      else if (action === 'export-ics') exportItineraryToIcs();
+    }
+
+    function bindTopbarMenu(button, panel, wrap) {
+      if (!button || !panel || !wrap) return;
+      button.addEventListener('click', event => {
+        event.stopPropagation();
+        setTopbarMenuOpen(button, panel, panel.hidden);
+      });
+      panel.addEventListener('click', event => {
+        const actionButton = event.target.closest('[data-action]');
+        if (!actionButton) return;
+        setTopbarMenuOpen(button, panel, false);
+        runTopbarAction(actionButton.dataset.action);
+      });
+      document.addEventListener('pointerdown', event => {
+        if (panel.hidden || wrap.contains(event.target)) return;
+        setTopbarMenuOpen(button, panel, false);
+      }, true);
+      document.addEventListener('keydown', event => {
+        if (event.key !== 'Escape' || panel.hidden) return;
+        setTopbarMenuOpen(button, panel, false);
+        button.focus();
+      });
     }
 
     function findSegment(fromCity, toCity) {
@@ -1160,16 +1195,8 @@ let draggedDraftNodeId = null;
 
 
     function renderCandidatePanel() {
-      var panel = document.getElementById('candidateDiffPanel');
-      if (!panel) {
-        panel = document.createElement('div');
-        panel.id = 'candidateDiffPanel';
-        panel.className = 'candidate-diff-panel';
-        var resultsPane = document.querySelector('.results-pane .pane-body');
-        if (resultsPane) {
-          resultsPane.insertBefore(panel, resultsPane.firstChild);
-        }
-      }
+      const panel = document.getElementById('candidateDiffPanel');
+      if (!panel) return;
       if (state.candidatePlan) {
         panel.innerHTML = window.AeroTravelCandidate.renderCandidatePanel(
           state.candidatePlan.draft,
@@ -1690,18 +1717,6 @@ let draggedDraftNodeId = null;
       renderPlan();
     }
 
-    // Compatibility shim for legacy mobile-nav view names.
-    function switchMobileView(view) {
-      if (view === 'results') {
-        if (Wizard.canEnterStep(3, wizardFlags())) setWizardStep(3);
-        return;
-      }
-      if (view === 'planner') {
-        setWizardStep(1);
-        return;
-      }
-      if (view === 'map') openMapDrawer();
-    }
     function copyTextToClipboard(text) {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         return navigator.clipboard.writeText(text);
@@ -1729,162 +1744,20 @@ let draggedDraftNodeId = null;
       });
     }
 
-    function formatDeliveryDate(day) {
-      const date = addDays(el.departureDate.value, day.day - 1);
-      return date ? `${date} · ` : '';
-    }
-
-    function budgetRows(budget = {}) {
-      return [
-        ['交通', budget.transport || '暂无估算'],
-        ['住宿', budget.hotel || '暂无估算'],
-        ['餐饮', budget.food || '暂无估算'],
-        ['门票', budget.tickets || '暂无估算'],
-        ['合计', budget.total || '暂无估算']
-      ];
-    }
-
-    function transportOptionText(segment) {
-      const option = selectedOption(segment);
-      if (!option) return '暂无可用班次，需人工确认';
-      const code = option.id ? `${option.id} ` : '';
-      const price = option.price ? ` · ${option.price}` : '';
-      const station = option.from_station || option.to_station
-        ? ` · ${option.from_station || segment.from_city || ''} → ${option.to_station || segment.to_city || ''}`
-        : '';
-      return `${code}${option.time || '时间待定'} · ${option.duration || '时长待定'}${price}${station}`;
-    }
-
-    function buildDeliveryText(plan) {
-      const lines = [];
-      const route = state.cities.map(city => city.name).join(' → ');
-
-      lines.push(plan.title || '旅行规划方案');
-      if (plan.summary) lines.push(plan.summary);
-      lines.push('');
-      lines.push(`【行程概览】${route} · ${state.totalDays}天 · ${state.budget}`);
-      lines.push('');
-
-      (plan.days || []).forEach(day => {
-        const cast = weatherForDay(day);
-        const weather = cast ? ` · ${cast.dayweather} ${cast.nighttemp}~${cast.daytemp}℃` : '';
-        lines.push(`【Day ${day.day}｜${formatDeliveryDate(day)}${day.city}${weather}】`);
-        if (day.route) lines.push(day.route);
-        (day.items || []).forEach(item => {
-          const display = item.type === 'transport' ? transportDisplay(item) : { time: item.time, extra: '' };
-          const meta = [display.time, normalizeType(item.type), item.duration].filter(Boolean).join(' · ');
-          lines.push(`- ${meta}｜${item.title}`);
-          if (item.desc) lines.push(`  ${item.desc}`);
-          if (item.address) lines.push(`  地址：${item.address}`);
-        });
-        lines.push('');
-      });
-
-      const guide = plan.transport_guide || [];
-      if (guide.length) {
-        lines.push('【城际交通】');
-        guide.forEach(segment => {
-          lines.push(`- ${segment.segment}｜${segment.source_label || '需确认'}`);
-          lines.push(`  ${transportOptionText(segment)}`);
-          if (segment.advice) lines.push(`  建议：${segment.advice}`);
-        });
-        lines.push('');
-      }
-
-      lines.push('【费用估算】');
-      budgetRows(plan.budget).forEach(([label, value]) => lines.push(`- ${label}：${value}`));
-      const selectedTotal = computeSelectedTransportTotal();
-      if (selectedTotal.total > 0) lines.push(`- 已选交通参考合计：约 ¥${Math.round(selectedTotal.total)}`);
-      lines.push('');
-
-      lines.push('【出行贴士】');
-      (plan.tips || []).slice(0, 8).forEach(tip => lines.push(`- ${tip}`));
-      lines.push('');
-
-      lines.push('【温馨说明】');
-      lines.push('- 景点地址、评分、开放时间等信息来自高德 POI 或本地参考数据。');
-      lines.push('- 火车班次优先参考 12306；航班如无实时接口则显示典型参考数据。');
-      lines.push('- 本方案为参考旅行规划，不含机票、酒店、门票代订；开放时间、票价、班次以官方实时信息为准。');
-
-      return lines.join('\n');
-    }
-
-    function deliveryItemHtml(item) {
-      const display = item.type === 'transport' ? transportDisplay(item) : { time: item.time, extra: '' };
-      const desc = item.desc ? `<p>${escapeHtml(item.desc)}</p>` : '';
-      const address = item.address ? `<p class="delivery-meta">地址：${escapeHtml(item.address)}</p>` : '';
-      return `
-        <div class="delivery-item">
-          <div class="delivery-time">${escapeHtml(display.time)}</div>
-          <div>
-            <h4>${escapeHtml(item.title)}</h4>
-            <div class="delivery-meta">${normalizeType(item.type)} · ${escapeHtml(item.duration)}</div>
-            ${desc}
-            ${address}
-          </div>
-        </div>
-      `;
-    }
-
-    function buildDeliverySheetHtml(plan) {
-      const route = state.cities.map(city => city.name).join(' → ');
-      const daysHtml = (plan.days || []).map(day => {
-        const cast = weatherForDay(day);
-        const weather = cast ? `${escapeHtml(cast.dayweather)} ${escapeHtml(cast.nighttemp)}~${escapeHtml(cast.daytemp)}℃` : '';
-        return `
-          <section class="delivery-section">
-            <div class="delivery-day-head">
-              <span>Day ${day.day}</span>
-              <strong>${escapeHtml(day.city)}</strong>
-              ${weather ? `<em>${weather}</em>` : ''}
-            </div>
-            ${day.route ? `<p class="delivery-route">${escapeHtml(day.route)}</p>` : ''}
-            ${(day.items || []).map(deliveryItemHtml).join('')}
-          </section>
-        `;
-      }).join('');
-
-      const transportHtml = (plan.transport_guide || []).map(segment => `
-        <div class="delivery-mini-row">
-          <strong>${escapeHtml(segment.segment)}</strong>
-          <span>${escapeHtml(segment.source_label || '需确认')}</span>
-          <p>${escapeHtml(transportOptionText(segment))}</p>
-        </div>
-      `).join('');
-
-      return `
-        <div class="delivery-sheet">
-          <header class="delivery-cover">
-            <div class="delivery-brand">AeroTravel</div>
-            <h2>${escapeHtml(plan.title || '旅行规划方案')}</h2>
-            <p>${escapeHtml(plan.summary || '')}</p>
-            <div class="delivery-tags">
-              <span>${escapeHtml(route)}</span>
-              <span>${state.totalDays} 天</span>
-              <span>${escapeHtml(state.budget)}</span>
-            </div>
-          </header>
-          ${daysHtml}
-          ${transportHtml ? `<section class="delivery-section"><h3>城际交通</h3>${transportHtml}</section>` : ''}
-          <section class="delivery-section">
-            <h3>费用估算</h3>
-            ${budgetRows(plan.budget).map(([label, value]) => `
-              <div class="delivery-budget"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>
-            `).join('')}
-          </section>
-          <section class="delivery-section">
-            <h3>出行贴士</h3>
-            <ul>${(plan.tips || []).slice(0, 8).map(tip => `<li>${escapeHtml(tip)}</li>`).join('')}</ul>
-          </section>
-          <footer class="delivery-disclaimer">
-            本方案为参考旅行规划，不含机票、酒店、门票代订；开放时间、票价、班次以官方实时信息为准。
-          </footer>
-        </div>
-      `;
-    }
-
-    function downloadBlob(blob, filename) {
-      window.AeroTravelExport.downloadBlob(blob, filename);
+    function deliveryOptions() {
+      return {
+        route: state.cities.map(city => city.name).join(' → '),
+        totalDays: state.totalDays,
+        budget: state.budget,
+        departureDate: el.departureDate.value,
+        addDays,
+        weatherForDay,
+        normalizeType,
+        transportDisplay,
+        selectedOption,
+        selectedTransportTotal: computeSelectedTransportTotal().total,
+        escapeHtml
+      };
     }
 
     function copyPlan() {
@@ -1894,7 +1767,7 @@ let draggedDraftNodeId = null;
         return;
       }
       refreshQualityChecks();
-      const text = buildDeliveryText(plan);
+      const text = window.AeroTravelDelivery.buildDeliveryText(plan, deliveryOptions());
       
       copyTextToClipboard(text)
         .then(() => showToast('客户版行程已复制。', 'success'))
@@ -1915,7 +1788,7 @@ let draggedDraftNodeId = null;
       refreshQualityChecks();
       const wrapper = document.createElement('div');
       wrapper.className = 'delivery-export-host';
-      wrapper.innerHTML = buildDeliverySheetHtml(plan);
+      wrapper.innerHTML = window.AeroTravelDelivery.buildDeliverySheetHtml(plan, deliveryOptions());
       document.body.appendChild(wrapper);
       try {
         const sheet = wrapper.querySelector('.delivery-sheet');
@@ -1927,7 +1800,7 @@ let draggedDraftNodeId = null;
         });
         const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png', 0.95));
         if (!blob) throw new Error('图片生成失败');
-        downloadBlob(blob, `${cleanMetaValue(plan.title) || '旅行规划'}.png`);
+        window.AeroTravelExport.downloadBlob(blob, `${cleanMetaValue(plan.title) || '旅行规划'}.png`);
         showToast('客户版长图已导出。', 'success');
       } catch (error) {
         showToast(`长图导出失败：${error.message || '请改用复制文案'}`, 'error');
@@ -1936,35 +1809,21 @@ let draggedDraftNodeId = null;
       }
     }
 
-    function icsEscape(text) {
-      return window.AeroTravelExport.icsEscape(text);
-    }
-
-    function icsDateStamp() {
-      const now = new Date();
-      const pad = n => String(n).padStart(2, '0');
-      return `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}T${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}Z`;
-    }
-
-    function buildIcsCalendar(plan) {
-      return window.AeroTravelExport.buildIcsCalendar(plan, {
-        departureDate: el.departureDate.value,
-        addDays,
-        parseTimeRange,
-        findSegment,
-        selectedOption
-      });
-    }
-
     function exportItineraryToIcs() {
       const plan = state.itinerary;
       if (!plan) {
         showToast('暂无行程可供导出，请先生成规划。', 'error');
         return;
       }
-      const text = buildIcsCalendar(plan);
+      const text = window.AeroTravelExport.buildIcsCalendar(plan, {
+        departureDate: el.departureDate.value,
+        addDays,
+        parseTimeRange,
+        findSegment,
+        selectedOption
+      });
       const blob = new Blob([text], { type: 'text/calendar;charset=utf-8' });
-      downloadBlob(blob, `${cleanMetaValue(plan.title) || '行程'}.ics`);
+      window.AeroTravelExport.downloadBlob(blob, `${cleanMetaValue(plan.title) || '行程'}.ics`);
       showToast('日历文件已导出，可导入手机日历。', 'success');
     }
 
@@ -2089,10 +1948,6 @@ let draggedDraftNodeId = null;
       document.addEventListener('keydown', event => {
         if (event.key === 'Escape' && state.mapDrawerOpen) closeMapDrawer();
       });
-      if (el.copyPlanBtn) el.copyPlanBtn.addEventListener('click', copyPlan);
-      if (el.exportLongImageBtn) el.exportLongImageBtn.addEventListener('click', exportLongImage);
-      if (el.exportIcsBtn) el.exportIcsBtn.addEventListener('click', exportItineraryToIcs);
-
       if (el.savedTripsBtn && el.savedTripsPanel) {
         el.savedTripsBtn.setAttribute('aria-haspopup', 'menu');
         el.savedTripsBtn.setAttribute('aria-expanded', 'false');
@@ -2123,27 +1978,8 @@ let draggedDraftNodeId = null;
         }, true);
       }
 
-      if (el.mobileMoreBtn && el.mobileMorePanel) {
-        el.mobileMoreBtn.addEventListener('click', event => {
-          event.stopPropagation();
-          el.mobileMorePanel.hidden = !el.mobileMorePanel.hidden;
-        });
-        el.mobileMorePanel.addEventListener('click', event => {
-          const button = event.target.closest('[data-action]');
-          if (!button) return;
-          const action = button.dataset.action;
-          el.mobileMorePanel.hidden = true;
-          if (action === 'saved-trips' && el.savedTripsBtn) el.savedTripsBtn.click();
-          else if (action === 'copy') copyPlan();
-          else if (action === 'export-image') exportLongImage();
-          else if (action === 'export-ics') exportItineraryToIcs();
-        });
-        document.addEventListener('pointerdown', event => {
-          if (el.mobileMorePanel.hidden) return;
-          if (el.mobileMoreWrap?.contains(event.target)) return;
-          el.mobileMorePanel.hidden = true;
-        }, true);
-      }
+      bindTopbarMenu(el.exportMenuBtn, el.exportMenuPanel, el.exportMenuWrap);
+      bindTopbarMenu(el.mobileMoreBtn, el.mobileMorePanel, el.mobileMoreWrap);
 
       if (el.refreshTransportBtn) el.refreshTransportBtn.addEventListener('click', refreshTransport);
       if (el.fitMapBtn) el.fitMapBtn.addEventListener('click', renderMap);
