@@ -158,6 +158,7 @@
 
       <div class="wizard-main" id="wizardMain">
         <p class="wizard-compact-summary" id="wizardCompactSummary"></p>
+        <div class="status-note" id="statusNote" data-od-id="status-note">已载入示例路线。完成路线与偏好后即可生成规划。</div>
 
         <section class="wizard-panel" id="stepRoute" data-step-panel="1" aria-label="路线设置">
           <div class="wizard-panel-header">
@@ -244,7 +245,6 @@
             <button class="btn btn-ghost" id="wizardBackBtn" type="button">← 上一步</button>
             <button class="btn btn-primary" id="generateBtn" type="button" data-od-id="generate-main">生成 AI 旅行规划</button>
           </div>
-          <div class="status-note" id="statusNote" data-od-id="status-note">已载入示例路线。点击生成后会优先连接项目后端，接口不可用时自动切换为本地演示规划。</div>
         </section>
 
         <section class="wizard-panel" id="stepResults" data-step-panel="3" hidden aria-label="规划结果">

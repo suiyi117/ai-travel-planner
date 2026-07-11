@@ -102,6 +102,7 @@ const {
 
     function setStatus(message, tone = 'neutral') {
       if (!el.statusNote) return;
+      el.statusNote.hidden = false;
       el.statusNote.textContent = message;
       el.statusNote.dataset.tone = tone;
     }
@@ -874,7 +875,9 @@ const {
         state.step1Done = true;
         setWizardStep(3);
       } else {
-        state.step1Done = false;
+        // Boot sample: stay on Step 1, but unlock Step 2 when cities already validate.
+        const Wizard = window.AeroTravelWizard;
+        state.step1Done = Boolean(Wizard?.validateStep1({ cities: state.cities })?.ok);
         state.wizardStep = 1;
         renderWizardChrome();
       }
