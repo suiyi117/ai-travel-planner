@@ -3,7 +3,7 @@
 > 实施日期：2026-07-11
 > 分支：`codex/editable-itinerary-self-drive`
 > 方法：TDD + 里程碑交付
-> 状态：**里程碑 A/B 完成；里程碑 C 已补齐主闭环，待浏览器人工验收**
+> 状态：**里程碑 A/B/C 主闭环已完成；自动化质量门 + 浏览器冒烟已通过（2026-07-11）**
 
 ## 实施范围
 
@@ -27,10 +27,33 @@
 
 ## 质量门
 
-- `.\scripts\check.ps1`: Python compile + Ruff + Mypy + 29 Python tests + 12 JS syntax checks + 51 frontend tests
-- `git diff --check`: no whitespace errors
+- `.\scripts\check.ps1`（2026-07-11 本 worktree 重跑）：**通过**
+  - Python compile + Ruff + Mypy（30 source files）
+  - **68** Python tests OK，coverage **56%**（门槛 50%）
+  - 全部 static JS syntax check
+  - **53** frontend unit tests pass / 0 fail
 - 无数据库、无登录系统、无前端框架、无构建步骤
 - `/api/plan` 保持兼容
+
+## 浏览器 + API 冒烟（2026-07-11，commit `e7ee902`）
+
+环境：本 worktree `python server.py` → `http://localhost:8000`；`.env` 从主仓复制。
+
+| 检查 | 结果 |
+|---|---|
+| P0 health/config/city_center/POI/weather | 通过 |
+| `/api/reverse_geocode` | 200（杭州翠苑） |
+| `/api/plan/optimize` | 200，重排 + diff |
+| `/api/transport/driving-route` | 200，`source=amap` |
+| 编辑模式 / 想去清单 / 仅保存 / 智能优化候选 | 浏览器通过，无 console error |
+| 自驾模式切换 + 重算道路 | 面板可用；`driving-route` 200 |
+
+### 已知非阻塞观察
+
+1. 自驾从城市行程转换时，城市锚点可能显示「待定位」，道路摘要可为「部分路段不可用」（graceful degrade）。
+2. 自驾节点列表会展开多日同名景点，略吵但可预期。
+3. 启动前需确认 8000 端口为本分支进程，否则旧 worktree 会 404 新路由。
+4. 本分支领先 master **18 commits**，尚未合入；与 `codex/editable-itinerary-self-drive` tip 对齐。
 
 详见 [CHANGELOG.md](./CHANGELOG.md) 和 [ADR-002](./docs/decisions/ADR-002-constraint-driven-editable-planning.md)。
 
