@@ -62,11 +62,7 @@ const {
       mapDrawerBackdrop: document.getElementById('mapDrawerBackdrop'),
       mobileMoreBtn: document.getElementById('mobileMoreBtn'),
       mobileMorePanel: document.getElementById('mobileMorePanel'),
-      mobileMoreWrap: document.getElementById('mobileMoreWrap'),
-      plannerPane: document.querySelector('.planner-pane'),
-      plannerBody: document.querySelector('.planner-pane .pane-body'),
-      resultsPane: document.querySelector('.results-pane'),
-      resultsBody: document.querySelector('.results-pane .pane-body')
+      mobileMoreWrap: document.getElementById('mobileMoreWrap')
     };
 
     let map = null;
@@ -461,16 +457,6 @@ const {
       if (el.daysRange) el.daysRange.value = Math.min(state.totalDays, 15);
       if (el.metricDays) el.metricDays.textContent = state.totalDays;
       if (el.metricCities) el.metricCities.textContent = state.cities.length;
-    }
-
-    function syncPaneBriefState(pane, body) {
-      if (!pane || !body) return;
-      pane.classList.toggle('is-brief-collapsed', body.scrollTop > 24);
-    }
-
-    function syncBriefStates() {
-      syncPaneBriefState(el.plannerPane, el.plannerBody);
-      syncPaneBriefState(el.resultsPane, el.resultsBody);
     }
 
     function initMap() {
@@ -1234,8 +1220,8 @@ const {
       renderPlan();
     }
 
+    // Compatibility shim for legacy mobile-nav view names.
     function switchMobileView(view) {
-      document.body.dataset.mobileView = view;
       if (view === 'results') {
         if (Wizard.canEnterStep(3, wizardFlags())) setWizardStep(3);
         return;
@@ -1692,8 +1678,6 @@ const {
 
       if (el.refreshTransportBtn) el.refreshTransportBtn.addEventListener('click', refreshTransport);
       if (el.fitMapBtn) el.fitMapBtn.addEventListener('click', renderMap);
-      if (el.plannerBody) el.plannerBody.addEventListener('scroll', () => syncPaneBriefState(el.plannerPane, el.plannerBody), { passive: true });
-      if (el.resultsBody) el.resultsBody.addEventListener('scroll', () => syncPaneBriefState(el.resultsPane, el.resultsBody), { passive: true });
 
       if (el.dayTabs) {
         el.dayTabs.addEventListener('click', event => {
@@ -1747,14 +1731,6 @@ const {
         });
       }
 
-      const mobileNav = document.querySelector('.mobile-nav');
-      if (mobileNav) {
-        mobileNav.addEventListener('click', event => {
-          const button = event.target.closest('[data-view]');
-          if (button) switchMobileView(button.dataset.view);
-        });
-      }
-
       window.addEventListener('resize', () => {
         if (map) setTimeout(() => map.invalidateSize(), 50);
       });
@@ -1767,7 +1743,6 @@ const {
       const fallback = buildFallbackItinerary(state.cities.map(city => ({ city: city.name, center: getCenter(city.name), pois: fallbackPois(city.name) })));
       applyPlan(fallback, '已载入可交互示例。修改路线后点击生成即可连接后端规划。', { skipWizardJump: true });
       bindEvents();
-      syncBriefStates();
       updateSavedTripsBadge();
       renderWizardChrome();
     }
