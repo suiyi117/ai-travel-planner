@@ -1706,6 +1706,17 @@ p { text-wrap: pretty; }
   text-transform: uppercase;
 }
 
+.wizard-summary-route {
+  font-weight: 700;
+  color: var(--fg);
+}
+
+.wizard-summary-meta {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
 .wizard-main {
   min-width: 0;
   display: grid;
