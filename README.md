@@ -172,6 +172,7 @@ ai-travel-planner/
 ├── clients/               # 高德、AI 等外部服务客户端
 ├── core/                  # 配置、安全默认值、结构化日志
 ├── planner/               # 行程生成、prompt、hydration、交通增强、草稿优化等
+│   └── optimization.py    # 优化 API 的校验、错误映射与响应组装
 ├── prompts/               # 可审查的 AI prompt 模板
 ├── routers/               # FastAPI API 路由
 ├── schemas/               # Pydantic 请求模型
@@ -187,15 +188,16 @@ ai-travel-planner/
 │   ├── map.js             # Leaflet 地图初始化与路线图层
 │   ├── storage.js         # localStorage 快照读写
 │   ├── export-ics.js      # ICS 和下载工具
+│   ├── delivery.js        # 客户版文字与长图 HTML 生成
 │   ├── draft.js / draft-ops.js / history.js
 │   ├── editor.js / candidate.js / self-drive.js
-│   ├── render.js          # 共享渲染辅助
 │   ├── app.js             # 启动、向导、地图抽屉、编辑编排
-│   └── styles.css         # 向导壳 + 编辑器样式
+│   ├── styles.css         # 向导壳 + 编辑器样式
+│   └── delivery.css       # 固定格式的客户长图样式
 ├── tests/                 # 后端镜像目录 + tests/frontend 前端单测
 ├── docs/                  # 部署、回滚、冒烟检查、ADR、规格
 │   ├── engineering/       # 协作、变更管理和发布流程
-│   └── superpowers/       # 设计规格与实施计划（含页面重设计）
+│   └── superpowers/specs/ # 已批准的交互与编辑设计规格
 ├── scripts/check.ps1      # 本地质量门禁
 └── tasks/                 # 产品化规格和 backlog
 ```

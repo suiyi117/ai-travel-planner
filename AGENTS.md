@@ -99,6 +99,7 @@ Browser (static/index.html + no-build static/*.js modules)
 | `planner/prompting.py` | Prompt construction and one-pass placeholder rendering |
 | `planner/itinerary.py` | AI JSON parsing, repair, POI merge, itinerary hydration |
 | `planner/transport.py` | Segment building, transport enrichment, direction checks, price estimates |
+| `planner/optimization.py` | Draft optimization validation, error mapping, warnings, response assembly |
 | `prompts/itinerary.md` | Reviewable itinerary prompt template |
 | `routers/` | FastAPI route modules |
 | `schemas/travel.py` | Pydantic request models |
@@ -108,7 +109,8 @@ Browser (static/index.html + no-build static/*.js modules)
 | `services/flight_service.py` | Juhe flight API plus built-in route fallback |
 | `static/app-utils.js` | No-build frontend utility module exposed as `window.AeroTravelUtils` |
 | `static/wizard.js` | Pure wizard step helpers (`validateStep1`, `canEnterStep`, `buildSummary`) as `window.AeroTravelWizard` |
-| `static/state.js`, `static/api.js`, `static/map.js`, `static/storage.js`, `static/export-ics.js`, `static/render.js` | No-build frontend boundary modules |
+| `static/state.js`, `static/api.js`, `static/map.js`, `static/storage.js`, `static/export-ics.js`, `static/delivery.js` | No-build frontend boundary modules |
+| `static/delivery.css` | Fixed-format customer long-image/export styles |
 | `static/app.js` | Frontend startup, event binding, wizard/map orchestration, rendering coordination |
 | `docs/` | Deployment, smoke checks, ADRs |
 | `docs/engineering/` | Team collaboration, change management, release process |

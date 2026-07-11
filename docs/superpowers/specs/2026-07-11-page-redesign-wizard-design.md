@@ -148,7 +148,7 @@
 | `static/index.html` | 重排 DOM：顶栏、摘要轨、三步面板、地图抽屉结构 |
 | `static/styles.css` | 去掉全页 lock scroll；摘要轨 + 主区布局；抽屉；窄屏步骤条 |
 | `static/app.js` | 步骤切换、校验、生成后跳转、抽屉开关、键盘 Esc |
-| `static/render.js` | 摘要轨渲染；步骤相关 UI；时间线点击打开抽屉 |
+| `static/app.js` | 摘要轨渲染；步骤相关 UI；时间线点击打开抽屉 |
 | `static/map.js` | 抽屉打开时初始化/resize/定位；关闭时可不销毁实例以保性能 |
 | `static/state.js` | 如需，导出 wizard/map UI 默认值 |
 | 后端 | **无变更** |

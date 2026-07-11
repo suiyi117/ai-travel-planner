@@ -5,6 +5,15 @@
 > 方法：TDD + 里程碑交付
 > 状态：**里程碑 A/B/C 主闭环已完成；自动化质量门 + 浏览器冒烟已通过（2026-07-11）**
 
+## 仓库与界面收口（2026-07-11）
+
+- 修复通用 `[hidden]` 样式和优化候选面板挂载点，避免隐藏编辑器仍占布局。
+- 将客户版文字/长图生成抽到 `static/delivery.js`，固定导出样式抽到 `static/delivery.css`。
+- 将 `/api/plan/optimize` 的校验、错误映射和响应组装抽到 `planner/optimization.py`，路由只保留 HTTP 边界。
+- 桌面复制/长图/日历操作合并为“导出”菜单，移动端使用省略号入口；toast 移至右下角。
+- 删除无调用的 `schemas/location.py`、`static/render.js` 和两份已完成的历史实施计划；保留设计规格。
+- `CLAUDE.md` 改为指向 `AGENTS.md`，仓库规则只维护一份。
+
 ## 实施范围
 
 本轮将 AeroTravel 从"AI 行程生成器"升级为"约束驱动的可编辑规划工作台"：
@@ -21,7 +30,7 @@
 | 类型 | 文件数 | 说明 |
 |---|---|---|
 | 新建前端 | 6 | draft.js, draft-ops.js, history.js, editor.js, candidate.js, self-drive.js |
-| 新建后端 | 7 | schemas/draft.py, schemas/location.py, planner/constraints.py, planner/draft_optimizer.py, planner/route_optimizer.py, services/driving_route_service.py |
+| 新建后端 | 6 | schemas/draft.py, planner/constraints.py, planner/draft_optimizer.py, planner/route_optimizer.py, services/driving_route_service.py |
 | 新建测试 | 6 | tests/frontend/*.test.js (4), tests/planner/*.py (2) |
 | 修改文件 | 10 | app.js, storage.js, state.js, api.js, index.html, styles.css, map.js, routers, check.ps1, docs |
 
@@ -53,7 +62,7 @@
 1. 自驾从城市行程转换时，城市锚点可能显示「待定位」，道路摘要可为「部分路段不可用」（graceful degrade）。
 2. 自驾节点列表会展开多日同名景点，略吵但可预期。
 3. 启动前需确认 8000 端口为本分支进程，否则旧 worktree 会 404 新路由。
-4. 本分支领先 master **18 commits**，尚未合入；与 `codex/editable-itinerary-self-drive` tip 对齐。
+4. 该功能分支后来已合入 `master`；此处保留当时的冒烟环境说明作为历史记录。
 
 详见 [CHANGELOG.md](./CHANGELOG.md) 和 [ADR-002](./docs/decisions/ADR-002-constraint-driven-editable-planning.md)。
 
@@ -226,7 +235,7 @@ static/styles.css         |  96 ++++
 2. 拆分 `static/app.js`：
    - `state.js`：单一状态对象与派生计算；
    - `api.js`：`fetchJson()`、POI、城市中心、交通刷新；
-   - `render.js`：时间线、预算、交通、详情面板渲染；
+   - `delivery.js`：客户版文字与长图 HTML 生成；
    - `map.js`：Leaflet 初始化、marker、路线；
    - `storage.js`：本地快照；
    - `export-ics.js`：日历导出。

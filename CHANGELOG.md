@@ -10,28 +10,33 @@
 ## [Unreleased]
 
 ### Added 新增
+- 新增 `planner/optimization.py`，集中处理草稿优化校验、已知错误映射、warning 与响应组装。
+- 新增 `static/delivery.js` 和 `static/delivery.css`，隔离客户版文字、长图 HTML 与固定导出样式。
+- 新增前端壳层、交付内容转义和优化接口错误脱敏回归测试。
+
+### Changed 变更
+- 顶栏复制、长图和日历操作合并为可访问的导出菜单；移动端使用紧凑省略号入口，toast 移至右下角。
+- 删除无调用的 `schemas/location.py`、`static/render.js` 和已完成的历史实施计划；`CLAUDE.md` 改为引用 `AGENTS.md` 的单一规则源。
+- Dependabot 按 GitHub Actions 和 Python 两个生态分组，减少重复更新 PR。
+
+### Fixed 修复
+- 修复组件样式覆盖原生 `hidden` 后，隐藏的自驾设置、编辑器和草稿操作栏仍可能占据布局的问题。
+- 修复优化候选面板依赖已删除旧布局挂载点的问题。
+- 优化接口的未知异常改为通用 500 响应，避免把内部异常文本返回给浏览器。
+
+## [1.2.0] - 2026-07-11
+
+> 代码已合入 `master`，GitHub `v1.2.0` tag / Release 尚未创建。
+
+### Added 新增
 - 页面信息架构重设计：三步向导（路线 → 偏好 → 行程）、桌面摘要轨、主区页面级滚动，以及按需打开的地图抽屉。
 - 新增 `static/wizard.js` 纯步骤辅助函数，并用 `tests/frontend/wizard.test.js` + `scripts/check.ps1` 接入前端单测。
 - 小团队工程化治理：新增 `requirements-dev.txt`、`pyproject.toml`、pre-commit、PR/Issue 模板、Dependabot、CI 质量门禁和安全扫描 workflow。
 - 新增 `scripts/security.ps1`，对 Git 跟踪文件做 secret scan，并用 `pip-audit` 审计 Python 依赖。
 - 新增 `docs/engineering/change-management.md` 和 `docs/engineering/release-process.md`，记录变更、ADR、浏览器 smoke 和发布流程。
-- 前端无构建模块继续拆分为 `state/api/map/storage/export-ics/render` 边界模块，`app.js` 保留为启动和编排入口。
+- 前端无构建模块拆分为 `state/api/map/storage/export-ics/wizard` 边界模块，`app.js` 保留为启动和编排入口。
 - 12306 解析与站点缓存拆分到 `services/train_parser.py` 和 `services/train_station_cache.py`，并增加离线回归测试。
 - 测试目录按 `clients/core/planner/routers/services` 镜像源码组织。
-
-### Changed 变更
-- 前端壳层从固定 `100vh` 三栏工作台改为可滚动向导；顶栏移除主「生成规划」按钮，生成 CTA 放在偏好步骤；地图默认不占主视觉。
-- 本地与 CI 质量门禁统一为 `scripts/check.ps1`，覆盖 Ruff、Mypy、coverage、Python 测试和全部 `static/*.js` 语法检查。
-- Python 运行时依赖升级：FastAPI `0.139.0`，python-dotenv `1.2.2`，以消除 Starlette/python-dotenv 已知漏洞。
-- Coverage 基线门槛设为当前覆盖率向下取整后的 50%，后续只应上调。
-
-### Security 安全
-- 安全门禁当前通过：未发现跟踪文件疑似密钥，`pip-audit` 未发现已知漏洞。
-
-
-## [1.2.0] - 2026-07-11
-
-### Added 新增
 - 可编辑行程工作台：三阶段状态模型（AppliedPlan / WorkingDraft / CandidatePlan）
 - 想去清单：支持手动添加、POI 搜索、地图点选三种入口
 - 每日编辑器：拖拽排序、上移/下移、跨日移动、名称编辑
@@ -48,6 +53,10 @@
 - 快照版本升级：schema v2，兼容 v1 只读恢复
 
 ### Changed 变更
+- 前端壳层从固定 `100vh` 三栏工作台改为可滚动向导；生成 CTA 放在偏好步骤，地图默认不占主视觉。
+- 本地与 CI 质量门禁统一为 `scripts/check.ps1`，覆盖 Ruff、Mypy、coverage、Python 测试和全部 `static/*.js` 语法检查。
+- Python 运行时依赖升级：FastAPI `0.139.0`，python-dotenv `1.2.2`，以消除 Starlette/python-dotenv 已知漏洞。
+- Coverage 基线门槛设为当前覆盖率向下取整后的 50%，后续只应上调。
 - `state.js` 扩展：新增 draft、candidate、edit mode、self-drive settings、request controllers
 - `storage.js` 升级：save/remove 返回显式结果，支持 v2 快照
 - `app.js` 重构：新增 commitDraft / renderEditor / handleDraftListAction / openConstraintDialog
@@ -59,6 +68,9 @@
 - 全部 12 个 JS 文件语法检查通过
 - 保持无数据库、无登录系统、无前端框架、无构建步骤
 - 持久化仍为浏览器 localStorage
+
+### Security 安全
+- 安全门禁通过：未发现跟踪文件疑似密钥，`pip-audit` 未发现已知漏洞。
 
 ## [1.1.0] - 2026-07-09
 
