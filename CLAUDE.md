@@ -75,7 +75,7 @@ The active UI uses Leaflet.js + 高德 map tiles for rendering. In the active `s
 
 9. **Per-city days control (not global slider)**: Each city in `state.cities` carries its own `days` field (1–7). `cityDayMap()` expands the itinerary day-by-day per city's count; `computeTotalDays()` sums them. The global days display is derived, not the source of truth. When calling `/api/plan`, both `destinations[].days` and `city_data[].days` carry each city's actual day count.
 
-10. **Brief panels collapse based on internal pane scroll**: Planner/results pane headers use `syncPaneBriefState()` to toggle `.is-brief-collapsed` when their `.pane-body` scrolls. Preserve this structure when changing pane markup or responsive layout; the scroll container is the pane body, not the whole window.
+10. **Scrollable three-step wizard shell (not a locked 100vh workbench)**: The active UI is route → preferences → itinerary with a sticky summary rail, page-level main scrolling, and an on-demand map drawer. Do not reintroduce the old planner/results/map three-pane lock or pane brief-collapse as the primary layout. Wizard pure helpers live in `static/wizard.js` (`window.AeroTravelWizard`).
 
 11. **Station data caching**: On startup, `services/train_service.py` downloads the 12306 station list and caches it to `services/.cache/station_map.json` (7-day TTL). If the download fails, it falls back to `BUILTIN_STATION_MAP`. `services/.cache/` is ignored by git.
 
@@ -89,8 +89,9 @@ The active UI uses Leaflet.js + 高德 map tiles for rendering. In the active `s
 | `services/__init__.py` | Empty init — makes `services/` a Python package |
 | `services/train_service.py` | 12306 query, station list download/cache, built-in station map |
 | `services/flight_service.py` | 聚合数据 flight API integration, built-in popular routes, airport IATA map |
-| `static/app.js` | Frontend state, city/day controls, backend POI fetching, map rendering, itinerary timeline, transport refresh, AI→fallback generation |
-| `static/styles.css` | Warm terracotta theme, responsive 3-column layout, pane brief-collapse styling, mobile panes |
+| `static/app.js` | Frontend state, wizard steps, city/day controls, backend POI fetching, map drawer, itinerary timeline, transport refresh, AI→fallback generation |
+| `static/wizard.js` | Pure wizard unlock/validation/summary helpers (`window.AeroTravelWizard`) |
+| `static/styles.css` | Warm terracotta theme, scrollable wizard shell, summary rail, map drawer, narrow-screen steps |
 | `static/index.html` | Single-page app shell served by the backend |
 | `README.md` | User-facing quick start and feature summary |
 | `CHANGELOG.md` | Release notes; currently documents the 1.1.0 productization release and prior 1.0.0 feature set |

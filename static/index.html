@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -16,19 +16,19 @@
           --bg: #f5f4ed;
           --surface: #faf9f5;
           --surface-warm: #e8e6dc;
-    
+
           /* ─── Foreground ramp (4 levels) ────────────────────────────────
            * Every gray carries a yellow-brown undertone. No cool blue-grays. */
           --fg: #141413;
           --fg-2: #3d3d3a;
           --muted: #5e5d59;
           --meta: #87867f;
-    
+
           /* ─── Border (2 levels) ──────────────────────────────────────────
            * Cream-tinted borders — the gentlest possible containment. */
           --border: #f0eee6;
           --border-soft: #e8e6dc;
-    
+
           /* ─── Accent ──────────────────────────────────────────────────────
            * Terracotta Brand — the only chromatic element on most screens.
            * Used for primary CTA buttons and highest-signal brand moments only. */
@@ -36,17 +36,17 @@
           --accent-on: #faf9f5;
           --accent-hover: color-mix(in oklab, var(--accent), black 8%);
           --accent-active: color-mix(in oklab, var(--accent), black 14%);
-    
+
           /* ─── Semantic ──────────────────────────────────────────────────── */
           --success: #17a34a;
           --warn: #eab308;
           --danger: #b53333;
-    
+
           /* ─── Typography ────────────────────────────────────────────────── */
           --font-display: "Anthropic Serif", Georgia, "Times New Roman", serif;
           --font-body: "Anthropic Sans", "Arial", system-ui, -apple-system, sans-serif;
           --font-mono: "Anthropic Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
-    
+
           --text-xs: 10px;
           --text-sm: 14px;
           --text-base: 16px;
@@ -55,11 +55,11 @@
           --text-2xl: 32px;
           --text-3xl: 52px;
           --text-4xl: 64px;
-    
+
           --leading-body: 1.6;
           --leading-tight: 1.1;
           --tracking-display: 0em;
-    
+
           /* ─── Spacing ───────────────────────────────────────────────────── */
           --space-1: 4px;
           --space-2: 8px;
@@ -69,30 +69,30 @@
           --space-6: 24px;
           --space-8: 32px;
           --space-12: 48px;
-    
+
           --section-y-desktop: 96px;
           --section-y-tablet: 64px;
           --section-y-phone: 48px;
-    
+
           /* ─── Radius ────────────────────────────────────────────────────── */
           --radius-sm: 8px;
           --radius-md: 12px;
           --radius-lg: 16px;
           --radius-pill: 9999px;
-    
+
           /* ─── Elevation ─────────────────────────────────────────────────── */
           --elev-flat: none;
           --elev-ring: 0 0 0 1px var(--border);
           --elev-raised: rgba(0, 0, 0, 0.05) 0px 4px 24px;
-    
+
           /* ─── Focus ring ────────────────────────────────────────────────── */
           --focus-ring: 0 0 0 3px rgba(56, 152, 236, 0.3);
-    
+
           /* ─── Motion ────────────────────────────────────────────────────── */
           --motion-fast: 150ms;
           --motion-base: 200ms;
           --ease-standard: cubic-bezier(0.2, 0, 0, 1);
-    
+
           /* ─── Layout ────────────────────────────────────────────────────── */
           --container-max: 1200px;
           --container-gutter-desktop: 24px;
@@ -100,9 +100,9 @@
           --container-gutter-phone: 12px;
         }
   </style>
-  <link rel="stylesheet" href="styles.css?v=poi-meta-compact-20260708">
+  <link rel="stylesheet" href="styles.css?v=page-redesign-20260711">
 </head>
-<body data-mobile-view="planner">
+<body data-wizard-step="1">
   <div class="app">
     <header class="topbar" data-od-id="app-header">
       <div class="brand" data-od-id="brand">
@@ -121,41 +121,63 @@
         <button class="btn btn-ghost" id="copyPlanBtn" type="button" data-od-id="copy-plan">复制客户行程</button>
         <button class="btn btn-ghost" id="exportLongImageBtn" type="button">导出客户长图</button>
         <button class="btn btn-ghost" id="exportIcsBtn" type="button">导出日历</button>
-        <button class="btn btn-primary" id="generateBtnTop" type="button" data-od-id="generate-top">生成规划</button>
+        <div class="mobile-more" id="mobileMoreWrap">
+          <button class="btn btn-ghost" id="mobileMoreBtn" type="button">更多</button>
+          <div class="mobile-more-panel" id="mobileMorePanel" hidden>
+            <button type="button" data-action="saved-trips">我的行程</button>
+            <button type="button" data-action="copy">复制客户行程</button>
+            <button type="button" data-action="export-image">导出客户长图</button>
+            <button type="button" data-action="export-ics">导出日历</button>
+          </div>
+        </div>
       </div>
     </header>
 
-    <main class="workspace" data-od-id="workspace">
-      <!-- 桌面端左侧栏切换 Tab -->
-      <div class="workspace-tabs" id="workspaceTabs" data-od-id="workspace-tabs">
-        <button class="w-tab is-active" type="button" data-view="planner">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-          路线设置
-        </button>
-        <button class="w-tab" type="button" data-view="results">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/><path d="m9 16 2 2 4-4"/></svg>
-          智能行程
-        </button>
-      </div>
-
-      <section class="pane planner-pane" data-od-id="planner-pane" aria-label="规划输入">
-        <div class="pane-header">
-          <div class="pane-kicker">Step 01 · Brief</div>
-          <h2 class="pane-title">先定路线，再让 AI 排日程。</h2>
-          <p class="pane-subtitle">目的地、天数、节奏和城际交通被放在同一个清晰入口里，避免来回找设置。</p>
+    <main class="wizard-shell" data-od-id="workspace">
+      <aside class="wizard-rail" id="wizardRail">
+        <nav class="wizard-steps" id="wizardSteps" aria-label="规划步骤">
+          <button class="wizard-step is-active" type="button" data-step="1">
+            <span class="wizard-step-index">1</span>
+            <span class="wizard-step-label">路线</span>
+          </button>
+          <button class="wizard-step" type="button" data-step="2">
+            <span class="wizard-step-index">2</span>
+            <span class="wizard-step-label">偏好</span>
+          </button>
+          <button class="wizard-step" type="button" data-step="3">
+            <span class="wizard-step-index">3</span>
+            <span class="wizard-step-label">行程</span>
+          </button>
+        </nav>
+        <div class="wizard-summary" id="wizardSummary">
+          <div class="wizard-summary-label">当前摘要</div>
+          <div class="wizard-summary-route" id="wizardSummaryRoute"></div>
+          <div class="wizard-summary-meta" id="wizardSummaryMeta"></div>
         </div>
-        <div class="pane-body">
-          <div class="stack">
-            <div class="field" data-od-id="city-input-field">
-              <label for="cityInput">目的地城市序列</label>
-              <div class="city-input-row">
-                <input class="input" id="cityInput" type="text" placeholder="输入城市名，例如：成都">
-                <button class="btn btn-primary" id="addCityBtn" type="button">添加</button>
-              </div>
-              <p class="field-help">城市顺序就是旅行顺序。每个城市之间可单独指定高铁、飞机或自驾。</p>
-            </div>
+      </aside>
 
-            <div class="field">
+      <div class="wizard-main" id="wizardMain">
+        <p class="wizard-compact-summary" id="wizardCompactSummary"></p>
+        <div class="status-note" id="statusNote" data-od-id="status-note">已载入示例路线。完成路线与偏好后即可生成规划。</div>
+
+        <section class="wizard-panel" id="stepRoute" data-step-panel="1" aria-label="路线设置">
+          <div class="wizard-panel-header">
+            <div class="pane-kicker">Step 01 · 路线</div>
+            <h2 class="pane-title">先定路线，再让 AI 排日程。</h2>
+            <p class="pane-subtitle">目的地、天数和出发日期被放在同一个清晰入口里，避免来回找设置。</p>
+          </div>
+          <div class="wizard-panel-body">
+            <div class="stack">
+              <div class="field" data-od-id="city-input-field">
+                <label for="cityInput">目的地城市序列</label>
+                <div class="city-input-row">
+                  <input class="input" id="cityInput" type="text" placeholder="输入城市名，例如：成都">
+                  <button class="btn btn-primary" id="addCityBtn" type="button">添加</button>
+                </div>
+                <p class="field-help">城市顺序就是旅行顺序。每个城市之间可单独指定高铁、飞机或自驾。</p>
+              </div>
+
+              <div class="field">
               <label>规划模式</label>
               <div class="segmented" style="--segments: 2" id="planningModeGroup">
                 <button class="is-active" type="button" data-value="itinerary">城市行程</button>
@@ -176,76 +198,96 @@
               </div>
             </div>
 
-            <div class="city-list" id="cityList" data-od-id="city-list"></div>
+              <div class="city-list" id="cityList" data-od-id="city-list"></div>
 
-
-            <div class="field" data-od-id="date-field">
-              <label for="departureDate">出发日期</label>
-              <input class="input" id="departureDate" type="date">
-            </div>
-
-            <div class="field" data-od-id="days-field">
-              <div class="row-between">
-                <label for="daysRange">计划天数（由各城市天数自动求和）</label>
-                <strong id="daysValue">3 天</strong>
+              <div class="field" data-od-id="date-field">
+                <label for="departureDate">出发日期</label>
+                <input class="input" id="departureDate" type="date">
               </div>
-              <input id="daysRange" type="range" min="1" max="15" value="3" disabled style="opacity:0.5;">
-            </div>
 
-            <div class="field" data-od-id="pace-field">
-              <label>旅行节奏</label>
-              <div class="segmented" style="--segments: 3" id="paceGroup">
-                <button type="button" data-value="佛系随性">佛系随性</button>
-                <button class="is-active" type="button" data-value="适中均衡">适中均衡</button>
-                <button type="button" data-value="特种兵式">特种兵式</button>
+              <div class="field" data-od-id="days-field">
+                <div class="row-between">
+                  <label for="daysRange">计划天数（由各城市天数自动求和）</label>
+                  <strong id="daysValue">3 天</strong>
+                </div>
+                <input id="daysRange" type="range" min="1" max="15" value="3" disabled style="opacity:0.5;">
               </div>
             </div>
-
-            <div class="field" data-od-id="transport-field">
-              <label>默认城际交通</label>
-              <div class="segmented" style="--segments: 4" id="transportGroup">
-                <button class="is-active" type="button" data-value="auto">智能</button>
-                <button type="button" data-value="train">高铁</button>
-                <button type="button" data-value="plane">飞机</button>
-                <button type="button" data-value="driving">自驾</button>
-              </div>
-            </div>
-
-            <div class="field" data-od-id="budget-field">
-              <label>预算档位</label>
-              <div class="segmented" style="--segments: 3" id="budgetGroup">
-                <button type="button" data-value="经济型">经济型</button>
-                <button class="is-active" type="button" data-value="舒适型">舒适型</button>
-                <button type="button" data-value="高端型">高端型</button>
-              </div>
-            </div>
-
-            <div class="field" data-od-id="interests-field">
-              <label for="interestsInput">偏好补充</label>
-              <textarea class="textarea" id="interestsInput" placeholder="例如：亲子友好、博物馆优先、少走路、晚上想吃当地小吃"></textarea>
-            </div>
-
-            <button class="btn btn-primary" id="generateBtn" type="button" data-od-id="generate-main">生成 AI 旅行规划</button>
-            <div class="status-note" id="statusNote" data-od-id="status-note">已载入示例路线。点击生成后会优先连接项目后端，接口不可用时自动切换为本地演示规划。</div>
           </div>
-        </div>
-      </section>
+          <div class="wizard-panel-actions">
+            <button class="btn btn-primary" id="wizardNextBtn" type="button">下一步：偏好 →</button>
+          </div>
+          <div class="status-note" id="stepRouteNote" hidden></div>
+        </section>
 
-      <section class="pane results-pane" data-od-id="results-pane" aria-label="规划结果">
-        <div class="pane-header">
-          <div class="pane-kicker">Step 02 · Plan</div>
-          <h2 class="pane-title" id="planTitle">北京到西安的 3 天游览计划</h2>
-          <p class="pane-subtitle" id="planSummary">上午留给城市核心景点，跨城交通单独成块，预算和贴士在结果区集中处理。</p>
-        </div>
-        <div class="pane-body">
-          <div class="stack">
-            <div class="stats-strip" data-od-id="summary-metrics">
-              <div class="metric-card"><div class="metric-value" id="metricDays">3</div><div class="metric-label">总天数</div></div>
-              <div class="metric-card"><div class="metric-value" id="metricCities">2</div><div class="metric-label">目的地</div></div>
-              <div class="metric-card"><div class="metric-value" id="metricStops">8</div><div class="metric-label">行程节点</div></div>
+        <section class="wizard-panel" id="stepPrefs" data-step-panel="2" hidden aria-label="偏好设置">
+          <div class="wizard-panel-header">
+            <div class="pane-kicker">Step 02 · 偏好</div>
+            <h2 class="pane-title">设定节奏、交通与预算。</h2>
+            <p class="pane-subtitle">偏好会直接影响 AI 排程密度、城际交通选择和费用估算档位。</p>
+          </div>
+          <div class="wizard-panel-body">
+            <div class="stack">
+              <div class="field" data-od-id="pace-field">
+                <label>旅行节奏</label>
+                <div class="segmented" style="--segments: 3" id="paceGroup">
+                  <button type="button" data-value="佛系随性">佛系随性</button>
+                  <button class="is-active" type="button" data-value="适中均衡">适中均衡</button>
+                  <button type="button" data-value="特种兵式">特种兵式</button>
+                </div>
+              </div>
+
+              <div class="field" data-od-id="transport-field">
+                <label>默认城际交通</label>
+                <div class="segmented" style="--segments: 4" id="transportGroup">
+                  <button class="is-active" type="button" data-value="auto">智能</button>
+                  <button type="button" data-value="train">高铁</button>
+                  <button type="button" data-value="plane">飞机</button>
+                  <button type="button" data-value="driving">自驾</button>
+                </div>
+              </div>
+
+              <div class="field" data-od-id="budget-field">
+                <label>预算档位</label>
+                <div class="segmented" style="--segments: 3" id="budgetGroup">
+                  <button type="button" data-value="经济型">经济型</button>
+                  <button class="is-active" type="button" data-value="舒适型">舒适型</button>
+                  <button type="button" data-value="高端型">高端型</button>
+                </div>
+              </div>
+
+              <div class="field" data-od-id="interests-field">
+                <label for="interestsInput">偏好补充</label>
+                <textarea class="textarea" id="interestsInput" placeholder="例如：亲子友好、博物馆优先、少走路、晚上想吃当地小吃"></textarea>
+              </div>
             </div>
+          </div>
+          <div class="wizard-panel-actions">
+            <button class="btn btn-ghost" id="wizardBackBtn" type="button">← 上一步</button>
+            <button class="btn btn-primary" id="generateBtn" type="button" data-od-id="generate-main">生成 AI 旅行规划</button>
+          </div>
+        </section>
 
-            <!-- === 可编辑行程工作台 === -->
+        <section class="wizard-panel" id="stepResults" data-step-panel="3" hidden aria-label="规划结果">
+          <div class="wizard-panel-header">
+            <div class="pane-kicker">Step 03 · 行程</div>
+            <h2 class="pane-title" id="planTitle">北京到西安的 3 天游览计划</h2>
+            <p class="pane-subtitle" id="planSummary">上午留给城市核心景点，跨城交通单独成块，预算和贴士在结果区集中处理。</p>
+          </div>
+          <div class="wizard-panel-toolbar">
+            <button class="btn btn-ghost" id="openMapDrawerBtn" type="button">看地图</button>
+            <button class="btn btn-ghost" id="refreshTransportBtn" type="button">刷新班次</button>
+            <button class="btn btn-ghost" id="regenerateBtn" type="button">重新生成</button>
+          </div>
+          <div class="wizard-panel-body">
+            <div class="stack">
+              <div class="stats-strip" data-od-id="summary-metrics">
+                <div class="metric-card"><div class="metric-value" id="metricDays">3</div><div class="metric-label">总天数</div></div>
+                <div class="metric-card"><div class="metric-value" id="metricCities">2</div><div class="metric-label">目的地</div></div>
+                <div class="metric-card"><div class="metric-value" id="metricStops">8</div><div class="metric-label">行程节点</div></div>
+              </div>
+
+              <!-- === 可编辑行程工作台 === -->
             <div class="plan-mode-bar" id="planModeBar" hidden>
               <div class="segmented" id="planModeGroup" style="--segments:2">
                 <button class="is-active" type="button" data-value="browse">浏览</button>
@@ -306,52 +348,59 @@
                 <div id="addPlaceResults"></div>
               </form>
             </dialog>
-            <div class="quality-panel" id="qualityPanel" data-status="pass"></div>
+                          <div class="quality-panel" id="qualityPanel" data-status="pass"></div>
 
-            <div class="day-tabs" id="dayTabs" data-od-id="day-tabs"></div>
+              <div class="day-tabs" id="dayTabs" data-od-id="day-tabs"></div>
 
-            <div class="filter-tabs" id="filterTabs" data-od-id="filter-tabs">
-              <button class="filter-tab is-active" type="button" data-filter="all">全部</button>
-              <button class="filter-tab" type="button" data-filter="transport">交通</button>
-              <button class="filter-tab" type="button" data-filter="experience">景点</button>
-              <button class="filter-tab" type="button" data-filter="food">美食</button>
-              <button class="filter-tab" type="button" data-filter="hotel">住宿</button>
-            </div>
+              <div class="filter-tabs" id="filterTabs" data-od-id="filter-tabs">
+                <button class="filter-tab is-active" type="button" data-filter="all">全部</button>
+                <button class="filter-tab" type="button" data-filter="transport">交通</button>
+                <button class="filter-tab" type="button" data-filter="experience">景点</button>
+                <button class="filter-tab" type="button" data-filter="food">美食</button>
+                <button class="filter-tab" type="button" data-filter="hotel">住宿</button>
+              </div>
 
-            <div class="timeline" id="timelineList" data-od-id="timeline-list"></div>
+              <div class="timeline" id="timelineList" data-od-id="timeline-list"></div>
 
-            <div class="stack-tight">
-              <div class="row-between">
+              <div class="stack-tight">
                 <h3 class="section-label">城际交通</h3>
-                <button class="btn btn-ghost" id="refreshTransportBtn" type="button">刷新班次</button>
+                <div class="transport-list" id="transportList" data-od-id="transport-list"></div>
               </div>
-              <div class="transport-list" id="transportList" data-od-id="transport-list"></div>
-            </div>
 
-            <div class="insight-grid" data-od-id="insight-grid">
-              <div class="insight-card">
-                <div class="row-between">
-                  <h3 class="section-label">费用估算</h3>
-                  <span class="badge" id="budgetLevelBadge">舒适型</span>
+              <div class="insight-grid" data-od-id="insight-grid">
+                <div class="insight-card">
+                  <div class="row-between">
+                    <h3 class="section-label">费用估算</h3>
+                    <span class="badge" id="budgetLevelBadge">舒适型</span>
+                  </div>
+                  <div id="budgetList" style="margin-top: var(--space-3);"></div>
                 </div>
-                <div id="budgetList" style="margin-top: var(--space-3);"></div>
-              </div>
-              <div class="insight-card">
-                <h3 class="section-label">出行贴士</h3>
-                <ul class="tips-list" id="tipsList" style="margin-top: var(--space-3);"></ul>
+                <div class="insight-card">
+                  <h3 class="section-label">出行贴士</h3>
+                  <ul class="tips-list" id="tipsList" style="margin-top: var(--space-3);"></ul>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </section>
+          <div class="wizard-panel-actions">
+            <button class="btn btn-ghost" id="wizardEditPrefsBtn" type="button">← 修改偏好并重生成</button>
+          </div>
+        </section>
+      </div>
+    </main>
 
-      <section class="pane map-pane" data-od-id="map-pane" aria-label="地图上下文">
+    <div class="map-drawer" id="mapDrawer" hidden aria-hidden="true">
+      <div class="map-drawer-backdrop" id="mapDrawerBackdrop"></div>
+      <div class="map-drawer-panel" role="dialog" aria-modal="true" aria-label="地图上下文">
         <div class="map-toolbar">
           <div>
-            <div class="pane-kicker" style="margin-bottom: var(--space-1);">Step 03 · Map</div>
+            <div class="pane-kicker" style="margin-bottom: var(--space-1);">Map</div>
             <strong id="mapTitle">Day 1 · 北京</strong>
           </div>
-          <button class="btn btn-ghost" id="fitMapBtn" type="button">适配路线</button>
+          <div class="map-toolbar-actions">
+            <button class="btn btn-ghost" id="fitMapBtn" type="button">适配路线</button>
+            <button class="btn btn-ghost" id="closeMapDrawerBtn" type="button" aria-label="关闭地图">关闭</button>
+          </div>
         </div>
         <div class="map-shell">
           <div id="map" data-od-id="leaflet-map"></div>
@@ -361,31 +410,25 @@
           <h3>故宫博物院</h3>
           <p>点击日程卡片或地图标记后，这里会显示当前地点的时间、类型和游玩建议。</p>
         </aside>
-      </section>
-    </main>
-
-    <nav class="mobile-nav" data-od-id="mobile-nav" aria-label="移动端视图切换">
-      <button class="is-active" type="button" data-view="planner">规划</button>
-      <button type="button" data-view="results">日程</button>
-      <button type="button" data-view="map">地图</button>
-    </nav>
+      </div>
+    </div>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script><!-- pragma: allowlist secret -->
   <script src="app-utils.js?v=productization-20260709"></script>
-  <script src="state.js?v=engineering-20260709"></script>
+  <script src="wizard.js?v=page-redesign-20260711"></script>
+  <script src="state.js?v=merge-master-20260711"></script>
   <script src="draft.js?v=editable-itinerary-20260710"></script>
   <script src="draft-ops.js?v=editable-itinerary-20260710"></script>
   <script src="history.js?v=editable-itinerary-20260710"></script>
   <script src="editor.js?v=editable-itinerary-20260710"></script>
   <script src="candidate.js?v=editable-itinerary-20260710"></script>
   <script src="self-drive.js?v=editable-itinerary-20260710"></script>
-  <script src="api.js?v=engineering-20260709"></script>
+  <script src="api.js?v=page-redesign-20260711"></script>
   <script src="map.js?v=editable-itinerary-20260711"></script>
-  <script src="storage.js?v=engineering-20260709"></script>
-  <script src="export-ics.js?v=engineering-20260709"></script>
-  <script src="render.js?v=engineering-20260709"></script>
-  <script src="app.js?v=editable-itinerary-20260711"></script>
-
+  <script src="storage.js?v=page-redesign-20260711"></script>
+  <script src="export-ics.js?v=page-redesign-20260711"></script>
+  <script src="render.js?v=page-redesign-20260711"></script>
+  <script src="app.js?v=merge-master-20260711"></script>
 </body>
 </html>
