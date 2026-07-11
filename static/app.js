@@ -882,7 +882,16 @@ const {
         showToast(message, 'success');
       }
       renderAll();
-      switchMobileView('results');
+
+      const skipWizardJump = Boolean(options.skipWizardJump);
+      if (!skipWizardJump) {
+        state.step1Done = true;
+        setWizardStep(3);
+      } else {
+        state.step1Done = false;
+        state.wizardStep = 1;
+        renderWizardChrome();
+      }
     }
 
     function buildRainWeatherTips(days) {
@@ -1756,7 +1765,7 @@ const {
       renderCities();
       // Lazy map init: #map lives in a hidden drawer; ensureMap() runs on first open.
       const fallback = buildFallbackItinerary(state.cities.map(city => ({ city: city.name, center: getCenter(city.name), pois: fallbackPois(city.name) })));
-      applyPlan(fallback, '已载入可交互示例。修改路线后点击生成即可连接后端规划。');
+      applyPlan(fallback, '已载入可交互示例。修改路线后点击生成即可连接后端规划。', { skipWizardJump: true });
       bindEvents();
       syncBriefStates();
       updateSavedTripsBadge();
