@@ -32,7 +32,19 @@
       itinerary: null,
       cityCenters: {},
       cityWeather: {},
-      selectedOptions: {}
+      selectedOptions: {},
+      editMode: false,
+      workingDraft: null,
+      candidatePlan: null,
+      draftHistory: null,
+      appliedUndo: null,
+      planningMode: 'itinerary',
+      routeShape: 'one_way',
+      routeStrategy: 'balanced',
+      activeOptimizationController: null,
+      activeRouteController: null,
+      routeRequestTimer: null,
+      cancelPointPicker: null
     };
   }
 

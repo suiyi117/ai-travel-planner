@@ -12,6 +12,8 @@ mrbw*-image.png
 mrbw*-drawing-*.png
 *.pem
 services/.cache/
+.worktrees/
+.superpowers/
 
 # 开发过程产物，不对外发布
 .od-skills/

@@ -1,3 +1,63 @@
+﻿# IMPLEMENTATION — 可编辑行程与自驾规划实施记录
+
+> 实施日期：2026-07-11
+> 分支：`codex/editable-itinerary-self-drive`
+> 方法：TDD + 里程碑交付
+> 状态：**里程碑 A/B/C 主闭环已完成；自动化质量门 + 浏览器冒烟已通过（2026-07-11）**
+
+## 实施范围
+
+本轮将 AeroTravel 从"AI 行程生成器"升级为"约束驱动的可编辑规划工作台"：
+
+- 三阶段状态模型（AppliedPlan → WorkingDraft → CandidatePlan）
+- 想去清单 + 每日编辑器 + 约束面板（增/删/移/锁定）
+- 确定性局部优化（最近邻+2-opt）+ human-readable diff
+- 自驾规划模式（环线/单程、三种策略、真实道路数据）
+- 高德驾车距离矩阵 + 反向地理编码
+- 撤销/重做 + 快照 v2 兼容 v1
+
+## 文件变更统计
+
+| 类型 | 文件数 | 说明 |
+|---|---|---|
+| 新建前端 | 6 | draft.js, draft-ops.js, history.js, editor.js, candidate.js, self-drive.js |
+| 新建后端 | 7 | schemas/draft.py, schemas/location.py, planner/constraints.py, planner/draft_optimizer.py, planner/route_optimizer.py, services/driving_route_service.py |
+| 新建测试 | 6 | tests/frontend/*.test.js (4), tests/planner/*.py (2) |
+| 修改文件 | 10 | app.js, storage.js, state.js, api.js, index.html, styles.css, map.js, routers, check.ps1, docs |
+
+## 质量门
+
+- `.\scripts\check.ps1`（2026-07-11 本 worktree 重跑）：**通过**
+  - Python compile + Ruff + Mypy（30 source files）
+  - **68** Python tests OK，coverage **56%**（门槛 50%）
+  - 全部 static JS syntax check
+  - **53** frontend unit tests pass / 0 fail
+- 无数据库、无登录系统、无前端框架、无构建步骤
+- `/api/plan` 保持兼容
+
+## 浏览器 + API 冒烟（2026-07-11，commit `e7ee902`）
+
+环境：本 worktree `python server.py` → `http://localhost:8000`；`.env` 从主仓复制。
+
+| 检查 | 结果 |
+|---|---|
+| P0 health/config/city_center/POI/weather | 通过 |
+| `/api/reverse_geocode` | 200（杭州翠苑） |
+| `/api/plan/optimize` | 200，重排 + diff |
+| `/api/transport/driving-route` | 200，`source=amap` |
+| 编辑模式 / 想去清单 / 仅保存 / 智能优化候选 | 浏览器通过，无 console error |
+| 自驾模式切换 + 重算道路 | 面板可用；`driving-route` 200 |
+
+### 已知非阻塞观察
+
+1. 自驾从城市行程转换时，城市锚点可能显示「待定位」，道路摘要可为「部分路段不可用」（graceful degrade）。
+2. 自驾节点列表会展开多日同名景点，略吵但可预期。
+3. 启动前需确认 8000 端口为本分支进程，否则旧 worktree 会 404 新路由。
+4. 本分支领先 master **18 commits**，尚未合入；与 `codex/editable-itinerary-self-drive` tip 对齐。
+
+详见 [CHANGELOG.md](./CHANGELOG.md) 和 [ADR-002](./docs/decisions/ADR-002-constraint-driven-editable-planning.md)。
+
+---
 # IMPLEMENTATION — 差异化优化实施记录
 
 > 实施日期：2026-07-09
@@ -484,3 +544,18 @@ static/styles.css         |  96 ++++
 - 本地 uvicorn + Chrome headless 打开 `/static/index.html`：`window.AeroTravelUtils` 存在，首屏示例行程渲染，3 个 day tab、4 个 timeline item、Leaflet 地图存在，控制台无 error/warning。
 
 当前产品化 backlog 已全部打勾。后续若继续优化，可进一步把 `app.js` 拆成 `api/render/map/storage/export` 等更细模块，但这已经不再是当前验收阻塞项。
+
+
+
+## 进度对齐补丁（2026-07-11）
+
+在原 1.2.0 实施基础上补齐自驾闭环缺口：
+
+- 修复 `static/map.js` 点选导出与道路 polyline 辅助函数
+- 落地 `/api/transport/driving-route` 与 `create_driving_router`
+- 将 `optimize_draft` 升级为 async，并接入 self-drive 成本矩阵/道路回填
+- 重写 `planner/route_optimizer.py` 为 plan 约定的稳定接口
+- 补齐自驾前端控件、重算请求、候选优化与地图预览接线
+- 修复 `app.js` 中“仅保存 / 智能优化”事件绑定嵌套错误
+- 补充 driving / route optimizer 测试，并更新 smoke checklist
+

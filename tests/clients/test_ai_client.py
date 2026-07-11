@@ -49,7 +49,7 @@ class AiClientRequestTests(unittest.TestCase):
             return httpx.Response(200, json={"choices": [{"message": {"content": " result "}}]})
 
         result = asyncio.run(request_chat_completion(
-            api_key="secret",
+            api_key="test-token",  # pragma: allowlist secret
             base_url="https://ai.example/v1",
             model="demo-model",
             prompt="hello",
@@ -60,7 +60,7 @@ class AiClientRequestTests(unittest.TestCase):
 
         self.assertEqual(result, "result")
         self.assertEqual(captured["url"], "https://ai.example/v1/chat/completions")
-        self.assertEqual(captured["authorization"], "Bearer secret")
+        self.assertEqual(captured["authorization"], "Bearer test-token")
         self.assertEqual(captured["payload"]["model"], "demo-model")
 
     def test_request_chat_completion_raises_ai_client_error_on_non_200(self):
@@ -69,7 +69,7 @@ class AiClientRequestTests(unittest.TestCase):
 
         with self.assertRaisesRegex(AiClientError, "401"):
             asyncio.run(request_chat_completion(
-                api_key="secret",
+                api_key="test-token",  # pragma: allowlist secret
                 base_url="https://ai.example/v1",
                 model="demo-model",
                 prompt="hello",

@@ -9,5 +9,37 @@
     return map;
   }
 
-  window.AeroTravelMap = Object.freeze({ createMap });
+  function enablePointPicker(map, onPick) {
+    if (!map) return () => {};
+    const container = map.getContainer();
+    container.classList.add('is-picking-point');
+    function handleClick(event) {
+      container.classList.remove('is-picking-point');
+      map.off('click', handleClick);
+      onPick({ lat: event.latlng.lat, lng: event.latlng.lng });
+    }
+    map.on('click', handleClick);
+    return () => {
+      container.classList.remove('is-picking-point');
+      map.off('click', handleClick);
+    };
+  }
+
+  function replaceRoutePolyline(map, currentLayer, points, options) {
+    if (currentLayer) currentLayer.remove();
+    if (!points || points.length < 2 || !map || !window.L) return null;
+    const status = (options && options.status) || 'estimate';
+    return L.polyline(points, {
+      color: status === 'provider' ? '#c96442' : '#77736b',
+      weight: 4,
+      opacity: 0.9,
+      dashArray: status === 'provider' ? null : '8 8'
+    }).addTo(map);
+  }
+
+  window.AeroTravelMap = Object.freeze({
+    createMap,
+    enablePointPicker,
+    replaceRoutePolyline
+  });
 })();

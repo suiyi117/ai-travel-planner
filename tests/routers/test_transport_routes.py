@@ -1,9 +1,12 @@
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 import server
+from routers.transport import create_driving_router
 
 
 class TransportRouteTests(unittest.TestCase):
@@ -77,6 +80,50 @@ class TransportRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(data["stations"], [{"code": "BJP", "name": "北京站"}])
         self.assertEqual(data["airports"], [{"code": "PEK", "name": "北京首都国际机场", "city": "北京"}])
+
+
+def route_node(node_id: str, lng: float) -> dict:
+    return {
+        "id": node_id, "source": "manual", "name": node_id, "city_id": "city-hz", "city": "杭州",
+        "location": {"lat": 30.0, "lng": lng, "status": "resolved"}, "status": "scheduled",
+        "schedule": {}, "constraints": {"required": True},
+    }
+
+
+class DrivingRouteTests(unittest.TestCase):
+    def test_driving_route_keeps_request_order_and_shape(self):
+        app = FastAPI()
+        app.include_router(create_driving_router(SimpleNamespace(amap_key="key"), logger=None))
+
+        async def fake_build(_key, nodes, route_shape):
+            return {
+                "source": "amap", "status": "provider", "route_shape": route_shape,
+                "ordered_node_ids": [node["id"] for node in nodes], "segments": [],
+                "totals": {"distance_meters": 0, "duration_seconds": 0, "tolls_yuan": 0},
+                "polyline": [], "warnings": [], "fetched_at": "2026-07-10T00:00:00+00:00",
+                "total_km": 0.0, "total_driving_minutes": 0, "toll_yuan": 0.0,
+            }
+
+        with patch("routers.transport.build_driving_route", fake_build):
+            response = TestClient(app).post(
+                "/api/transport/driving-route",
+                json={"route_shape": "round_trip", "nodes": [route_node("b", 120.2), route_node("a", 120.1)]},
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["ordered_node_ids"], ["b", "a"])
+        self.assertEqual(response.json()["route_shape"], "round_trip")
+
+    def test_driving_route_rejects_more_than_twenty_nodes(self):
+        app = FastAPI()
+        app.include_router(create_driving_router(SimpleNamespace(amap_key="key"), logger=None))
+        response = TestClient(app).post(
+            "/api/transport/driving-route",
+            json={
+                "route_shape": "one_way",
+                "nodes": [route_node(str(index), 120.0 + index / 1000) for index in range(21)],
+            },
+        )
+        self.assertEqual(response.status_code, 422)
 
 
 if __name__ == "__main__":

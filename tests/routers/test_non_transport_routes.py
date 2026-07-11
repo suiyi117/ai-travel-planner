@@ -57,7 +57,7 @@ class NonTransportRouteTests(unittest.TestCase):
 
     def test_system_routes_hide_config_and_report_health(self):
         app = FastAPI()
-        app.include_router(create_system_router(fake_settings(juhe_flight_api_key="juhe-key")))
+        app.include_router(create_system_router(fake_settings(juhe_flight_api_key="test-juhe-token")))  # pragma: allowlist secret
 
         client = TestClient(app)
         config = client.get("/api/config").json()
@@ -71,7 +71,7 @@ class NonTransportRouteTests(unittest.TestCase):
 
     def test_planning_route_validates_city_data_before_generation(self):
         app = FastAPI()
-        app.include_router(create_planning_router(fake_settings(ai_api_key="ai-key"), logger=None))
+        app.include_router(create_planning_router(fake_settings(ai_api_key="test-ai-token"), logger=None))  # pragma: allowlist secret
 
         response = TestClient(app).post(
             "/api/plan",
@@ -82,7 +82,7 @@ class NonTransportRouteTests(unittest.TestCase):
 
     def test_planning_route_delegates_generation_for_valid_request(self):
         app = FastAPI()
-        app.include_router(create_planning_router(fake_settings(ai_api_key="ai-key"), logger=None))
+        app.include_router(create_planning_router(fake_settings(ai_api_key="test-ai-token"), logger=None))  # pragma: allowlist secret
 
         async def fake_generate_itinerary(*_args, **_kwargs):
             return {"days": [], "transport_guide": []}

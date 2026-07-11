@@ -1,4 +1,4 @@
-import time
+﻿import time
 from collections.abc import Callable
 
 import httpx
@@ -151,3 +151,53 @@ async def query_weather(
         if on_error:
             on_error(exc)
         return []
+
+AMAP_REGEO_URL = "https://restapi.amap.com/v3/geocode/regeo"
+
+
+async def reverse_geocode(amap_key: str, lat: float, lng: float) -> dict:
+    """Resolve lat/lng to a stable place with city and address via Amap regeo."""
+    if not amap_key:
+        return {"status": "error", "info": "missing_api_key"}
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            response = await client.get(
+                AMAP_REGEO_URL,
+                params={
+                    "key": amap_key,
+                    "location": f"{lng},{lat}",
+                    "extensions": "base",
+                },
+            )
+        if response.status_code != 200:
+            return {"status": "error", "info": f"amap_http_{response.status_code}"}
+
+        data = response.json()
+        if data.get("status") != "1":
+            return {"status": "error", "info": data.get("info", "unknown_error")}
+
+        regeocode = data.get("regeocode") or {}
+        address_component = regeocode.get("addressComponent") or {}
+        city = (
+            address_component.get("city")
+            or address_component.get("province")
+            or ""
+        )
+
+        pois = regeocode.get("pois") or []
+        nearest = pois[0] if pois else {}
+
+        return {
+            "status": "ok",
+            "place": {
+                "provider_id": nearest.get("id") or None,
+                "name": nearest.get("name") or address_component.get("township") or address_component.get("district") or "地图选点",
+                "city": (city if isinstance(city, str) else str(city)).strip(),
+                "lat": lat,
+                "lng": lng,
+                "address": nearest.get("address") or regeocode.get("formatted_address") or "",
+            },
+        }
+    except Exception:
+        return {"status": "error", "info": "amap_unavailable"}
