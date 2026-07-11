@@ -5,7 +5,9 @@
 ![Vanilla JS](https://img.shields.io/badge/Frontend-vanilla_JS-F7DF1E)
 ![No DB](https://img.shields.io/badge/Persistence-localStorage-555)
 
-面向中国多城市旅行的 AI 行程规划工作台。它不是只生成一段“看起来合理”的文本，而是把高德 POI、天气、12306 火车、航班参考数据和交互式地图串成一份能检查、能调整、能保存、能导出的行程。
+面向中国多城市旅行的 AI 行程规划器。它不是只生成一段“看起来合理”的文本，而是把高德 POI、天气、12306 火车、航班参考数据和按需地图串成一份能检查、能编辑、能保存、能导出的行程。
+
+前端采用**可滚动三步向导**（路线 → 偏好 → 行程），桌面侧有摘要轨，地图默认不占主视觉，点击「看地图」或景点卡片后再打开抽屉。
 
 ![AeroTravel 首页](docs/assets/aerotravel-home.png)
 
@@ -13,19 +15,28 @@
 
 | 能力 | 说明 |
 |---|---|
+| 三步向导 | 路线（城市/天数/日期）→ 偏好（节奏/交通/预算）→ 行程结果；主区页面级滚动，不再锁死三栏一屏。 |
 | 真实 POI | 后端代理高德 Web 服务，获取景点坐标、评分、地址、电话和开放时间。 |
 | AI 行程编排 | 支持 OpenAI-compatible Chat Completions 接口，可接 OpenAI、通义千问、DeepSeek 等供应商。 |
 | 交通可信度 | 跨城交通由服务端稳定生成 `A → B` 分段，再用 12306 / 航班参考数据增强。 |
 | 天气感知 | 规划时查询城市天气，前端显示天气标签，并给雨雪天补充提醒。 |
-| 交互地图 | Leaflet + 高德瓦片，按每日行程渲染点位和路线。 |
+| 按需地图 | Leaflet + 高德瓦片；结果步可打开地图抽屉，定位每日点位与路线。 |
+| 可编辑 / 自驾 | 生成后可在结果步切换浏览/编辑，维护想去清单与约束；支持自驾模式与道路指标重算。 |
 | 本地快照 | 最近行程保存在浏览器 `localStorage`，无数据库、无账号、低部署成本。 |
-| 可交付 | 支持复制交付文案、导出长图、导出 `.ics` 日历。 |
+| 可交付 | 支持复制客户行程、导出长图、导出 `.ics` 日历。 |
+
+## 使用路径（前端）
+
+1. **Step 1 路线**：添加城市顺序、每城天数、段级交通、出发日期。  
+2. **Step 2 偏好**：节奏、默认城际、预算、补充说明 → **生成 AI 规划**。  
+3. **Step 3 行程**：时间线、城际交通、费用与贴士；可打开地图抽屉；可进入编辑/自驾工作台。  
+4. 顶栏：我的行程、复制、导出长图、导出日历（窄屏收进「更多」）。
 
 ## 整体流程
 
 ```mermaid
 flowchart LR
-  U["用户输入城市、天数、预算、交通偏好"] --> F["静态前端<br/>static/app.js"]
+  U["Step1 城市/天数<br/>Step2 偏好"] --> F["静态前端<br/>wizard + app.js"]
   F -->|"城市中心 / POI"| L["Location Router"]
   L --> A["高德 Web 服务"]
   F -->|"POST /api/plan"| P["Planning Router"]
@@ -36,7 +47,7 @@ flowchart LR
   T --> R["12306 / 航班参考"]
   G --> H["Hydrated Itinerary"]
   H --> F
-  F --> M["地图、时间线、交通、预算、导出"]
+  F --> M["Step3 时间线 / 交通 / 预算<br/>按需地图抽屉 / 编辑导出"]
 ```
 
 ## 快速开始
@@ -116,7 +127,7 @@ curl "http://localhost:8000/api/search_pois?city=北京&keywords=景点&count=5"
 curl "http://localhost:8000/api/weather?city=北京"
 ```
 
-`.\scripts\check.ps1` 会运行 Python 语法检查、Ruff、Mypy、coverage-backed 后端回归测试，并检查所有 `static/*.js` 语法。`.\scripts\security.ps1` 会扫描跟踪文件中的疑似密钥并审计 Python 依赖漏洞。
+`.\scripts\check.ps1` 会运行 Python 语法检查、Ruff、Mypy、coverage-backed 后端回归测试、全部 `static/*.js` 语法检查，以及 `tests/frontend/*.test.js` 前端单测（含向导与可编辑行程逻辑）。`.\scripts\security.ps1` 会扫描跟踪文件中的疑似密钥并审计 Python 依赖漏洞。
 
 ## 架构结构
 
@@ -132,14 +143,16 @@ flowchart TB
     SC["schemas/<br/>Pydantic models"]
   end
 
-  subgraph Frontend["Static Frontend"]
-    HTML["static/index.html"]
-    U["static/app-utils.js"]
-    APP["static/app.js"]
-    CSS["static/styles.css"]
+  subgraph Frontend["Static Frontend · no build"]
+    HTML["static/index.html<br/>三步向导壳"]
+    W["wizard.js"]
+    D["draft / editor / self-drive"]
+    APP["app.js 编排"]
+    CSS["styles.css"]
   end
 
-  HTML --> U
+  HTML --> W
+  HTML --> D
   HTML --> APP
   HTML --> CSS
   APP --> R
@@ -158,30 +171,33 @@ ai-travel-planner/
 ├── server.py              # FastAPI 应用装配入口
 ├── clients/               # 高德、AI 等外部服务客户端
 ├── core/                  # 配置、安全默认值、结构化日志
-├── planner/               # 行程生成、prompt、hydration、交通增强逻辑
+├── planner/               # 行程生成、prompt、hydration、交通增强、草稿优化等
 ├── prompts/               # 可审查的 AI prompt 模板
 ├── routers/               # FastAPI API 路由
 ├── schemas/               # Pydantic 请求模型
-├── services/              # 12306、航班等交通服务
+├── services/              # 12306、航班、自驾道路等服务
 │   ├── train_parser.py    # 12306 结果解析
 │   └── train_station_cache.py # 车站缓存读写与反查表
 ├── static/
-│   ├── index.html         # 单页应用壳
+│   ├── index.html         # 三步向导 + 结果/编辑壳
 │   ├── app-utils.js       # 无构建前端纯工具函数
-│   ├── state.js           # 初始状态和本地 fallback 常量
+│   ├── wizard.js          # 步骤校验 / 解锁 / 摘要纯函数
+│   ├── state.js           # 初始状态（向导 + 草稿/自驾字段）
 │   ├── api.js             # fetchJson 与 /api 路由兼容
-│   ├── map.js             # Leaflet 地图初始化
+│   ├── map.js             # Leaflet 地图初始化与路线图层
 │   ├── storage.js         # localStorage 快照读写
 │   ├── export-ics.js      # ICS 和下载工具
+│   ├── draft.js / draft-ops.js / history.js
+│   ├── editor.js / candidate.js / self-drive.js
 │   ├── render.js          # 共享渲染辅助
-│   ├── app.js             # 前端启动、事件绑定、状态编排
-│   └── styles.css         # 前端样式
-├── tests/                 # 按 clients/core/planner/routers/services 镜像组织的离线回归测试
-├── docs/                  # 部署、回滚、冒烟检查、ADR
-│   └── engineering/       # 协作、变更管理和发布流程
+│   ├── app.js             # 启动、向导、地图抽屉、编辑编排
+│   └── styles.css         # 向导壳 + 编辑器样式
+├── tests/                 # 后端镜像目录 + tests/frontend 前端单测
+├── docs/                  # 部署、回滚、冒烟检查、ADR、规格
+│   ├── engineering/       # 协作、变更管理和发布流程
+│   └── superpowers/       # 设计规格与实施计划（含页面重设计）
 ├── scripts/check.ps1      # 本地质量门禁
-├── tasks/                 # 产品化规格和 backlog
-└── tests/                 # 离线回归测试
+└── tasks/                 # 产品化规格和 backlog
 ```
 
 ## 生产配置要点
@@ -203,6 +219,7 @@ ai-travel-planner/
 - 工程变更管理：[docs/engineering/change-management.md](docs/engineering/change-management.md)
 - 发布流程：[docs/engineering/release-process.md](docs/engineering/release-process.md)
 - 持久化/auth 决策：[docs/decisions/ADR-001-local-only-persistence.md](docs/decisions/ADR-001-local-only-persistence.md)
+- 页面向导重设计规格：[docs/superpowers/specs/2026-07-11-page-redesign-wizard-design.md](docs/superpowers/specs/2026-07-11-page-redesign-wizard-design.md)
 - 产品化 backlog：[tasks/todo.md](tasks/todo.md)
 - 实施记录：[IMPLEMENTATION.md](IMPLEMENTATION.md)
 
@@ -211,13 +228,14 @@ ai-travel-planner/
 | 层 | 技术 |
 |---|---|
 | 后端 | Python 3.10+, FastAPI, httpx, python-dotenv |
-| 前端 | HTML, CSS, vanilla JavaScript |
+| 前端 | HTML, CSS, vanilla JavaScript（无构建） |
+| 交互壳 | 三步向导 + 摘要轨 + 按需地图抽屉 |
 | 地图 | Leaflet.js + 高德地图瓦片 |
 | POI / 天气 | 高德 Web 服务 API |
 | AI | OpenAI-compatible Chat Completions |
-| 交通 | 12306 公开接口，聚合数据航班 API 可选 |
+| 交通 | 12306 公开接口，聚合数据航班 API 可选，自驾道路参考 |
 | 持久化 | 浏览器 localStorage |
-| 工程治理 | Ruff, Mypy, Coverage, detect-secrets, pip-audit, pre-commit, GitHub Actions |
+| 工程治理 | Ruff, Mypy, Coverage, Node `node:test` 前端单测, detect-secrets, pip-audit, pre-commit, GitHub Actions |
 
 ## License
 
