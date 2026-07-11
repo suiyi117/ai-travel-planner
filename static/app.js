@@ -164,17 +164,38 @@ const {
       setWizardStep(2);
     }
 
-    function openMapDrawer() {
+    function ensureMap() {
+      if (map) return map;
+      initMap();
+      return map;
+    }
+
+    function openMapDrawer(itemId) {
       state.mapDrawerOpen = true;
+      if (itemId) {
+        state.activeItemId = itemId;
+        state.mapFocusItemId = itemId;
+      } else if (state.activeItemId) {
+        state.mapFocusItemId = state.activeItemId;
+      }
       if (el.mapDrawer) {
         el.mapDrawer.hidden = false;
         el.mapDrawer.setAttribute('aria-hidden', 'false');
       }
       document.body.classList.add('map-drawer-open');
+      ensureMap();
+      renderMap();
+      setTimeout(() => {
+        if (!map) return;
+        map.invalidateSize();
+        const focusId = state.mapFocusItemId || state.activeItemId;
+        if (focusId) focusItem(focusId, true);
+      }, 60);
     }
 
     function closeMapDrawer() {
       state.mapDrawerOpen = false;
+      state.mapFocusItemId = null;
       if (el.mapDrawer) {
         el.mapDrawer.hidden = true;
         el.mapDrawer.setAttribute('aria-hidden', 'true');
@@ -902,10 +923,8 @@ const {
       renderCities();
       renderPlan();
       renderWizardChrome();
-      try {
-        renderMap();
-      } catch (_) {
-        // Map may live in a hidden drawer until Task 6 fully wires it.
+      if (state.mapDrawerOpen) {
+        try { renderMap(); } catch (_) { /* map not ready */ }
       }
     }
 
@@ -1083,7 +1102,8 @@ const {
 
     function renderMap() {
       renderPlan();
-      if (!map) return;
+      // Skip marker work while the drawer is closed (map may not exist yet).
+      if (!state.mapDrawerOpen || !map) return;
       markers.forEach(marker => marker.remove());
       markers = [];
       if (routeLine) {
@@ -1098,15 +1118,19 @@ const {
       items.forEach((item, index) => {
         const point = [Number(item.lat), Number(item.lng)];
         points.push(point);
+        const isFocused = item.id === (state.mapFocusItemId || state.activeItemId);
         const icon = L.divIcon({
           className: '',
-          html: `<div class="marker-pin">${index + 1}</div>`,
+          html: `<div class="marker-pin${isFocused ? ' is-focused' : ''}">${index + 1}</div>`,
           iconSize: [22, 22],
           iconAnchor: [11, 11]
         });
         const marker = L.marker(point, { icon }).addTo(map);
         marker.bindPopup(`<strong>${escapeHtml(item.title)}</strong><br>${escapeHtml(item.time)} · ${normalizeType(item.type)}${renderPopupMeta(item)}`);
-        marker.on('click', () => focusItem(item.id, false));
+        marker.on('click', () => {
+          state.mapFocusItemId = item.id;
+          focusItem(item.id, false);
+        });
         markers.push(marker);
       });
 
@@ -1593,9 +1617,14 @@ const {
           setWizardStep(button.dataset.step);
         });
       }
-      if (el.openMapDrawerBtn) el.openMapDrawerBtn.addEventListener('click', openMapDrawer);
+      if (el.openMapDrawerBtn) {
+        el.openMapDrawerBtn.addEventListener('click', () => openMapDrawer(state.activeItemId));
+      }
       if (el.closeMapDrawerBtn) el.closeMapDrawerBtn.addEventListener('click', closeMapDrawer);
       if (el.mapDrawerBackdrop) el.mapDrawerBackdrop.addEventListener('click', closeMapDrawer);
+      document.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && state.mapDrawerOpen) closeMapDrawer();
+      });
       if (el.copyPlanBtn) el.copyPlanBtn.addEventListener('click', copyPlan);
       if (el.exportLongImageBtn) el.exportLongImageBtn.addEventListener('click', exportLongImage);
       if (el.exportIcsBtn) el.exportIcsBtn.addEventListener('click', exportItineraryToIcs);
@@ -1664,8 +1693,12 @@ const {
           state.currentDay = Number(button.dataset.day);
           state.currentFilter = 'all';
           state.activeItemId = activeItems()[0]?.id || null;
+          state.mapFocusItemId = state.mapDrawerOpen ? state.activeItemId : state.mapFocusItemId;
           renderPlan();
-          try { renderMap(); } catch (_) { /* drawer map may be closed */ }
+          if (state.mapDrawerOpen) {
+            try { renderMap(); } catch (_) { /* map not ready */ }
+            setTimeout(() => { if (map) map.invalidateSize(); }, 60);
+          }
         });
       }
 
@@ -1682,7 +1715,16 @@ const {
         el.timelineList.addEventListener('click', event => {
           const card = event.target.closest('[data-item]');
           if (!card) return;
-          focusItem(card.dataset.item);
+          const itemId = card.dataset.item;
+          const item = activeItems().find(entry => String(entry.id) === String(itemId));
+          const hasCoords = item && Number(item.lat) && Number(item.lng);
+          const isPlaceable = item && (hasCoords || item.type === 'experience' || item.type === 'food' || item.type === 'hotel');
+          // Placeable POIs open the map drawer with focus; transport/other can open optionally.
+          if (isPlaceable || (item && item.type === 'transport')) {
+            openMapDrawer(itemId);
+          } else {
+            focusItem(itemId, false);
+          }
         });
       }
 
@@ -1712,7 +1754,7 @@ const {
     function boot() {
       el.departureDate.value = todayPlus(1);
       renderCities();
-      initMap();
+      // Lazy map init: #map lives in a hidden drawer; ensureMap() runs on first open.
       const fallback = buildFallbackItinerary(state.cities.map(city => ({ city: city.name, center: getCenter(city.name), pois: fallbackPois(city.name) })));
       applyPlan(fallback, '已载入可交互示例。修改路线后点击生成即可连接后端规划。');
       bindEvents();
