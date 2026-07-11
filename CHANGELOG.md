@@ -26,8 +26,6 @@
 
 ## [1.2.0] - 2026-07-11
 
-> 代码已合入 `master`，GitHub `v1.2.0` tag / Release 尚未创建。
-
 ### Added 新增
 - 页面信息架构重设计：三步向导（路线 → 偏好 → 行程）、桌面摘要轨、主区页面级滚动，以及按需打开的地图抽屉。
 - 新增 `static/wizard.js` 纯步骤辅助函数，并用 `tests/frontend/wizard.test.js` + `scripts/check.ps1` 接入前端单测。
