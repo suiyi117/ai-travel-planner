@@ -48,6 +48,7 @@ python -m uvicorn server:app --reload --host 0.0.0.0 --port 8000
 - `mypy server.py clients core planner routers schemas services` when dev dependencies are installed
 - `python -m unittest discover -s tests -v`
 - `node --check` for every `static/*.js` file when Node.js is installed
+- `node --test tests/frontend/*.test.js` when frontend unit tests exist
 
 `.\scripts\security.ps1` runs tracked-file secret scanning and Python dependency audit.
 
@@ -106,8 +107,9 @@ Browser (static/index.html + no-build static/*.js modules)
 | `services/train_station_cache.py` | Station cache loading, writing, normalization, reverse lookup |
 | `services/flight_service.py` | Juhe flight API plus built-in route fallback |
 | `static/app-utils.js` | No-build frontend utility module exposed as `window.AeroTravelUtils` |
+| `static/wizard.js` | Pure wizard step helpers (`validateStep1`, `canEnterStep`, `buildSummary`) as `window.AeroTravelWizard` |
 | `static/state.js`, `static/api.js`, `static/map.js`, `static/storage.js`, `static/export-ics.js`, `static/render.js` | No-build frontend boundary modules |
-| `static/app.js` | Frontend startup, event binding, state orchestration, rendering coordination |
+| `static/app.js` | Frontend startup, event binding, wizard/map orchestration, rendering coordination |
 | `docs/` | Deployment, smoke checks, ADRs |
 | `docs/engineering/` | Team collaboration, change management, release process |
 | `tasks/` | Productization spec and backlog |
@@ -143,9 +145,10 @@ Browser (static/index.html + no-build static/*.js modules)
 - Preserve boot-time fallback itinerary behavior: the app should be useful before backend generation succeeds.
 - Preserve `fetchJson()` behavior that routes `/api` calls to `http://localhost:8000` when opened via `file://` or a non-8000 port.
 - Preserve per-city days: `state.cities[].days` is source of truth; global total days is derived.
-- Preserve planner/results pane brief-collapse behavior: `.pane-body` is the scroll container.
+- Preserve the **scrollable three-step wizard shell** (route → preferences → itinerary): sticky summary rail on desktop, page-level scrolling on the main column, and **on-demand map drawer** (not a locked 100vh three-pane workbench). Do not restore pane brief-collapse / `.pane-body` as the primary scroll model.
+- Keep wizard pure helpers in `static/wizard.js` (`window.AeroTravelWizard`) and cover them with `tests/frontend/wizard.test.js` when changing unlock or summary rules.
 - Keep all POI metadata escaped. Amap fields such as `rating`, `address`, `tel`, and `opentime` must pass through `escapeHtml()` / `cleanMetaValue()` before HTML insertion.
-- Browser-facing changes require a runtime smoke check when feasible: page loads, console has no errors/warnings, map renders, and the initial itinerary appears.
+- Browser-facing changes require a runtime smoke check when feasible: page loads on Step 1, console has no errors/warnings, generate reaches Step 3, map drawer opens/closes, and the initial itinerary appears.
 
 ## Transport and Data Gotchas
 
