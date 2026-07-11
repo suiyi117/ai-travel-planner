@@ -32,7 +32,11 @@
       itinerary: null,
       cityCenters: {},
       cityWeather: {},
-      selectedOptions: {}
+      selectedOptions: {},
+      wizardStep: 1,
+      step1Done: false,
+      mapDrawerOpen: false,
+      mapFocusItemId: null
     };
   }
 
