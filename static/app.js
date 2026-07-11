@@ -68,6 +68,7 @@ const {
     let map = null;
     let routeLine = null;
     let markers = [];
+    let mapDrawerLastFocus = null;
     let draggedCityIndex = null;
 
     const {
@@ -175,6 +176,10 @@ const {
       } else if (state.activeItemId) {
         state.mapFocusItemId = state.activeItemId;
       }
+      const active = document.activeElement;
+      if (active && active !== document.body && !el.mapDrawer?.contains(active)) {
+        mapDrawerLastFocus = active;
+      }
       if (el.mapDrawer) {
         el.mapDrawer.hidden = false;
         el.mapDrawer.setAttribute('aria-hidden', 'false');
@@ -183,10 +188,13 @@ const {
       ensureMap();
       renderMap();
       setTimeout(() => {
-        if (!map) return;
-        map.invalidateSize();
-        const focusId = state.mapFocusItemId || state.activeItemId;
-        if (focusId) focusItem(focusId, true);
+        if (map) {
+          map.invalidateSize();
+          const focusId = state.mapFocusItemId || state.activeItemId;
+          if (focusId) focusItem(focusId, true);
+        }
+        // Minimal modal focus: move keyboard focus into the drawer.
+        (el.closeMapDrawerBtn || el.fitMapBtn)?.focus?.();
       }, 60);
     }
 
@@ -198,6 +206,11 @@ const {
         el.mapDrawer.setAttribute('aria-hidden', 'true');
       }
       document.body.classList.remove('map-drawer-open');
+      const restore = mapDrawerLastFocus;
+      mapDrawerLastFocus = null;
+      if (restore && typeof restore.focus === 'function' && document.contains(restore)) {
+        restore.focus();
+      }
     }
 
     function showToast(message, type = 'success') {
@@ -1099,7 +1112,7 @@ const {
     }
 
     function renderMap() {
-      renderPlan();
+      // Map-only: callers that need timeline/UI refresh should call renderPlan() themselves.
       // Skip marker work while the drawer is closed (map may not exist yet).
       if (!state.mapDrawerOpen || !map) return;
       markers.forEach(marker => marker.remove());

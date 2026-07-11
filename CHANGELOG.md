@@ -10,6 +10,8 @@
 ## [Unreleased]
 
 ### Added 新增
+- 页面信息架构重设计：三步向导（路线 → 偏好 → 行程）、桌面摘要轨、主区页面级滚动，以及按需打开的地图抽屉。
+- 新增 `static/wizard.js` 纯步骤辅助函数，并用 `tests/frontend/wizard.test.js` + `scripts/check.ps1` 接入前端单测。
 - 小团队工程化治理：新增 `requirements-dev.txt`、`pyproject.toml`、pre-commit、PR/Issue 模板、Dependabot、CI 质量门禁和安全扫描 workflow。
 - 新增 `scripts/security.ps1`，对 Git 跟踪文件做 secret scan，并用 `pip-audit` 审计 Python 依赖。
 - 新增 `docs/engineering/change-management.md` 和 `docs/engineering/release-process.md`，记录变更、ADR、浏览器 smoke 和发布流程。
@@ -18,6 +20,7 @@
 - 测试目录按 `clients/core/planner/routers/services` 镜像源码组织。
 
 ### Changed 变更
+- 前端壳层从固定 `100vh` 三栏工作台改为可滚动向导；顶栏移除主「生成规划」按钮，生成 CTA 放在偏好步骤；地图默认不占主视觉。
 - 本地与 CI 质量门禁统一为 `scripts/check.ps1`，覆盖 Ruff、Mypy、coverage、Python 测试和全部 `static/*.js` 语法检查。
 - Python 运行时依赖升级：FastAPI `0.139.0`，python-dotenv `1.2.2`，以消除 Starlette/python-dotenv 已知漏洞。
 - Coverage 基线门槛设为当前覆盖率向下取整后的 50%，后续只应上调。
