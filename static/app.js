@@ -424,6 +424,11 @@ let draggedDraftNodeId = null;
       if (action === 'saved-trips' && el.savedTripsBtn) el.savedTripsBtn.click();
       else if (action === 'copy') copyPlan();
       else if (action === 'export-image') exportLongImage();
+      else if (action === 'export-overview') exportOverviewImage();
+      else if (action === 'export-pdf') exportTripPdfBackup();
+      else if (action === 'publish-trip') publishDedicatedTrip();
+      else if (action === 'preview-trip') previewDedicatedTrip();
+      else if (action === 'refs-check') openRefsChecklist();
       else if (action === 'export-ics') exportItineraryToIcs();
     }
 
@@ -1245,6 +1250,97 @@ let draggedDraftNodeId = null;
       renderMap();
     }
 
+    function parseRefPromptLine(line) {
+      const text = String(line || '').trim();
+      if (!text) return null;
+      const pipe = text.indexOf('|');
+      if (pipe === -1) return { label: '参考', url: text, kind: 'web' };
+      return {
+        label: text.slice(0, pipe).trim() || '参考',
+        url: text.slice(pipe + 1).trim(),
+        kind: 'web'
+      };
+    }
+
+    function promptEditRefs(existing) {
+      const current = Array.isArray(existing) ? existing.slice(0, 3) : [];
+      const next = [];
+      for (let i = 0; i < 3; i += 1) {
+        const preset = current[i]
+          ? `${current[i].label || '参考'}|${current[i].url || ''}`
+          : '';
+        const input = window.prompt(
+          `参考链接 ${i + 1}/3（格式：标签|https://... ，留空结束）`,
+          preset
+        );
+        if (input === null) return null; // cancel entire edit
+        const parsed = parseRefPromptLine(input);
+        if (!parsed) break;
+        if (!/^https?:\/\//i.test(parsed.url)) {
+          showToast(`已跳过非法链接：${parsed.url}`, 'error');
+          continue;
+        }
+        next.push(parsed);
+      }
+      return next;
+    }
+
+    function syncItineraryFromDraft() {
+      if (!state.workingDraft || !window.AeroTravelDraft?.draftToItinerary) return;
+      try {
+        const itinerary = window.AeroTravelDraft.draftToItinerary(state.workingDraft, state.itinerary);
+        state.itinerary = { ...state.itinerary, ...itinerary, days: itinerary.days };
+      } catch (_e) { /* ignore; draft still has refs */ }
+    }
+
+    function editNodeWithRefs(nodeId) {
+      const node = state.workingDraft.nodes.find(n => n.id === nodeId);
+      if (!node) return;
+      const name = window.prompt('地点名称', node.name || '');
+      if (name === null || !name.trim()) return;
+      const existing = node.metadata?.item?.refs || [];
+      const refs = promptEditRefs(existing);
+      if (refs === null) return;
+      commitDraft(window.AeroTravelDraftOps.updateNode(state.workingDraft, nodeId, {
+        name: name.trim(),
+        refs
+      }));
+      syncItineraryFromDraft();
+      showToast(refs.length ? `已保存 ${refs.length} 条参考链接` : '已清空参考链接', 'success');
+    }
+
+    function openRefsChecklist() {
+      if (!state.workingDraft) {
+        showToast('请先进入可编辑行程。', 'error');
+        return;
+      }
+      const lines = [];
+      state.workingDraft.days.forEach(day => {
+        day.node_ids.forEach(id => {
+          const node = state.workingDraft.nodes.find(n => n.id === id);
+          if (!node) return;
+          const count = (node.metadata?.item?.refs || []).length;
+          lines.push({
+            id: node.id,
+            label: `D${day.day} · ${node.name} · ${count ? `${count} 条链接` : '无链接'}`
+          });
+        });
+      });
+      if (!lines.length) {
+        showToast('当前没有可检查的地点。', 'error');
+        return;
+      }
+      const menu = lines.map((row, i) => `${i + 1}. ${row.label}`).join('\n');
+      const pick = window.prompt(`参考链接检查（输入序号编辑，取消关闭）\n${menu}`, '');
+      if (pick === null || !String(pick).trim()) return;
+      const index = Number(pick) - 1;
+      if (!Number.isInteger(index) || index < 0 || index >= lines.length) {
+        showToast('无效序号', 'error');
+        return;
+      }
+      editNodeWithRefs(lines[index].id);
+    }
+
     function restoreDraftHistory(nextHistory) {
       if (nextHistory === state.draftHistory) return;
       state.activeOptimizationController?.abort();
@@ -1335,11 +1431,7 @@ let draggedDraftNodeId = null;
           commitDraft(window.AeroTravelDraftOps.removeNode(state.workingDraft, nodeId));
         }
       } else if (button.dataset.action === 'edit-node') {
-        const node = state.workingDraft.nodes.find(n => n.id === nodeId);
-        const name = window.prompt('地点名称', node?.name || '');
-        if (name !== null && name.trim()) {
-          commitDraft(window.AeroTravelDraftOps.updateNode(state.workingDraft, nodeId, { name: name.trim() }));
-        }
+        editNodeWithRefs(nodeId);
       } else if (button.dataset.action === 'move-up' || button.dataset.action === 'move-down') {
         const day = state.workingDraft.days.find(d => d.day === state.currentDay);
         if (!day) return;
@@ -1760,26 +1852,134 @@ let draggedDraftNodeId = null;
       };
     }
 
-    function copyPlan() {
+    function requireCurrentPlan(actionLabel) {
       const plan = state.itinerary;
-      if (!plan) {
-        showToast('暂无行程可供复制，请先生成规划。', 'error');
-        return;
+      if (!plan || !(plan.days || []).length) {
+        showToast(`暂无行程可供${actionLabel}，请先生成规划。`, 'error');
+        return null;
       }
+      return plan;
+    }
+
+    function buildCurrentTripPackage(extra) {
+      const plan = requireCurrentPlan('处理');
+      if (!plan || !window.AeroTravelTripPackage) return null;
+      refreshQualityChecks();
+      const drivingRoute = state.workingDraft && state.workingDraft.route
+        ? state.workingDraft.route
+        : null;
+      return window.AeroTravelTripPackage.buildTripPackage(plan, {
+        ...deliveryOptions(),
+        cities: state.cities,
+        drivingRoute,
+        ...(extra || {})
+      });
+    }
+
+    async function enrichStaticMap(pkg) {
+      if (!pkg) return pkg;
+      const req = window.AeroTravelTripPackage.buildStaticMapRequest(pkg);
+      if (!req.markers.length) {
+        pkg.static_map = {
+          data_url: '',
+          status: 'unavailable',
+          width: req.width,
+          height: req.height,
+          note: '无可用坐标'
+        };
+        return pkg;
+      }
+      const markerParam = req.markers.map(m => `${m.lng},${m.lat}`).join('|');
+      const pathParam = req.path
+        ? req.path.map(p => `${p[1]},${p[0]}`).join(';')
+        : '';
+      try {
+        const qs = new URLSearchParams({
+          width: String(req.width),
+          height: String(req.height),
+          markers: markerParam
+        });
+        if (pathParam) qs.set('path', pathParam);
+        const data = await fetchJson(`/api/static_map?${qs.toString()}`);
+        if (data.status === 'ok' && data.image_base64) {
+          pkg.static_map = {
+            data_url: `data:image/png;base64,${data.image_base64}`,
+            status: 'ready',
+            width: data.width || req.width,
+            height: data.height || req.height,
+            note: req.path_status === 'provider' ? '道路数据' : '估算'
+          };
+        } else {
+          throw new Error(data.message || 'static_map_failed');
+        }
+      } catch (_err) {
+        pkg.static_map = {
+          data_url: '',
+          status: 'unavailable',
+          width: req.width,
+          height: req.height,
+          note: '地图暂不可用'
+        };
+      }
+      return pkg;
+    }
+
+    async function buildEnrichedTripPackage(extra) {
+      const pkg = buildCurrentTripPackage(extra);
+      if (!pkg) return null;
+      return enrichStaticMap(pkg);
+    }
+
+    function promptPublishMeta(token) {
+      const defaultHost = window.localStorage.getItem('aerotravel:publish-host') || 'https://trip.example.com';
+      const suggestedUrl = `${defaultHost.replace(/\/$/, '')}/t/${token}.html`;
+      const shareUrlInput = window.prompt(
+        '填写客户访问链接（上传后的最终 URL，用于二维码）。可先填预期地址：',
+        suggestedUrl
+      );
+      if (shareUrlInput === null) return null;
+      const shareUrl = String(shareUrlInput || '').trim();
+      if (shareUrl) {
+        try {
+          const host = new URL(shareUrl).origin;
+          window.localStorage.setItem('aerotravel:publish-host', host);
+        } catch (_err) {
+          /* ignore invalid URL host cache */
+        }
+      }
+
+      const departure = el.departureDate?.value || '';
+      const defaultValid = window.AeroTravelTripPackage.defaultValidUntil(
+        departure,
+        state.totalDays,
+        { addDays, keepDays: 30 }
+      );
+      const validUntilInput = window.prompt(
+        '建议保留至（YYYY-MM-DD，可留空；仅展示，不自动删除）：',
+        defaultValid || ''
+      );
+      if (validUntilInput === null) return null;
+      return {
+        token,
+        shareUrl,
+        validUntil: String(validUntilInput || '').trim()
+      };
+    }
+
+    function copyPlan() {
+      const plan = requireCurrentPlan('复制');
+      if (!plan) return;
       refreshQualityChecks();
       const text = window.AeroTravelDelivery.buildDeliveryText(plan, deliveryOptions());
-      
+
       copyTextToClipboard(text)
         .then(() => showToast('客户版行程已复制。', 'success'))
         .catch(() => showToast('复制失败，您的浏览器不支持直接复制，请手动选择文本。', 'error'));
     }
 
     async function exportLongImage() {
-      const plan = state.itinerary;
-      if (!plan) {
-        showToast('暂无行程可供导出，请先生成规划。', 'error');
-        return;
-      }
+      const plan = requireCurrentPlan('导出');
+      if (!plan) return;
       if (!window.html2canvas) {
         showToast('长图组件加载失败，请先使用复制客户行程。', 'error');
         return;
@@ -1809,12 +2009,102 @@ let draggedDraftNodeId = null;
       }
     }
 
-    function exportItineraryToIcs() {
-      const plan = state.itinerary;
-      if (!plan) {
-        showToast('暂无行程可供导出，请先生成规划。', 'error');
+    async function exportOverviewImage() {
+      const pkg = await buildEnrichedTripPackage();
+      if (!pkg) return;
+      if (!window.html2canvas || !window.AeroTravelTripShareRender) {
+        showToast('总览图组件不可用，请改用导出客户长图。', 'error');
         return;
       }
+      const wrapper = document.createElement('div');
+      wrapper.className = 'delivery-export-host';
+      wrapper.innerHTML = window.AeroTravelTripShareRender.renderOverviewPngSheet(pkg);
+      document.body.appendChild(wrapper);
+      try {
+        const sheet = wrapper.querySelector('.trip-png-sheet');
+        const canvas = await window.html2canvas(sheet, {
+          backgroundColor: '#faf9f5',
+          scale: 2,
+          useCORS: true,
+          logging: false
+        });
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png', 0.95));
+        if (!blob) throw new Error('图片生成失败');
+        window.AeroTravelExport.downloadBlob(blob, `${cleanMetaValue(pkg.title) || '行程总览'}-overview.png`);
+        showToast('竖向总览图已导出，可用于私信或小红书。', 'success');
+      } catch (error) {
+        showToast(`总览图导出失败：${error.message || '请改用长图或 PDF'}`, 'error');
+      } finally {
+        wrapper.remove();
+      }
+    }
+
+    async function exportTripPdfBackup() {
+      const pkg = await buildEnrichedTripPackage();
+      if (!pkg || !window.AeroTravelTripShareRender) return;
+      const html = window.AeroTravelTripShareRender.renderPrintableDocument(pkg);
+      const win = window.open('', '_blank');
+      if (!win) {
+        showToast('浏览器拦截了弹窗，请允许后重试 PDF 导出。', 'error');
+        return;
+      }
+      const title = window.AeroTravelTripShareRender.escapeHtml(pkg.title || '行程');
+      win.document.write(`<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>${title} PDF 备份</title><link rel="stylesheet" href="/static/trip-share.css"><style>@page{size:A4 landscape;margin:12mm}body{background:#fff}</style></head><body class="trip-print-body">${html}<script>window.addEventListener('load',function(){setTimeout(function(){window.print()},200)});<\/script></body></html>`);
+      win.document.close();
+      showToast('已打开 PDF 打印预览，可保存为 PDF。', 'success');
+    }
+
+    async function previewDedicatedTrip() {
+      const pkg = await buildEnrichedTripPackage();
+      if (!pkg || !window.AeroTravelTripPublish) return;
+      window.AeroTravelTripPublish.openPreview(pkg);
+      showToast('已打开专属行程预览页。', 'success');
+    }
+
+    async function publishDedicatedTrip() {
+      if (!window.AeroTravelTripPackage || !window.AeroTravelTripPublish) return;
+      const token = window.AeroTravelTripPackage.generateShareToken(20);
+      const meta = promptPublishMeta(token);
+      if (!meta) {
+        showToast('已取消发布。', 'error');
+        return;
+      }
+      const pkg = await buildEnrichedTripPackage({
+        token: meta.token,
+        shareUrl: meta.shareUrl,
+        validUntil: meta.validUntil
+      });
+      if (!pkg) return;
+      try {
+        showToast('正在打包专属行程页…');
+        const assetBase = `${window.location.origin}/static/`;
+        const result = await window.AeroTravelTripPublish.publishTripPackage(pkg, {
+          assetBase,
+          shareUrl: meta.shareUrl,
+          downloadHtml: true,
+          downloadJson: true,
+          openPreview: true
+        });
+        const textLines = [
+          pkg.title || '专属旅行行程',
+          `行程 ID：${result.package.id}`,
+          result.package.share_url ? `访问链接：${result.package.share_url}` : '',
+          result.package.valid_until ? `建议保留至：${result.package.valid_until}` : '',
+          '',
+          ...result.instructions,
+          '',
+          window.AeroTravelDelivery.buildDeliveryText(state.itinerary, deliveryOptions())
+        ].filter(line => line !== '');
+        await copyTextToClipboard(textLines.join('\n')).catch(() => {});
+        showToast(`专属页已下载（${result.filename}），发布说明已复制。`, 'success');
+      } catch (error) {
+        showToast(`发布失败：${error.message || '请检查网络后重试'}`, 'error');
+      }
+    }
+
+    function exportItineraryToIcs() {
+      const plan = requireCurrentPlan('导出');
+      if (!plan) return;
       const text = window.AeroTravelExport.buildIcsCalendar(plan, {
         departureDate: el.departureDate.value,
         addDays,
