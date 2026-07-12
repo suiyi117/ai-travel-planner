@@ -139,13 +139,19 @@ test("defaultValidUntil adds retention after trip end", () => {
   const { defaultValidUntil } = window.AeroTravelTripPackage;
   const value = defaultValidUntil("2026-08-01", 3, {
     keepDays: 30,
+    // Use UTC calendar math so CI (UTC) and local TZ agree.
     addDays: (date, offset) => {
-      const base = new Date(`${date}T00:00:00`);
-      base.setDate(base.getDate() + offset);
-      return base.toISOString().slice(0, 10);
+      const [y, m, d] = String(date).split("-").map(Number);
+      const base = new Date(Date.UTC(y, m - 1, d));
+      base.setUTCDate(base.getUTCDate() + offset);
+      const year = base.getUTCFullYear();
+      const month = String(base.getUTCMonth() + 1).padStart(2, "0");
+      const day = String(base.getUTCDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
     }
   });
-  assert.equal(value, "2026-09-01");
+  // 2026-08-01 + (3-1) + 30 = +32 days => 2026-09-02
+  assert.equal(value, "2026-09-02");
 });
 
 test("normalizeRefs keeps max 3 https urls and drops invalid", () => {
