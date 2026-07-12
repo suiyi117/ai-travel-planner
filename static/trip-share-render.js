@@ -66,6 +66,26 @@
     return `<ul class="trip-tip-list">${tips.map(tip => `<li>${escapeHtml(tip)}</li>`).join('')}</ul>`;
   }
 
+  function metaSpans(pkg) {
+    const spans = [
+      escapeHtml(pkg.departure_date || '日期待定'),
+      `${escapeHtml(pkg.total_days)} 天`,
+      escapeHtml(pkg.budget_label),
+      `更新 ${formatUpdatedAt(pkg.updated_at)}`
+    ];
+    if (pkg.valid_until) spans.push(`建议保留至 ${escapeHtml(pkg.valid_until)}`);
+    return spans.map(text => `<span>${text}</span>`).join('');
+  }
+
+  function inAppBrowserBanner() {
+    return `
+      <div class="trip-inapp-banner" data-inapp-banner hidden role="status">
+        <strong>打开提示</strong>
+        <p>若在微信/QQ 内打开，地图导航可能无法调起 App。请复制地址，或点右上角「···」用系统浏览器打开本页。</p>
+      </div>
+    `;
+  }
+
   function renderOverviewDesktop(pkg) {
     const shareUrl = pkg.share_url || '';
     const qr = qrImageUrl(shareUrl);
@@ -78,12 +98,10 @@
             <p class="trip-route-line">${escapeHtml(pkg.route || pkg.cities?.join(' → ') || '')}</p>
           </div>
           <div class="trip-overview-meta">
-            <span>${escapeHtml(pkg.departure_date || '日期待定')}</span>
-            <span>${escapeHtml(pkg.total_days)} 天</span>
-            <span>${escapeHtml(pkg.budget_label)}</span>
-            <span>更新 ${formatUpdatedAt(pkg.updated_at)}</span>
+            ${metaSpans(pkg)}
           </div>
         </header>
+        ${inAppBrowserBanner()}
         <div class="trip-overview-grid">
           <aside class="trip-overview-days">
             <h2>每日摘要</h2>
@@ -126,8 +144,9 @@
           <div class="trip-brand">AeroTravel</div>
           <h1>${escapeHtml(pkg.title)}</h1>
           <p>${escapeHtml(pkg.route || '')} · ${escapeHtml(pkg.total_days)} 天</p>
-          <p class="trip-muted">${escapeHtml(pkg.departure_date || '日期待定')} · ${escapeHtml(pkg.budget_label)}</p>
+          <p class="trip-muted">${escapeHtml(pkg.departure_date || '日期待定')} · ${escapeHtml(pkg.budget_label)}${pkg.valid_until ? ` · 建议保留至 ${escapeHtml(pkg.valid_until)}` : ''}</p>
         </header>
+        ${inAppBrowserBanner()}
         <div class="trip-overview-map-wrap is-mobile">
           <div class="trip-map" data-trip-map="overview" data-day="all" aria-label="总体路线地图"></div>
         </div>
@@ -150,6 +169,20 @@
     `;
   }
 
+  function staticMapBlock(pkg, className) {
+    const staticMap = pkg.static_map || {};
+    if (staticMap.status === 'ready' && staticMap.data_url) {
+      const cls = className || 'png-static-map';
+      return `<img class="${escapeHtml(cls)}" src="${escapeHtml(staticMap.data_url)}" alt="行程总览地图" width="${escapeHtml(staticMap.width || 640)}" height="${escapeHtml(staticMap.height || 640)}">`;
+    }
+    return `
+      <div class="png-map-fallback">
+        <p class="trip-muted">地图见专属链接</p>
+        ${(pkg.map_anchors || []).slice(0, 8).map((a, i) => `<span>${i + 1}. ${escapeHtml(a.title)}</span>`).join('')}
+      </div>
+    `;
+  }
+
   function renderOverviewPngSheet(pkg) {
     const shareUrl = pkg.share_url || '';
     const qr = qrImageUrl(shareUrl);
@@ -165,10 +198,7 @@
         <p class="png-route">${escapeHtml(pkg.route || '')}</p>
         <p class="png-meta">${escapeHtml(pkg.total_days)} 天 · ${escapeHtml(pkg.budget_label)} · ${escapeHtml(pkg.departure_date || '日期待定')}</p>
         <div class="png-map-frame">
-          <div class="trip-map" data-trip-map="png" data-day="all"></div>
-          <div class="png-map-fallback">
-            ${(pkg.map_anchors || []).slice(0, 8).map((a, i) => `<span>${i + 1}. ${escapeHtml(a.title)}</span>`).join('')}
-          </div>
+          ${staticMapBlock(pkg, 'png-static-map')}
         </div>
         <div class="png-days">${dayLines}</div>
         <div class="png-bottom">
@@ -338,8 +368,11 @@
       </section>
     `).join('');
 
+    const printMap = staticMapBlock(pkg, 'print-static-map png-static-map');
+
     return `
       <article class="trip-print-doc">
+        <div class="print-static-map-wrap">${printMap}</div>
         ${renderOverviewDesktop(pkg)}
         ${daysHtml}
         ${renderTransport(pkg)}

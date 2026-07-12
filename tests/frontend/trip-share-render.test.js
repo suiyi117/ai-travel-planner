@@ -17,6 +17,7 @@ const samplePkg = {
   budget_label: "舒适型",
   departure_date: "2026-08-01",
   updated_at: "2026-07-12T10:00:00.000Z",
+  valid_until: "2026-09-01",
   share_url: "https://trip.example/t/Ab12Cd34Ef56Gh78Ij90",
   days: [{
     day: 1,
@@ -69,6 +70,8 @@ test("overview desktop keeps map-first three column structure markers", () => {
   assert.match(html, /关键数据/);
   assert.match(html, /道路数据/);
   assert.match(html, /估算连线/);
+  assert.match(html, /建议保留至 2026-09-01/);
+  assert.match(html, /data-inapp-banner/);
 });
 
 test("png sheet is vertical overview content", () => {
@@ -78,9 +81,46 @@ test("png sheet is vertical overview content", () => {
   assert.match(html, /D1/);
 });
 
+test("png sheet uses static_map image when ready", () => {
+  const html = Render.renderOverviewPngSheet({
+    ...samplePkg,
+    static_map: {
+      status: "ready",
+      data_url: "data:image/png;base64,AAA",
+      width: 640,
+      height: 640
+    }
+  });
+  assert.match(html, /png-static-map/);
+  assert.match(html, /data:image\/png;base64,AAA/);
+});
+
+test("png sheet falls back when static_map unavailable", () => {
+  const html = Render.renderOverviewPngSheet({
+    ...samplePkg,
+    static_map: { status: "unavailable", data_url: "" }
+  });
+  assert.match(html, /地图见专属链接|png-map-fallback/);
+  assert.doesNotMatch(html, /png-static-map/);
+});
+
 test("printable document includes overview and daily sections", () => {
   const html = Render.renderPrintableDocument(samplePkg);
   assert.match(html, /trip-overview-desktop/);
   assert.match(html, /print-day/);
   assert.match(html, /费用与提示/);
+});
+
+test("printable document uses static_map when ready", () => {
+  const html = Render.renderPrintableDocument({
+    ...samplePkg,
+    static_map: {
+      status: "ready",
+      data_url: "data:image/png;base64,BBB",
+      width: 640,
+      height: 640
+    }
+  });
+  assert.match(html, /png-static-map|print-static-map/);
+  assert.match(html, /data:image\/png;base64,BBB/);
 });

@@ -243,6 +243,31 @@ body.trip-share-body {
   background: var(--trip-surface);
 }
 
+.trip-inapp-banner {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid #f0d2a8;
+  border-radius: 12px;
+  background: #fff8ee;
+  color: #7a4b12;
+}
+
+.trip-inapp-banner[hidden] {
+  display: none !important;
+}
+
+.trip-inapp-banner strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+
+.trip-inapp-banner p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .legend-road::before,
 .legend-estimate::before,
 .legend-intercity::before {
@@ -462,13 +487,46 @@ body.trip-share-body {
 
 .png-map-frame .trip-map { height: 100%; }
 
+.png-static-map {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #e8e6df;
+}
+
+.print-static-map-wrap {
+  margin: 0 0 16px;
+}
+
+.print-static-map-wrap .png-static-map,
+.print-static-map {
+  width: 100%;
+  max-height: 360px;
+  height: auto;
+  object-fit: contain;
+  border: 1px solid var(--trip-border);
+  border-radius: 12px;
+  background: #efece3;
+}
+
 .png-map-fallback {
   position: absolute;
   inset: 0;
-  display: none;
+  display: flex;
   padding: 12px;
   flex-direction: column;
   gap: 4px;
+  overflow: auto;
+  font-size: 12px;
+  color: var(--trip-muted);
+  background: #efece3;
+}
+
+.png-map-fallback .trip-muted {
+  margin: 0 0 6px;
+  font-weight: 600;
+}
   font-size: 12px;
   color: var(--trip-muted);
 }
