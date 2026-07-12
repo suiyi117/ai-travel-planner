@@ -9,7 +9,9 @@ const {
   amapRouteUrl,
   nextStop,
   buildItemActions,
-  dayPlainText
+  dayPlainText,
+  isInAppBrowser,
+  inAppBrowserHint
 } = window.AeroTravelTripNav;
 
 test("amap poi url prefers gaode https marker link", () => {
@@ -66,4 +68,11 @@ test("dayPlainText keeps executable day summary", () => {
   assert.match(text, /Day 1 · 2026-08-01 · 北京/);
   assert.match(text, /故宫/);
   assert.match(text, /地址：东城区/);
+});
+
+test("isInAppBrowser detects wechat and qq containers", () => {
+  assert.equal(isInAppBrowser("Mozilla/5.0 MicroMessenger/8.0.0"), true);
+  assert.equal(isInAppBrowser("Mozilla/5.0 QQ/9.0.0"), true);
+  assert.equal(isInAppBrowser("Mozilla/5.0 Chrome/120.0.0.0 Safari/537.36"), false);
+  assert.match(inAppBrowserHint(), /系统浏览器/);
 });

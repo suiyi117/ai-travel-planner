@@ -12,6 +12,20 @@
     return Number.isFinite(a) && Number.isFinite(b) && !(a === 0 && b === 0);
   }
 
+  function isInAppBrowser(userAgent) {
+    const ua = clean(userAgent || (typeof navigator !== 'undefined' ? navigator.userAgent : ''));
+    if (!ua) return false;
+    return /MicroMessenger|QQ\//i.test(ua)
+      || /Weibo/i.test(ua)
+      || /DingTalk/i.test(ua)
+      || /AlipayClient/i.test(ua)
+      || /miniProgram/i.test(ua);
+  }
+
+  function inAppBrowserHint() {
+    return '当前可能在微信/QQ 等内置浏览器中。地图 App 调起可能失败：可先复制地址，再点右上角「···」用系统浏览器打开本页。';
+  }
+
   function amapPoiUrl(name, lat, lng, address) {
     const title = encodeURIComponent(clean(name) || '目的地');
     if (hasCoords(lat, lng)) {
@@ -176,6 +190,8 @@
     buildItemActions,
     dayPlainText,
     copyText,
-    hasCoords
+    hasCoords,
+    isInAppBrowser,
+    inAppBrowserHint
   });
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -109,6 +109,7 @@ ${scripts.boot || ''}
       id: token,
       path: `/t/${token}`,
       share_url: opts.shareUrl || pkg.share_url || '',
+      valid_until: opts.validUntil || pkg.valid_until || '',
       updated_at: pkg.updated_at || new Date().toISOString()
     };
 
@@ -134,8 +135,11 @@ ${scripts.boot || ''}
         `将 ${basename}.html 上传到静态托管目录，建议路径：/t/${token}.html 或 /t/${token}/index.html`,
         '页面已设置 noindex，且使用高强度随机路径，勿放入证件号等敏感信息',
         '同时向客户发送可复制文字与 PDF 备份',
-        enriched.share_url ? `访问链接：${enriched.share_url}` : '上传后把最终 URL 回填给客户'
-      ]
+        enriched.share_url
+          ? `访问链接：${enriched.share_url}（已写入二维码；若实际上传路径不同请改后重新发布）`
+          : '上传后把最终 URL 回填给客户，或重新发布并填写访问链接以生成二维码',
+        enriched.valid_until ? `建议保留至：${enriched.valid_until}（仅展示，需人工删除过期页）` : ''
+      ].filter(Boolean)
     };
   }
 

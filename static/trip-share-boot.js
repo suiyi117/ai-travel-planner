@@ -46,6 +46,31 @@
     return pkg.map_anchors || [];
   }
 
+  function lineStyleForStatus(status) {
+    if (root.AeroTravelTripPackage && typeof root.AeroTravelTripPackage.lineStyleForStatus === 'function') {
+      return root.AeroTravelTripPackage.lineStyleForStatus(status);
+    }
+    if (status === 'provider') {
+      return { color: '#c96442', weight: 4, opacity: 0.9, dashArray: null };
+    }
+    if (status === 'intercity') {
+      return { color: '#0f766e', weight: 4, opacity: 0.9, dashArray: null };
+    }
+    return { color: '#77736b', weight: 3, opacity: 0.9, dashArray: '8 8' };
+  }
+
+  function collectRouteLines(pkg, dayFilter) {
+    const lines = Array.isArray(pkg?.route_lines) ? pkg.route_lines : [];
+    if (!lines.length) return [];
+    if (!dayFilter || dayFilter === 'all') {
+      const overview = lines.filter(line => line.day === null || line.day === undefined || line.day === '');
+      return overview.length ? overview : lines;
+    }
+    const dayNum = Number(dayFilter);
+    const dayLines = lines.filter(line => Number(line.day) === dayNum);
+    return dayLines;
+  }
+
   function paintMap(container, pkg, dayFilter) {
     if (!container || !root.L) return null;
     if (container._tripMap) {
@@ -56,6 +81,7 @@
     const anchors = collectAnchors(pkg, dayFilter).filter(a => (
       Number.isFinite(Number(a.lat)) && Number.isFinite(Number(a.lng))
     ));
+    const routeLines = collectRouteLines(pkg, dayFilter);
     const center = anchors[0]
       ? [anchors[0].lat, anchors[0].lng]
       : [34.2, 108.9];
@@ -82,13 +108,19 @@
       );
     });
 
-    if (latlngs.length >= 2) {
-      root.L.polyline(latlngs, {
-        color: '#77736b',
-        weight: 3,
-        opacity: 0.9,
-        dashArray: '8 8'
-      }).addTo(map);
+    let paintedRoute = false;
+    routeLines.forEach(line => {
+      const points = (line.points || [])
+        .map(point => [Number(point[0]), Number(point[1])])
+        .filter(point => Number.isFinite(point[0]) && Number.isFinite(point[1]));
+      if (points.length < 2) return;
+      root.L.polyline(points, lineStyleForStatus(line.status)).addTo(map);
+      points.forEach(point => latlngs.push(point));
+      paintedRoute = true;
+    });
+
+    if (!paintedRoute && latlngs.length >= 2) {
+      root.L.polyline(latlngs, lineStyleForStatus('estimate')).addTo(map);
     }
 
     if (latlngs.length) {
@@ -202,7 +234,7 @@
 
   function bindActions(pkg) {
     document.addEventListener('click', async event => {
-      const target = event.target.closest('[data-action], [data-copy]');
+      const target = event.target.closest('[data-action], [data-copy], a.trip-chip');
       if (!target) return;
       if (target.hasAttribute('data-copy')) {
         event.preventDefault();
@@ -220,7 +252,21 @@
         await exportOverviewPng(pkg);
       } else if (action === 'download-pdf') {
         exportPdf(pkg);
+      } else if (
+        target.matches('a.trip-chip')
+        && root.AeroTravelTripNav
+        && root.AeroTravelTripNav.isInAppBrowser()
+        && /uri\.amap\.com/i.test(target.getAttribute('href') || '')
+      ) {
+        showToast(root.AeroTravelTripNav.inAppBrowserHint());
       }
+    });
+  }
+
+  function revealInAppBanner() {
+    if (!root.AeroTravelTripNav || !root.AeroTravelTripNav.isInAppBrowser()) return;
+    document.querySelectorAll('[data-inapp-banner]').forEach(node => {
+      node.hidden = false;
     });
   }
 
@@ -248,6 +294,7 @@
     bindActions(pkg);
     bindMapScope(pkg);
     mountMaps(pkg);
+    revealInAppBanner();
     window.addEventListener('resize', () => {
       mapRegistry.forEach(map => {
         try { map.invalidateSize(); } catch (_err) { /* ignore */ }
