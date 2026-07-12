@@ -57,5 +57,33 @@ class AmapPoiParsingTests(unittest.TestCase):
         self.assertEqual(pois[0]["rating"], "")
 
 
+class AmapStaticMapTests(unittest.TestCase):
+    def test_build_static_map_params_encodes_markers_and_path(self):
+        from clients.amap import build_static_map_params
+
+        params = build_static_map_params(
+            "test-key",
+            width=640,
+            height=640,
+            markers=[{"lat": 39.9, "lng": 116.4, "label": "1"}],
+            path=[[39.9, 116.4], [39.91, 116.41]],
+        )
+        self.assertEqual(params["key"], "test-key")
+        self.assertEqual(params["size"], "640*640")
+        self.assertIn("116.4,39.9", params["markers"])
+        # Amap staticmap API uses "paths" (plural), not "path"
+        self.assertIn("paths", params)
+        self.assertIn("116.4,39.9", params["paths"])
+        self.assertIn("116.41,39.91", params["paths"])
+
+    def test_fetch_static_map_without_key_returns_error(self):
+        from clients.amap import fetch_static_map
+
+        result = asyncio.run(
+            fetch_static_map("", width=100, height=100, markers=[], path=None)
+        )
+        self.assertEqual(result["status"], "error")
+
+
 if __name__ == "__main__":
     unittest.main()
