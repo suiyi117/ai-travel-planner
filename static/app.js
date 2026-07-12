@@ -1876,6 +1876,60 @@ let draggedDraftNodeId = null;
       });
     }
 
+    async function enrichStaticMap(pkg) {
+      if (!pkg) return pkg;
+      const req = window.AeroTravelTripPackage.buildStaticMapRequest(pkg);
+      if (!req.markers.length) {
+        pkg.static_map = {
+          data_url: '',
+          status: 'unavailable',
+          width: req.width,
+          height: req.height,
+          note: '无可用坐标'
+        };
+        return pkg;
+      }
+      const markerParam = req.markers.map(m => `${m.lng},${m.lat}`).join('|');
+      const pathParam = req.path
+        ? req.path.map(p => `${p[1]},${p[0]}`).join(';')
+        : '';
+      try {
+        const qs = new URLSearchParams({
+          width: String(req.width),
+          height: String(req.height),
+          markers: markerParam
+        });
+        if (pathParam) qs.set('path', pathParam);
+        const data = await fetchJson(`/api/static_map?${qs.toString()}`);
+        if (data.status === 'ok' && data.image_base64) {
+          pkg.static_map = {
+            data_url: `data:image/png;base64,${data.image_base64}`,
+            status: 'ready',
+            width: data.width || req.width,
+            height: data.height || req.height,
+            note: req.path_status === 'provider' ? '道路数据' : '估算'
+          };
+        } else {
+          throw new Error(data.message || 'static_map_failed');
+        }
+      } catch (_err) {
+        pkg.static_map = {
+          data_url: '',
+          status: 'unavailable',
+          width: req.width,
+          height: req.height,
+          note: '地图暂不可用'
+        };
+      }
+      return pkg;
+    }
+
+    async function buildEnrichedTripPackage(extra) {
+      const pkg = buildCurrentTripPackage(extra);
+      if (!pkg) return null;
+      return enrichStaticMap(pkg);
+    }
+
     function promptPublishMeta(token) {
       const defaultHost = window.localStorage.getItem('aerotravel:publish-host') || 'https://trip.example.com';
       const suggestedUrl = `${defaultHost.replace(/\/$/, '')}/t/${token}.html`;
@@ -1956,7 +2010,7 @@ let draggedDraftNodeId = null;
     }
 
     async function exportOverviewImage() {
-      const pkg = buildCurrentTripPackage();
+      const pkg = await buildEnrichedTripPackage();
       if (!pkg) return;
       if (!window.html2canvas || !window.AeroTravelTripShareRender) {
         showToast('总览图组件不可用，请改用导出客户长图。', 'error');
@@ -1985,8 +2039,8 @@ let draggedDraftNodeId = null;
       }
     }
 
-    function exportTripPdfBackup() {
-      const pkg = buildCurrentTripPackage();
+    async function exportTripPdfBackup() {
+      const pkg = await buildEnrichedTripPackage();
       if (!pkg || !window.AeroTravelTripShareRender) return;
       const html = window.AeroTravelTripShareRender.renderPrintableDocument(pkg);
       const win = window.open('', '_blank');
@@ -2000,8 +2054,8 @@ let draggedDraftNodeId = null;
       showToast('已打开 PDF 打印预览，可保存为 PDF。', 'success');
     }
 
-    function previewDedicatedTrip() {
-      const pkg = buildCurrentTripPackage();
+    async function previewDedicatedTrip() {
+      const pkg = await buildEnrichedTripPackage();
       if (!pkg || !window.AeroTravelTripPublish) return;
       window.AeroTravelTripPublish.openPreview(pkg);
       showToast('已打开专属行程预览页。', 'success');
@@ -2015,7 +2069,7 @@ let draggedDraftNodeId = null;
         showToast('已取消发布。', 'error');
         return;
       }
-      const pkg = buildCurrentTripPackage({
+      const pkg = await buildEnrichedTripPackage({
         token: meta.token,
         shareUrl: meta.shareUrl,
         validUntil: meta.validUntil
