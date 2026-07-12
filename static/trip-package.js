@@ -66,17 +66,64 @@
     };
   }
 
+  function normalizeRefs(raw) {
+    const list = Array.isArray(raw) ? raw : [];
+    const out = [];
+    for (const ref of list) {
+      if (!ref) continue;
+      const url = clean(ref.url);
+      if (!/^https?:\/\//i.test(url)) continue;
+      const kind = ['web', 'xhs', 'dianping', 'official'].includes(ref.kind)
+        ? ref.kind
+        : 'web';
+      out.push({
+        label: clean(ref.label) || '参考',
+        url,
+        kind
+      });
+      if (out.length >= 3) break;
+    }
+    return out;
+  }
+
+  function normalizeStaticMap(raw) {
+    const data = raw && typeof raw === 'object' ? raw : {};
+    const status = data.status === 'ready' && clean(data.data_url) ? 'ready' : 'unavailable';
+    return {
+      data_url: status === 'ready' ? clean(data.data_url) : '',
+      status,
+      width: Number(data.width) || 0,
+      height: Number(data.height) || 0,
+      note: clean(data.note)
+    };
+  }
+
+  function buildStaticMapRequest(pkg, options) {
+    const opts = options || {};
+    const width = Math.min(1024, Math.max(200, Number(opts.width) || 640));
+    const height = Math.min(1024, Math.max(200, Number(opts.height) || 640));
+    const markers = (pkg.map_anchors || [])
+      .filter(a => Number.isFinite(Number(a.lat)) && Number.isFinite(Number(a.lng)))
+      .slice(0, 10)
+      .map((a, i) => ({
+        lat: Number(a.lat),
+        lng: Number(a.lng),
+        label: String(a.order || i + 1)
+      }));
+    const overview = (pkg.route_lines || []).find(l => l.day == null)
+      || (pkg.route_lines || []).find(l => l.status === 'provider')
+      || null;
+    let path = null;
+    if (overview && Array.isArray(overview.points) && overview.points.length >= 2) {
+      path = simplifyPoints(overview.points, 80);
+    }
+    return { width, height, markers, path, path_status: overview?.status || 'estimate' };
+  }
+
   function normalizeItem(item, options, dayNumber) {
     const display = item.type === 'transport' && typeof options.transportDisplay === 'function'
       ? options.transportDisplay(item)
       : { time: item.time, extra: '' };
-    const refs = Array.isArray(item.refs)
-      ? item.refs.map(ref => ({
-        label: clean(ref.label) || '参考',
-        url: clean(ref.url),
-        kind: clean(ref.kind) || 'web'
-      })).filter(ref => ref.url)
-      : [];
     return {
       id: clean(item.id),
       type: clean(item.type) || 'spot',
@@ -93,7 +140,7 @@
       fromCity: clean(item.fromCity),
       lat: Number(item.lat) || null,
       lng: Number(item.lng) || null,
-      refs
+      refs: normalizeRefs(item.refs)
     };
   }
 
@@ -127,6 +174,142 @@
     if (!weather && !low && !high) return '';
     if (low && high) return `${weather} ${low}~${high}℃`.trim();
     return weather;
+  }
+
+  function lineStyleForStatus(status) {
+    if (status === 'provider') {
+      return { color: '#c96442', weight: 4, opacity: 0.9, dashArray: null };
+    }
+    if (status === 'intercity') {
+      return { color: '#0f766e', weight: 4, opacity: 0.9, dashArray: null };
+    }
+    return { color: '#77736b', weight: 3, opacity: 0.9, dashArray: '8 8' };
+  }
+
+  function simplifyPoints(points, maxPoints) {
+    const list = Array.isArray(points) ? points : [];
+    const limit = Math.max(2, Number(maxPoints) || 200);
+    if (list.length <= limit) return list.slice();
+    const out = [];
+    const step = (list.length - 1) / (limit - 1);
+    for (let i = 0; i < limit; i += 1) {
+      const idx = Math.min(list.length - 1, Math.round(i * step));
+      out.push(list[idx]);
+    }
+    return out;
+  }
+
+  function normalizePoint(point) {
+    if (!point) return null;
+    if (Array.isArray(point) && point.length >= 2) {
+      const lat = Number(point[0]);
+      const lng = Number(point[1]);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) return [lat, lng];
+      return null;
+    }
+    const lat = Number(point.lat);
+    const lng = Number(point.lng);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) return [lat, lng];
+    return null;
+  }
+
+  function normalizeRouteLine(line) {
+    if (!line) return null;
+    const status = ['provider', 'estimate', 'intercity'].includes(line.status)
+      ? line.status
+      : 'estimate';
+    const points = simplifyPoints(
+      (Array.isArray(line.points) ? line.points : [])
+        .map(normalizePoint)
+        .filter(Boolean),
+      200
+    );
+    if (points.length < 2) return null;
+    const day = line.day === null || line.day === undefined || line.day === ''
+      ? null
+      : Number(line.day);
+    return {
+      day: Number.isFinite(day) ? day : null,
+      status,
+      points
+    };
+  }
+
+  function normalizeRouteLines(lines) {
+    return (Array.isArray(lines) ? lines : [])
+      .map(normalizeRouteLine)
+      .filter(Boolean);
+  }
+
+  function estimateRouteLinesFromDays(packageDays) {
+    const lines = [];
+    (packageDays || []).forEach(day => {
+      const points = (day.anchors || [])
+        .map(anchor => normalizePoint([anchor.lat, anchor.lng]))
+        .filter(Boolean);
+      if (points.length >= 2) {
+        lines.push({
+          day: day.day,
+          status: 'estimate',
+          points
+        });
+      }
+    });
+    const overview = [];
+    (packageDays || []).forEach(day => {
+      (day.anchors || []).forEach(anchor => {
+        const point = normalizePoint([anchor.lat, anchor.lng]);
+        if (point) overview.push(point);
+      });
+    });
+    if (overview.length >= 2) {
+      lines.push({
+        day: null,
+        status: 'estimate',
+        points: simplifyPoints(overview, 200)
+      });
+    }
+    return lines;
+  }
+
+  function routeLinesFromDrivingRoute(route) {
+    if (!route || typeof route !== 'object') return [];
+    const lines = [];
+    const segments = Array.isArray(route.segments) ? route.segments : [];
+    if (segments.length) {
+      segments.forEach(segment => {
+        const status = segment.status === 'provider' ? 'provider' : 'estimate';
+        const points = simplifyPoints(
+          (segment.polyline || []).map(normalizePoint).filter(Boolean),
+          200
+        );
+        if (points.length >= 2) {
+          lines.push({ day: null, status, points });
+        }
+      });
+    }
+    if (!lines.length) {
+      const points = simplifyPoints(
+        (route.polyline || []).map(normalizePoint).filter(Boolean),
+        200
+      );
+      if (points.length >= 2) {
+        const status = route.status === 'provider' ? 'provider' : 'estimate';
+        lines.push({ day: null, status, points });
+      }
+    }
+    return lines;
+  }
+
+  function defaultValidUntil(departureDate, totalDays, options) {
+    const opts = options || {};
+    const keepDays = Number(opts.keepDays);
+    const retention = Number.isFinite(keepDays) && keepDays > 0 ? keepDays : 30;
+    const tripDays = Math.max(0, Number(totalDays) || 0);
+    if (typeof opts.addDays === 'function' && clean(departureDate)) {
+      return opts.addDays(departureDate, Math.max(tripDays - 1, 0) + retention);
+    }
+    return '';
   }
 
   function buildTripPackage(plan, options) {
@@ -169,6 +352,11 @@
 
     const token = clean(opts.token) || generateShareToken(20);
     const updatedAt = clean(opts.updatedAt) || new Date().toISOString();
+    const providedLines = normalizeRouteLines(opts.routeLines);
+    const drivingLines = routeLinesFromDrivingRoute(opts.drivingRoute);
+    const routeLines = providedLines.length
+      ? providedLines
+      : (drivingLines.length ? drivingLines : estimateRouteLinesFromDays(packageDays));
 
     return {
       schema_version: 1,
@@ -192,6 +380,8 @@
       },
       tips: (plan?.tips || []).map(clean).filter(Boolean).slice(0, 10),
       map_anchors: allAnchors,
+      route_lines: routeLines,
+      static_map: normalizeStaticMap(opts.staticMap),
       overview_notes: (plan?.tips || []).map(clean).filter(Boolean).slice(0, 2),
       disclaimer: DISCLAIMER,
       meta: {
@@ -232,6 +422,15 @@
     generateShareToken,
     dayColor,
     budgetRows,
+    lineStyleForStatus,
+    simplifyPoints,
+    normalizeRefs,
+    normalizeStaticMap,
+    buildStaticMapRequest,
+    normalizeRouteLines,
+    routeLinesFromDrivingRoute,
+    estimateRouteLinesFromDays,
+    defaultValidUntil,
     buildTripPackage,
     packageToDeliveryPlan,
     DISCLAIMER

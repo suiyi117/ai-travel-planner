@@ -98,3 +98,104 @@ test("buildTripPackage limits overview anchors and strips empty tips", () => {
   assert.equal(pkg.days[0].anchors.length, 5);
   assert.deepEqual(pkg.tips, ["有效", "另一条"]);
 });
+
+test("buildTripPackage passes share_url and valid_until", () => {
+  const pkg = buildTripPackage(samplePlan(), {
+    shareUrl: "https://trip.example/t/abc.html",
+    validUntil: "2026-09-01",
+    token: "ShareMetaToken123456"
+  });
+  assert.equal(pkg.share_url, "https://trip.example/t/abc.html");
+  assert.equal(pkg.valid_until, "2026-09-01");
+});
+
+test("buildTripPackage builds estimate route_lines from anchors by default", () => {
+  const pkg = buildTripPackage(samplePlan(), { totalDays: 1 });
+  assert.ok(Array.isArray(pkg.route_lines));
+  assert.ok(pkg.route_lines.length >= 1);
+  assert.equal(pkg.route_lines[0].status, "estimate");
+  assert.ok(pkg.route_lines[0].points.length >= 2);
+});
+
+test("buildTripPackage prefers driving route provider polylines", () => {
+  const pkg = buildTripPackage(samplePlan(), {
+    totalDays: 1,
+    drivingRoute: {
+      status: "provider",
+      polyline: [
+        [39.9, 116.4],
+        [39.91, 116.41],
+        [39.92, 116.42]
+      ]
+    }
+  });
+  assert.equal(pkg.route_lines.length, 1);
+  assert.equal(pkg.route_lines[0].status, "provider");
+  assert.equal(pkg.route_lines[0].day, null);
+  assert.equal(pkg.route_lines[0].points.length, 3);
+});
+
+test("defaultValidUntil adds retention after trip end", () => {
+  const { defaultValidUntil } = window.AeroTravelTripPackage;
+  const value = defaultValidUntil("2026-08-01", 3, {
+    keepDays: 30,
+    addDays: (date, offset) => {
+      const base = new Date(`${date}T00:00:00`);
+      base.setDate(base.getDate() + offset);
+      return base.toISOString().slice(0, 10);
+    }
+  });
+  assert.equal(value, "2026-09-01");
+});
+
+test("normalizeRefs keeps max 3 https urls and drops invalid", () => {
+  const { normalizeRefs } = window.AeroTravelTripPackage;
+  const refs = normalizeRefs([
+    { label: "笔记", url: "https://xhslink.com/a", kind: "xhs" },
+    { label: "坏", url: "javascript:alert(1)" },
+    { url: "http://example.com/b" },
+    { label: "四", url: "https://example.com/c" },
+    { label: "五", url: "https://example.com/d" }
+  ]);
+  assert.equal(refs.length, 3);
+  assert.equal(refs[0].kind, "xhs");
+  assert.equal(refs[1].url, "http://example.com/b");
+  assert.equal(refs[2].url, "https://example.com/c");
+});
+
+test("buildTripPackage attaches static_map when provided", () => {
+  const pkg = buildTripPackage(samplePlan(), {
+    token: "StaticMapToken1234567",
+    staticMap: {
+      data_url: "data:image/png;base64,AAA",
+      status: "ready",
+      width: 640,
+      height: 640,
+      note: "道路数据"
+    }
+  });
+  assert.equal(pkg.static_map.status, "ready");
+  assert.match(pkg.static_map.data_url, /^data:image\/png;base64,/);
+});
+
+test("buildStaticMapRequest caps markers at 10 and prefers overview route line", () => {
+  const { buildStaticMapRequest } = window.AeroTravelTripPackage;
+  const anchors = Array.from({ length: 12 }, (_, i) => ({
+    order: i + 1,
+    title: `P${i}`,
+    lat: 39.9 + i * 0.01,
+    lng: 116.4 + i * 0.01
+  }));
+  const req = buildStaticMapRequest({
+    map_anchors: anchors,
+    route_lines: [{
+      day: null,
+      status: "provider",
+      points: [[39.9, 116.4], [39.91, 116.41], [39.92, 116.42]]
+    }]
+  });
+  assert.equal(req.markers.length, 10);
+  assert.equal(req.path.length, 3);
+  assert.equal(req.width, 640);
+  assert.equal(req.height, 640);
+});
