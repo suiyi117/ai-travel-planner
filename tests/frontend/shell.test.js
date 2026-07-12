@@ -18,7 +18,8 @@ test("hidden elements stay out of layout even when component styles set display"
 test("candidate optimization panel uses a stable wizard results mount", () => {
   assert.match(indexHtml, /id="candidateDiffPanel"/);
   assert.doesNotMatch(appJs, /\.results-pane \.pane-body/);
-  assert.doesNotMatch(indexHtml, /render\.js/);
+  // Reject the removed legacy module path, not names like trip-share-render.js.
+  assert.doesNotMatch(indexHtml, /["'/]render\.js(?:\?|"|')/);
 });
 
 test("topbar uses compact accessible action menus", () => {
@@ -27,7 +28,14 @@ test("topbar uses compact accessible action menus", () => {
   assert.match(indexHtml, /id="mobileMoreBtn"[^>]*aria-label="更多操作"[^>]*aria-expanded="false"/);
   assert.match(indexHtml, /data-action="copy"/);
   assert.match(indexHtml, /data-action="export-image"/);
+  assert.match(indexHtml, /data-action="export-overview"/);
+  assert.match(indexHtml, /data-action="export-pdf"/);
+  assert.match(indexHtml, /data-action="publish-trip"/);
+  assert.match(indexHtml, /data-action="preview-trip"/);
   assert.match(indexHtml, /data-action="export-ics"/);
+  assert.match(indexHtml, /trip-package\.js/);
+  assert.match(indexHtml, /trip-publish\.js/);
+  assert.match(indexHtml, /trip-share\.css/);
   assert.doesNotMatch(indexHtml, /id="(?:copyPlanBtn|exportLongImageBtn|exportIcsBtn)"/);
 });
 

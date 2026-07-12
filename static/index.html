@@ -102,6 +102,7 @@
   </style>
   <link rel="stylesheet" href="styles.css?v=page-redesign-20260711">
   <link rel="stylesheet" href="delivery.css?v=project-cleanup-20260711">
+  <link rel="stylesheet" href="trip-share.css?v=trip-share-20260712">
 </head>
 <body data-wizard-step="1">
   <div class="app">
@@ -124,6 +125,10 @@
           <div class="topbar-menu-panel" id="exportMenuPanel" role="menu" hidden>
             <button type="button" role="menuitem" data-action="copy">复制客户行程</button>
             <button type="button" role="menuitem" data-action="export-image">导出客户长图</button>
+            <button type="button" role="menuitem" data-action="export-overview">导出总览图</button>
+            <button type="button" role="menuitem" data-action="export-pdf">导出 PDF 备份</button>
+            <button type="button" role="menuitem" data-action="publish-trip">发布专属行程</button>
+            <button type="button" role="menuitem" data-action="preview-trip">预览专属页</button>
             <button type="button" role="menuitem" data-action="export-ics">导出日历</button>
           </div>
         </div>
@@ -133,6 +138,10 @@
             <button type="button" role="menuitem" data-action="saved-trips">我的行程</button>
             <button type="button" role="menuitem" data-action="copy">复制客户行程</button>
             <button type="button" role="menuitem" data-action="export-image">导出客户长图</button>
+            <button type="button" role="menuitem" data-action="export-overview">导出总览图</button>
+            <button type="button" role="menuitem" data-action="export-pdf">导出 PDF 备份</button>
+            <button type="button" role="menuitem" data-action="publish-trip">发布专属行程</button>
+            <button type="button" role="menuitem" data-action="preview-trip">预览专属页</button>
             <button type="button" role="menuitem" data-action="export-ics">导出日历</button>
           </div>
         </div>
@@ -436,6 +445,10 @@
   <script src="storage.js?v=page-redesign-20260711"></script>
   <script src="delivery.js?v=project-cleanup-20260711"></script>
   <script src="export-ics.js?v=page-redesign-20260711"></script>
-  <script src="app.js?v=merge-master-20260711"></script>
+  <script src="trip-package.js?v=trip-share-20260712"></script>
+  <script src="trip-nav.js?v=trip-share-20260712"></script>
+  <script src="trip-share-render.js?v=trip-share-20260712"></script>
+  <script src="trip-publish.js?v=trip-share-20260712"></script>
+  <script src="app.js?v=trip-share-20260712"></script>
 </body>
 </html>

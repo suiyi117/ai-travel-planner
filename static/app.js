@@ -424,6 +424,10 @@ let draggedDraftNodeId = null;
       if (action === 'saved-trips' && el.savedTripsBtn) el.savedTripsBtn.click();
       else if (action === 'copy') copyPlan();
       else if (action === 'export-image') exportLongImage();
+      else if (action === 'export-overview') exportOverviewImage();
+      else if (action === 'export-pdf') exportTripPdfBackup();
+      else if (action === 'publish-trip') publishDedicatedTrip();
+      else if (action === 'preview-trip') previewDedicatedTrip();
       else if (action === 'export-ics') exportItineraryToIcs();
     }
 
@@ -1760,12 +1764,29 @@ let draggedDraftNodeId = null;
       };
     }
 
-    function copyPlan() {
+    function requireCurrentPlan(actionLabel) {
       const plan = state.itinerary;
-      if (!plan) {
-        showToast('暂无行程可供复制，请先生成规划。', 'error');
-        return;
+      if (!plan || !(plan.days || []).length) {
+        showToast(`暂无行程可供${actionLabel}，请先生成规划。`, 'error');
+        return null;
       }
+      return plan;
+    }
+
+    function buildCurrentTripPackage(extra) {
+      const plan = requireCurrentPlan('处理');
+      if (!plan || !window.AeroTravelTripPackage) return null;
+      refreshQualityChecks();
+      return window.AeroTravelTripPackage.buildTripPackage(plan, {
+        ...deliveryOptions(),
+        cities: state.cities,
+        ...(extra || {})
+      });
+    }
+
+    function copyPlan() {
+      const plan = requireCurrentPlan('复制');
+      if (!plan) return;
       refreshQualityChecks();
       const text = window.AeroTravelDelivery.buildDeliveryText(plan, deliveryOptions());
       
@@ -1775,11 +1796,8 @@ let draggedDraftNodeId = null;
     }
 
     async function exportLongImage() {
-      const plan = state.itinerary;
-      if (!plan) {
-        showToast('暂无行程可供导出，请先生成规划。', 'error');
-        return;
-      }
+      const plan = requireCurrentPlan('导出');
+      if (!plan) return;
       if (!window.html2canvas) {
         showToast('长图组件加载失败，请先使用复制客户行程。', 'error');
         return;
@@ -1809,12 +1827,88 @@ let draggedDraftNodeId = null;
       }
     }
 
-    function exportItineraryToIcs() {
-      const plan = state.itinerary;
-      if (!plan) {
-        showToast('暂无行程可供导出，请先生成规划。', 'error');
+    async function exportOverviewImage() {
+      const pkg = buildCurrentTripPackage();
+      if (!pkg) return;
+      if (!window.html2canvas || !window.AeroTravelTripShareRender) {
+        showToast('总览图组件不可用，请改用导出客户长图。', 'error');
         return;
       }
+      const wrapper = document.createElement('div');
+      wrapper.className = 'delivery-export-host';
+      wrapper.innerHTML = window.AeroTravelTripShareRender.renderOverviewPngSheet(pkg);
+      document.body.appendChild(wrapper);
+      try {
+        const sheet = wrapper.querySelector('.trip-png-sheet');
+        const canvas = await window.html2canvas(sheet, {
+          backgroundColor: '#faf9f5',
+          scale: 2,
+          useCORS: true,
+          logging: false
+        });
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png', 0.95));
+        if (!blob) throw new Error('图片生成失败');
+        window.AeroTravelExport.downloadBlob(blob, `${cleanMetaValue(pkg.title) || '行程总览'}-overview.png`);
+        showToast('竖向总览图已导出，可用于私信或小红书。', 'success');
+      } catch (error) {
+        showToast(`总览图导出失败：${error.message || '请改用长图或 PDF'}`, 'error');
+      } finally {
+        wrapper.remove();
+      }
+    }
+
+    function exportTripPdfBackup() {
+      const pkg = buildCurrentTripPackage();
+      if (!pkg || !window.AeroTravelTripShareRender) return;
+      const html = window.AeroTravelTripShareRender.renderPrintableDocument(pkg);
+      const win = window.open('', '_blank');
+      if (!win) {
+        showToast('浏览器拦截了弹窗，请允许后重试 PDF 导出。', 'error');
+        return;
+      }
+      const title = window.AeroTravelTripShareRender.escapeHtml(pkg.title || '行程');
+      win.document.write(`<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>${title} PDF 备份</title><link rel="stylesheet" href="/static/trip-share.css"><style>@page{size:A4 landscape;margin:12mm}body{background:#fff}</style></head><body class="trip-print-body">${html}<script>window.addEventListener('load',function(){setTimeout(function(){window.print()},200)});<\/script></body></html>`);
+      win.document.close();
+      showToast('已打开 PDF 打印预览，可保存为 PDF。', 'success');
+    }
+
+    function previewDedicatedTrip() {
+      const pkg = buildCurrentTripPackage();
+      if (!pkg || !window.AeroTravelTripPublish) return;
+      window.AeroTravelTripPublish.openPreview(pkg);
+      showToast('已打开专属行程预览页。', 'success');
+    }
+
+    async function publishDedicatedTrip() {
+      const pkg = buildCurrentTripPackage();
+      if (!pkg || !window.AeroTravelTripPublish) return;
+      try {
+        showToast('正在打包专属行程页…');
+        const assetBase = `${window.location.origin}/static/`;
+        const result = await window.AeroTravelTripPublish.publishTripPackage(pkg, {
+          assetBase,
+          downloadHtml: true,
+          downloadJson: true,
+          openPreview: true
+        });
+        const textLines = [
+          pkg.title || '专属旅行行程',
+          `行程 ID：${result.package.id}`,
+          '',
+          ...result.instructions,
+          '',
+          window.AeroTravelDelivery.buildDeliveryText(state.itinerary, deliveryOptions())
+        ];
+        await copyTextToClipboard(textLines.join('\n')).catch(() => {});
+        showToast(`专属页已下载（${result.filename}），发布说明已复制。`, 'success');
+      } catch (error) {
+        showToast(`发布失败：${error.message || '请检查网络后重试'}`, 'error');
+      }
+    }
+
+    function exportItineraryToIcs() {
+      const plan = requireCurrentPlan('导出');
+      if (!plan) return;
       const text = window.AeroTravelExport.buildIcsCalendar(plan, {
         departureDate: el.departureDate.value,
         addDays,
