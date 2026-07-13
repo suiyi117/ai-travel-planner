@@ -401,6 +401,24 @@ p { text-wrap: pretty; }
   min-width: 64px;
 }
 
+.city-plan-stay {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs, 12px);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.city-plan-stay input {
+  margin: 0;
+}
+
+.city-days-label select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .stats-strip {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -513,15 +531,16 @@ p { text-wrap: pretty; }
 .day-tabs,
 .filter-tabs {
   display: flex;
-  gap: var(--space-3);
+  gap: var(--space-2);
   overflow-x: auto;
   padding-bottom: var(--space-3);
+  scrollbar-width: thin;
 }
 
 .day-tab,
 .filter-tab {
   border: 1px solid var(--border-soft);
-  border-radius: var(--radius-md);
+  border-radius: 999px;
   background: var(--surface);
   color: var(--muted);
   white-space: nowrap;
@@ -532,16 +551,22 @@ p { text-wrap: pretty; }
 }
 
 .day-tab {
-  min-width: 120px;
-  min-height: 72px;
-  padding: var(--space-4) var(--space-5);
+  min-width: 96px;
+  min-height: 52px;
+  padding: 10px 14px;
   text-align: left;
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  box-shadow: 0 1px 0 rgba(20, 20, 19, 0.02);
 }
 
 .day-tab:hover,
 .filter-tab:hover {
   border-color: var(--border);
   color: var(--fg-2);
+  background: #fff;
 }
 
 .filter-tab {
@@ -551,25 +576,27 @@ p { text-wrap: pretty; }
 
 .day-tab.is-active,
 .filter-tab.is-active {
-  background: var(--fg);
-  border-color: var(--fg);
-  color: var(--accent-on);
-  box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+  background: var(--accent, #c96442);
+  border-color: var(--accent, #c96442);
+  color: var(--accent-on, #faf9f5);
+  box-shadow: 0 6px 16px rgba(201, 100, 66, 0.22);
 }
 
 .day-tab small {
   display: block;
-  margin-top: var(--space-2);
+  margin-top: 0;
   color: currentColor;
-  opacity: 0.72;
+  opacity: 0.78;
   font-family: var(--font-body);
-  font-size: var(--text-xs);
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .day-tab small.day-weather {
-  margin-top: 1px;
-  opacity: 0.58;
+  margin-top: 0;
+  opacity: 0.62;
   font-size: 10px;
+  font-weight: 500;
 }
 
 .timeline {

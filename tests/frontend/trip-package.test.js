@@ -188,6 +188,8 @@ test("buildStaticMapRequest caps markers at 10 and prefers overview route line",
   const { buildStaticMapRequest } = window.AeroTravelTripPackage;
   const anchors = Array.from({ length: 12 }, (_, i) => ({
     order: i + 1,
+    day: Math.floor(i / 3) + 1,
+    type: "spot",
     title: `P${i}`,
     lat: 39.9 + i * 0.01,
     lng: 116.4 + i * 0.01
@@ -202,6 +204,138 @@ test("buildStaticMapRequest caps markers at 10 and prefers overview route line",
   });
   assert.equal(req.markers.length, 10);
   assert.equal(req.path.length, 3);
-  assert.equal(req.width, 640);
-  assert.equal(req.height, 640);
+  assert.equal(req.width, 1024);
+  assert.equal(req.height, 1024);
+});
+
+test("buildDaySummary prefers attraction titles over city-level day.route", () => {
+  const { buildDaySummary } = window.AeroTravelTripPackage;
+  const summary = buildDaySummary("全天在淮北市区游玩", [
+    { title: "相山公园", type: "spot" },
+    { title: "隋唐运河古镇", type: "experience" },
+    { title: "风味美食：牛肉汤", type: "food" }
+  ]);
+  assert.equal(summary, "相山公园 · 隋唐运河古镇");
+});
+
+test("buildDaySummary falls back to route when no anchors", () => {
+  const { buildDaySummary } = window.AeroTravelTripPackage;
+  assert.equal(buildDaySummary("全天在淮北市区游玩", []), "全天在淮北市区游玩");
+});
+
+test("selectDayAnchors prefers spots over synthetic food/hotel", () => {
+  const { selectDayAnchors } = window.AeroTravelTripPackage;
+  const anchors = selectDayAnchors([
+    { id: "f", type: "food", title: "风味美食：牛肉汤", lat: 33.95, lng: 116.79 },
+    { id: "h", type: "hotel", title: "住宿区域：淮北市区", lat: 33.94, lng: 116.80 },
+    { id: "s1", type: "experience", title: "相山公园", lat: 33.96, lng: 116.78 },
+    { id: "s2", type: "spot", title: "隋唐运河古镇", lat: 33.97, lng: 116.77 }
+  ], 1, 5);
+  assert.equal(anchors[0].title, "相山公园");
+  assert.equal(anchors[1].title, "隋唐运河古镇");
+  assert.ok(anchors.some(a => a.title === "住宿区域：淮北市区"));
+});
+
+test("selectOverviewMarkers diversifies across days under cap 10", () => {
+  const { selectOverviewMarkers } = window.AeroTravelTripPackage;
+  const anchors = [];
+  for (let day = 1; day <= 4; day += 1) {
+    for (let i = 0; i < 5; i += 1) {
+      anchors.push({
+        day,
+        order: i + 1,
+        type: "spot",
+        title: `D${day}-P${i}`,
+        lat: 30 + day + i * 0.01,
+        lng: 110 + day + i * 0.01
+      });
+    }
+  }
+  const selected = selectOverviewMarkers(anchors, 10);
+  assert.equal(selected.length, 10);
+  const days = new Set(selected.map(a => a.day));
+  assert.equal(days.size, 4);
+  assert.ok([...days].every(d => selected.filter(a => a.day === d).length >= 2));
+});
+
+test("buildStaticMapRequest diversifies multi-day markers", () => {
+  const { buildStaticMapRequest } = window.AeroTravelTripPackage;
+  const anchors = [];
+  for (let day = 1; day <= 3; day += 1) {
+    for (let i = 0; i < 5; i += 1) {
+      anchors.push({
+        day,
+        order: i + 1,
+        type: "spot",
+        title: `D${day}-P${i}`,
+        lat: 30 + day,
+        lng: 110 + day + i * 0.01
+      });
+    }
+  }
+  const req = buildStaticMapRequest({ map_anchors: anchors, route_lines: [] });
+  assert.equal(req.markers.length, 10);
+  const lats = new Set(req.markers.map(m => m.lat));
+  assert.ok(lats.size >= 3);
+});
+
+test("buildTripPackage summary uses attraction titles not city prose", () => {
+  const plan = {
+    title: "皖鄂自驾",
+    days: [{
+      day: 1,
+      city: "淮北",
+      route: "全天在淮北市区游玩，当晚住淮北。",
+      items: [
+        { id: "a", type: "experience", title: "相山公园", lat: 33.96, lng: 116.78 },
+        { id: "b", type: "spot", title: "隋唐运河古镇", lat: 33.97, lng: 116.77 },
+        { id: "c", type: "food", title: "风味美食：牛肉汤", lat: 33.95, lng: 116.79 }
+      ]
+    }],
+    tips: []
+  };
+  const pkg = buildTripPackage(plan, { totalDays: 1 });
+  assert.equal(pkg.days[0].summary, "相山公园 · 隋唐运河古镇");
+  assert.match(pkg.days[0].route, /淮北市区/);
+});
+
+test("estimate overview uses one representative point per day", () => {
+  const { estimateRouteLinesFromDays } = window.AeroTravelTripPackage;
+  const packageDays = [
+    {
+      day: 1,
+      anchors: [
+        { type: "spot", title: "A1", order: 1, lat: 33.9, lng: 116.7 },
+        { type: "spot", title: "A2", order: 2, lat: 33.91, lng: 116.71 }
+      ]
+    },
+    {
+      day: 2,
+      anchors: [
+        { type: "spot", title: "B1", order: 1, lat: 31.8, lng: 117.2 },
+        { type: "hotel", title: "B-hotel", order: 2, lat: 31.81, lng: 117.21 }
+      ]
+    },
+    {
+      day: 3,
+      anchors: [
+        { type: "experience", title: "C1", order: 1, lat: 30.5, lng: 117.5 }
+      ]
+    }
+  ];
+  const lines = estimateRouteLinesFromDays(packageDays);
+  const overview = lines.find(l => l.day == null);
+  assert.ok(overview);
+  assert.equal(overview.status, "estimate");
+  assert.equal(overview.points.length, 3);
+});
+
+test("simplifyPath keeps endpoints and reduces long polylines", () => {
+  const { simplifyPath } = window.AeroTravelTripPackage;
+  const points = Array.from({ length: 200 }, (_, i) => [30 + i * 0.01, 110 + Math.sin(i / 8) * 0.2]);
+  const simplified = simplifyPath(points, 40);
+  assert.ok(simplified.length <= 40);
+  assert.ok(simplified.length >= 2);
+  assert.deepEqual(simplified[0], points[0]);
+  assert.deepEqual(simplified[simplified.length - 1], points[points.length - 1]);
 });

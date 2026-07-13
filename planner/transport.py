@@ -1,6 +1,7 @@
 import asyncio
 import math
 import re
+from datetime import datetime, timedelta
 
 from services.flight_service import search_flights
 from services.train_service import search_trains
@@ -10,6 +11,7 @@ def build_segments_from_destinations(
     destinations: list,
     global_transport: str,
     ai_guide: list[dict],
+    route_shape: str = "one_way",
 ) -> list[dict]:
     """Build stable inter-city transport segments from the destination list."""
     segments = []
@@ -41,7 +43,35 @@ def build_segments_from_destinations(
             "options": ai_seg.get("options", []),
         })
 
+    if route_shape == "round_trip" and len(destinations) >= 2:
+        origin = destinations[0]
+        last = destinations[-1]
+        if origin.name != last.name:
+            return_tool = global_transport if global_transport in ("train", "plane", "driving") else "train"
+            # Prefer matching AI guide segment if present.
+            ai_return = next(
+                (
+                    seg for seg in (ai_guide or [])
+                    if str(seg.get("segment", "")).replace(" ", "")
+                    in {f"{last.name}→{origin.name}", f"{last.name} → {origin.name}".replace(" ", "")}
+                    or (
+                        seg.get("from_city") == last.name and seg.get("to_city") == origin.name
+                    )
+                ),
+                {},
+            )
+            segments.append({
+                "segment": f"{last.name} → {origin.name}",
+                "from_city": last.name,
+                "to_city": origin.name,
+                "tool": return_tool if return_tool != "auto" else (ai_return.get("tool") or "train"),
+                "advice": ai_return.get("advice", "环线回程，建议预留缓冲时间。"),
+                "options": ai_return.get("options", []),
+            })
+
     expected_len = max(0, len(destinations) - 1)
+    if route_shape == "round_trip" and len(destinations) >= 2 and destinations[0].name != destinations[-1].name:
+        expected_len += 1
     if guide_len > expected_len:
         print(
             f"[TransportSegments] AI 返回的 transport_guide 段数 ({guide_len}) 多于目的地分段数 "
@@ -186,14 +216,64 @@ async def enrich_one_segment(segment: dict, travel_date: str, budget: str = "") 
         return seg
 
 
+from datetime import datetime, timedelta
+
+
 async def enrich_transport_guide(
     transport_guide: list[dict],
     destinations: list,
     travel_date: str,
     budget: str = "",
 ) -> list[dict]:
-    """Enhance transport guide options with real or reference transport data."""
-    return list(await asyncio.gather(*(enrich_one_segment(seg, travel_date, budget) for seg in transport_guide)))
+    """Enhance transport guide options with real or reference transport data.
+
+    When possible, each inter-city segment uses a travel date offset by the
+    cumulative stay days of cities before the segment's departure city.
+    """
+    if not transport_guide:
+        return []
+
+    # Cumulative day offset when leaving each city (sum of stay days before next hop).
+    offset_by_city: dict[str, int] = {}
+    cumulative = 0
+    for city in destinations or []:
+        name = getattr(city, "name", None) or (city.get("name") if isinstance(city, dict) else None)
+        days_raw = getattr(city, "days", None)
+        if days_raw is None and isinstance(city, dict):
+            days_raw = city.get("days")
+        days = int(days_raw or 0)
+        plan_stay = getattr(city, "plan_stay", None)
+        if plan_stay is None and isinstance(city, dict):
+            plan_stay = city.get("plan_stay")
+        stay = 0 if plan_stay is False else max(0, days)
+        if name:
+            offset_by_city[str(name)] = cumulative
+            # Also index without 市 suffix for fuzzy match later.
+            offset_by_city[str(name).rstrip("市")] = cumulative
+        cumulative += stay
+
+    def segment_date(seg: dict) -> str:
+        if not travel_date:
+            return travel_date
+        from_city = seg.get("from_city") or ""
+        if not from_city:
+            sides = arrow_sides(seg.get("segment", ""))
+            from_city = (sides[0] if sides else "") or ""
+        from_city = str(from_city).strip()
+        offset = offset_by_city.get(from_city)
+        if offset is None:
+            offset = offset_by_city.get(from_city.rstrip("市"), 0)
+        try:
+            base = datetime.strptime(str(travel_date)[:10], "%Y-%m-%d")
+            return (base + timedelta(days=max(0, int(offset or 0)))).strftime("%Y-%m-%d")
+        except ValueError:
+            return travel_date
+
+    return list(
+        await asyncio.gather(
+            *(enrich_one_segment(seg, segment_date(seg), budget) for seg in transport_guide)
+        )
+    )
 
 
 def city_token(city: str) -> str:

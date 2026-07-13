@@ -187,6 +187,8 @@ let draggedDraftNodeId = null;
     }
 
     function goNextFromStep1() {
+      state.cities = state.cities.map((city, index) => normalizeCityEntry(city, index));
+      renderCities();
       const result = Wizard.validateStep1({ cities: state.cities });
       if (!result.ok) {
         if (el.stepRouteNote) {
@@ -331,6 +333,7 @@ let draggedDraftNodeId = null;
         const entry = loadSavedTrips().find(item => item.id === id);
         if (!entry) return;
         state.cities = JSON.parse(JSON.stringify(entry.cities || []));
+        state.cities = state.cities.map((city, index) => normalizeCityEntry(city, index));
         state.pace = entry.pace || state.pace;
         state.budget = entry.budget || state.budget;
         state.globalTransport = entry.globalTransport || state.globalTransport;
@@ -503,38 +506,75 @@ let draggedDraftNodeId = null;
     function cityDayMap() {
       const days = [];
       state.cities.forEach(city => {
-        for (let i = 0; i < city.days; i += 1) days.push(city.name);
+        const stayDays = Number(city.days) || 0;
+        for (let i = 0; i < stayDays; i += 1) days.push(city.name);
       });
       return days;
     }
 
     function computeTotalDays() {
-      return state.cities.reduce((sum, city) => sum + city.days, 0);
+      return state.cities.reduce((sum, city) => sum + (Number(city.days) || 0), 0);
+    }
+
+    function normalizeCityEntry(city, index) {
+      const name = String(city?.name || '').trim();
+      let planStay;
+      if (city?.plan_stay === false) planStay = false;
+      else if (city?.plan_stay === true) planStay = true;
+      else {
+        // Missing flag: prefer days>0 as stay; only default first city to transit when days unknown/0.
+        const rawDays = Number(city?.days);
+        if (Number.isFinite(rawDays) && rawDays > 0) planStay = true;
+        else planStay = index !== 0 ? true : false;
+      }
+
+      let days = Number(city?.days);
+      if (!Number.isFinite(days)) days = planStay ? 1 : 0;
+      if (!planStay) days = 0;
+      else if (days < 1) days = 1;
+      else if (days > 7) days = 7;
+
+      return {
+        name,
+        transport: city?.transport || 'auto',
+        days,
+        plan_stay: planStay
+      };
     }
 
     function renderCities() {
       el.cityList.innerHTML = '';
+      state.cities = state.cities.map((city, index) => normalizeCityEntry(city, index));
       state.cities.forEach((city, index) => {
         const cityName = cleanMetaValue(city.name);
         const cityNameHtml = escapeHtml(cityName);
+        const isOrigin = index === 0;
+        const planStay = city.plan_stay === true;
         const card = document.createElement('article');
         card.className = 'city-card';
         card.draggable = true;
         card.dataset.index = String(index);
         card.setAttribute('aria-grabbed', 'false');
         card.setAttribute('title', '拖拽调整城市顺序');
+        const dayOptions = !planStay
+          ? '<option value="0" selected>过境/出发</option>'
+          : [1,2,3,4,5,6,7].map(d => `<option value="${d}" ${city.days === d ? 'selected' : ''}>${d} 天</option>`).join('');
         card.innerHTML = `
           <div class="city-index">${String(index + 1).padStart(2, '0')}</div>
           <div class="stack-tight">
             <div>
               <div class="city-name">${cityNameHtml}</div>
-              <div class="city-meta">${index === 0 ? '起点城市' : '从上一站到达'}</div>
+              <div class="city-meta">${isOrigin ? (planStay ? '起点 · 安排游玩' : '起点 · 出发/过境') : (planStay ? '从上一站到达' : '过境/不游玩')}</div>
             </div>
             <div class="city-controls">
+              <label class="city-plan-stay">
+                <input type="checkbox" class="city-plan-stay-input" data-index="${index}" ${planStay ? 'checked' : ''}>
+                <span>${isOrigin ? '安排当地游玩' : '在此城游玩'}</span>
+              </label>
               <label class="city-days-label">
                 <span>停留</span>
-                <select class="select city-days" data-index="${index}" aria-label="${cityNameHtml} 游玩天数">
-                  ${[1,2,3,4,5,6,7].map(d => `<option value="${d}" ${city.days === d ? 'selected' : ''}>${d} 天</option>`).join('')}
+                <select class="select city-days" data-index="${index}" aria-label="${cityNameHtml} 游玩天数" ${!planStay ? 'disabled' : ''}>
+                  ${dayOptions}
                 </select>
               </label>
               ${index > 0 ? `
@@ -579,11 +619,13 @@ let draggedDraftNodeId = null;
     }
 
     function updateHeaderMeta() {
-      const route = state.cities.map(c => c.name).join(' → ');
+      const route = window.AeroTravelWizard?.routeLabel
+        ? window.AeroTravelWizard.routeLabel(state.cities, state.routeShape)
+        : state.cities.map(c => c.name).join(' → ');
       state.totalDays = computeTotalDays();
       if (el.routeMeta) el.routeMeta.textContent = `${route} · ${state.totalDays} 天 · ${state.pace}`;
       if (el.daysValue) el.daysValue.textContent = `${state.totalDays} 天`;
-      if (el.daysRange) el.daysRange.value = Math.min(state.totalDays, 15);
+      if (el.daysRange) el.daysRange.value = Math.min(Math.max(state.totalDays, 1), 15);
       if (el.metricDays) el.metricDays.textContent = state.totalDays;
       if (el.metricCities) el.metricCities.textContent = state.cities.length;
     }
@@ -715,23 +757,170 @@ let draggedDraftNodeId = null;
           ]
         });
       }
+      if ((state.routeShape || 'one_way') === 'round_trip' && state.cities.length >= 2) {
+        const origin = state.cities[0]?.name;
+        const last = state.cities[state.cities.length - 1]?.name;
+        if (origin && last && origin !== last) {
+          const exists = segments.some(seg => seg.segment === `${last} → ${origin}`);
+          if (!exists) {
+            segments.push({
+              segment: `${last} → ${origin}`,
+              tool: state.globalTransport === 'plane' ? 'plane' : 'train',
+              data_source: 'ai_fallback',
+              source_label: '环线回程（参考）',
+              advice: `环线返回${origin}，请预留交通缓冲。`,
+              options: []
+            });
+          }
+        }
+      }
       return segments;
+    }
+
+    function safeDownloadName(value, fallback) {
+      const base = String(value == null || value === '' ? (fallback || 'file') : value)
+        .replace(/[\\/:*?"<>|]+/g, '_')
+        .replace(/\s+/g, ' ')
+        .trim();
+      return base || (fallback || 'file');
+    }
+
+    function lastPlayCityName() {
+      const stay = (state.cities || []).filter(c => c && c.plan_stay !== false && (Number(c.days) || 0) > 0);
+      if (stay.length) return stay[stay.length - 1].name;
+      const all = state.cities || [];
+      return all.length ? all[all.length - 1].name : '';
+    }
+
+    function firstPlayCityName() {
+      const stay = (state.cities || []).filter(c => c && c.plan_stay !== false && (Number(c.days) || 0) > 0);
+      return stay.length ? stay[0].name : (state.cities[0]?.name || '');
+    }
+
+    function isReturnTransportItem(item, fromCity, origin) {
+      if (!item || item.type !== 'transport') return false;
+      const title = String(item.title || '');
+      if (item.id && String(item.id).endsWith('-return')) return true;
+      if (title.includes('环线回程')) return true;
+      if (item.fromCity === fromCity && item.city === origin) return true;
+      if (title.includes(`${fromCity} → ${origin}`) || title.includes(`${fromCity}→${origin}`)) return true;
+      return false;
+    }
+
+    function stripReturnTransportItems(days) {
+      return (days || []).map(day => {
+        const items = (day.items || []).filter(item => {
+          if (item?.id && String(item.id).endsWith('-return')) return false;
+          if (item?.type === 'transport' && String(item.title || '').includes('环线回程')) return false;
+          return true;
+        });
+        let route = day.route || '';
+        if (route) {
+          route = String(route)
+            .split('；')
+            .map(part => part.trim())
+            .filter(part => part && !part.includes('返回') && !part.includes('环线回程'))
+            .join('；');
+        }
+        return { ...day, items, route };
+      });
+    }
+
+    function ensureRingReturnOnDays(days) {
+      const shape = state.routeShape || 'one_way';
+      const cleaned = stripReturnTransportItems(days || []);
+      if (shape !== 'round_trip' || (state.cities || []).length < 2 || !cleaned.length) {
+        return cleaned;
+      }
+      const origin = state.cities[0]?.name;
+      const lastCityName = lastPlayCityName() || state.cities[state.cities.length - 1]?.name;
+      if (!origin || !lastCityName || origin === lastCityName) return cleaned;
+
+      // Soft double-return: drop experience items that only say "返回X" when we inject transport return.
+      if (shape === 'round_trip') {
+        cleaned.forEach((day, idx) => {
+          const items = (day.items || []).filter(item => {
+            if (item.type !== 'experience') return true;
+            const title = String(item.title || '');
+            return !(title.startsWith('返回') || title.includes('返程'));
+          });
+          if (items.length !== (day.items || []).length) cleaned[idx] = { ...day, items };
+        });
+      }
+      let targetIdx = cleaned.length - 1;
+      for (let i = cleaned.length - 1; i >= 0; i -= 1) {
+        if (cleaned[i].city === lastCityName) {
+          targetIdx = i;
+          break;
+        }
+      }
+      const lastDay = cleaned[targetIdx];
+      if (!lastDay) return cleaned;
+      // If last day is already at origin, assume AI modeled return day — don't invent origin→origin.
+      if (lastDay.city === origin) return cleaned;
+
+      const already = (lastDay.items || []).some(item => isReturnTransportItem(item, lastDay.city, origin));
+      if (already) return cleaned;
+
+      const center = getCenter(origin);
+      const returnItem = {
+        id: `day-${lastDay.day}-return`,
+        type: 'transport',
+        time: '17:00',
+        fromCity: lastDay.city || lastCityName,
+        title: `环线回程：${lastDay.city || lastCityName} → ${origin}`,
+        desc: `行程结束返回${origin}，请预留交通与缓冲时间。`,
+        duration: '回程交通',
+        lat: center.lat,
+        lng: center.lng,
+        city: origin
+      };
+
+      const items = [...(lastDay.items || [])];
+      // Insert before overnight hotel when present so return is not after 20:00 stay.
+      const hotelIdx = items.findIndex(item => item.type === 'hotel');
+      if (hotelIdx >= 0) {
+        // Returning home: drop last-night hotel in last city.
+        items.splice(hotelIdx, 1, returnItem);
+      } else {
+        items.push(returnItem);
+      }
+      let route = lastDay.route || '';
+      if (!String(route).includes(origin)) {
+        route = [route, `下午/晚间返回${origin}`].filter(Boolean).join('；');
+      }
+      cleaned[targetIdx] = { ...lastDay, items, route, stay: hotelIdx >= 0 ? '' : lastDay.stay };
+      return cleaned;
+    }
+
+    function syncItineraryRingSurface() {
+      if (!state.itinerary?.days) return;
+      const days = ensureRingReturnOnDays(state.itinerary.days);
+      state.itinerary = { ...state.itinerary, days };
     }
 
     function mapPlanToItems(plan) {
       const poisByName = new Map((plan.pois || []).filter(poi => poi.name).map(poi => [poi.name, poi]));
-      return (plan.days || []).map(day => {
+      const firstPlay = firstPlayCityName();
+      const origin = state.cities[0]?.name;
+
+      const mapped = (plan.days || []).map((day, dayIndex) => {
         const items = [];
         const previous = plan.days[day.day - 2]?.city;
-        if (previous && previous !== day.city) {
+        // Prefer previous plan day; if first play day and origin is transit, seed origin→firstPlay transfer.
+        let fromCity = previous;
+        if (!fromCity && dayIndex === 0 && origin && firstPlay && day.city === firstPlay && origin !== firstPlay) {
+          fromCity = origin;
+        }
+        if (fromCity && fromCity !== day.city) {
           const center = getCenter(day.city);
           items.push({
             id: `day-${day.day}-transport`,
             type: 'transport',
             time: '上午',
-            fromCity: previous,
-            title: `城际转场：${previous} → ${day.city}`,
-            desc: day.route || `从${previous}前往${day.city}，抵达后降低当日景点密度。`,
+            fromCity,
+            title: `城际转场：${fromCity} → ${day.city}`,
+            desc: day.route || `从${fromCity}前往${day.city}，抵达后降低当日景点密度。`,
             duration: '跨城交通',
             lat: center.lat,
             lng: center.lng,
@@ -770,6 +959,8 @@ let draggedDraftNodeId = null;
         }
         return { ...day, items };
       });
+
+      return ensureRingReturnOnDays(mapped);
     }
 
     function toItem(day, spot, index, slot, poisByName = new Map()) {
@@ -924,6 +1115,14 @@ let draggedDraftNodeId = null;
         setStatus('请至少添加一个目的地城市。', 'error');
         return;
       }
+      state.cities = state.cities.map((city, index) => normalizeCityEntry(city, index));
+      const stepCheck = window.AeroTravelWizard?.validateStep1
+        ? window.AeroTravelWizard.validateStep1({ cities: state.cities })
+        : { ok: true };
+      if (!stepCheck.ok) {
+        setStatus(stepCheck.message || '路线设置不完整。', 'error');
+        return;
+      }
 
       setLoading(true);
       state.totalDays = computeTotalDays();
@@ -933,13 +1132,27 @@ let draggedDraftNodeId = null;
       state.interests = el.interestsInput.value.trim();
       setStatus('正在查询城市中心与景点数据...');
 
+      // Only cities with play days contribute POIs / AI day plans; transit origin still keeps route position.
+      const planningCities = state.cities.filter(city => city.plan_stay === true && (Number(city.days) || 0) > 0);
+      const citiesForData = planningCities.length ? planningCities : state.cities.filter(c => (Number(c.days) || 0) > 0);
+
       let cityData = [];
       try {
-        cityData = await Promise.all(state.cities.map(city => fetchCityData(city.name)));
-        // 将每个城市的天数合并到 cityData 中
-        cityData = cityData.map((data, i) => ({ ...data, days: state.cities[i].days }));
+        cityData = await Promise.all(citiesForData.map(city => fetchCityData(city.name)));
+        cityData = cityData.map((data, i) => ({ ...data, days: citiesForData[i].days }));
       } catch (_) {
-        cityData = state.cities.map(city => ({ city: city.name, center: getCenter(city.name), pois: [], days: city.days }));
+        cityData = citiesForData.map(city => ({ city: city.name, center: getCenter(city.name), pois: [], days: city.days }));
+      }
+
+      const hasPois = cityData.some(item => Array.isArray(item.pois) && item.pois.length > 0);
+      if (!hasPois) {
+        const plan = buildFallbackItinerary(cityData);
+        applyPlan(
+          plan,
+          '所有目的地均未获取到高德景点数据，请检查高德地图 Key 与网络；已切换为本地演示规划。'
+        );
+        setLoading(false);
+        return;
       }
 
       try {
@@ -948,7 +1161,12 @@ let draggedDraftNodeId = null;
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            destinations: state.cities.map(city => ({ name: city.name, days: city.days, transport: city.transport })),
+            destinations: state.cities.map(city => ({
+              name: city.name,
+              days: city.days,
+              transport: city.transport,
+              plan_stay: city.plan_stay === true
+            })),
             days: state.totalDays,
             departure: '',
             pace: state.pace,
@@ -956,7 +1174,8 @@ let draggedDraftNodeId = null;
             interests: state.interests,
             city_data: cityData,
             global_transport: state.globalTransport,
-            start_date: el.departureDate.value
+            start_date: el.departureDate.value,
+            route_shape: state.routeShape || 'one_way'
           })
         });
         setStatus('正在校验交通方向并整理客户版行程...');
@@ -964,7 +1183,11 @@ let draggedDraftNodeId = null;
         saveTripSnapshot();
       } catch (error) {
         const plan = buildFallbackItinerary(cityData);
-        applyPlan(plan, `后端暂不可用，已切换为本地演示规划：${error.message}`);
+        const Api = window.AeroTravelApi;
+        const message = Api?.formatPlanError
+          ? Api.formatPlanError(error)
+          : `行程生成失败：${error.message}；已切换为本地演示规划。`;
+        applyPlan(plan, message);
       } finally {
         setLoading(false);
       }
@@ -1000,7 +1223,10 @@ let draggedDraftNodeId = null;
           ? JSON.parse(JSON.stringify(options.draft))
           : window.AeroTravelDraft.itineraryToDraft(state.itinerary, state.cities, {
             seed: options.seed || `${plan.title || 'trip'}-${el.departureDate.value}`,
-            startDate: el.departureDate.value
+            startDate: el.departureDate.value,
+            mode: state.planningMode || 'itinerary',
+            routeShape: state.routeShape || 'one_way',
+            strategy: state.routeStrategy || 'balanced'
           });
         state.draftHistory = window.AeroTravelHistory.createHistory(state.workingDraft, 50);
       }
@@ -1016,7 +1242,14 @@ let draggedDraftNodeId = null;
       state.currentFilter = 'all';
       state.activeItemId = mappedDays[0]?.items[0]?.id || null;
       setStatus(message);
-      if (message.includes('演示规划') || message.includes('暂不可用')) {
+      if (
+        message.includes('演示规划')
+        || message.includes('暂不可用')
+        || message.includes('无法连接')
+        || message.includes('生成失败')
+        || message.includes('规划失败')
+        || message.includes('未获取到高德')
+      ) {
         showToast(message, 'error');
       } else {
         showToast(message, 'success');
@@ -1088,6 +1321,7 @@ let draggedDraftNodeId = null;
     function syncPlanningModeControls() {
       const mode = state.planningMode || 'itinerary';
       setActiveByValue(el.planningModeGroup, mode);
+      // Route shape is always available; strategy only for self-drive.
       if (el.selfDriveControls) el.selfDriveControls.hidden = mode !== 'self_drive';
       setActiveByValue(el.routeShapeGroup, state.routeShape || 'one_way');
       setActiveByValue(el.routeStrategyGroup, state.routeStrategy || 'balanced');
@@ -1169,13 +1403,36 @@ let draggedDraftNodeId = null;
     }
 
     function findBestCityId(cityName) {
-      if (!state.workingDraft || !cityName) {
-        var day = state.workingDraft && state.workingDraft.days.find(function (d) { return d.day === state.currentDay; });
-        return day ? day.primary_city_id : (state.workingDraft && state.workingDraft.city_stops[0] ? state.workingDraft.city_stops[0].id : '');
+      if (!state.workingDraft) return '';
+      const stops = state.workingDraft.city_stops || [];
+      const currentDay = state.workingDraft.days.find(d => d.day === state.currentDay);
+      const currentId = currentDay?.primary_city_id || '';
+      if (!cityName) {
+        // Prefer current day city if it is a stay city; never blindly use transit origin.
+        if (currentId) {
+          const currentStop = stops.find(c => c.id === currentId);
+          if (currentStop && Number(currentStop.days) > 0) return currentId;
+        }
+        const stay = stops.find(c => Number(c.days) > 0);
+        return stay?.id || currentId || stops[0]?.id || '';
       }
-      var match = state.workingDraft.city_stops.find(function (c) { return c.name === cityName; });
-      if (match) return match.id;
-      return state.workingDraft.city_stops[0] ? state.workingDraft.city_stops[0].id : '';
+      const exact = stops.find(c => c.name === cityName);
+      if (exact) return exact.id;
+      const strip = (value) => {
+        const k = String(value ?? '').replace(/\s+/g, '');
+        const suffixes = ['特别行政区', '自治州', '地区', '盟', '市'];
+        const suffix = suffixes.find(s => k.endsWith(s) && k.length > s.length);
+        return suffix ? k.slice(0, -suffix.length) : k;
+      };
+      const norm = strip(cityName);
+      const fuzzy = stops.find(c => strip(c.name) === norm || c.name.includes(cityName) || cityName.includes(c.name));
+      if (fuzzy) return fuzzy.id;
+      if (currentId) {
+        const currentStop = stops.find(c => c.id === currentId);
+        if (currentStop && Number(currentStop.days) > 0) return currentId;
+      }
+      const stay = stops.find(c => Number(c.days) > 0);
+      return stay?.id || stops[0]?.id || '';
     }
 
 
@@ -1782,9 +2039,31 @@ let draggedDraftNodeId = null;
       const plan = state.itinerary;
       if (!plan || !plan.transport_guide?.length) return;
       setStatus('正在刷新真实交通班次...');
-      const date = el.departureDate.value || todayPlus(1);
+      const baseDate = el.departureDate.value || todayPlus(1);
+      // Offset each segment by cumulative stay days before its from_city.
+      const offsetByCity = {};
+      let cumulative = 0;
+      (state.cities || []).forEach(city => {
+        const name = city?.name;
+        if (!name) return;
+        offsetByCity[name] = cumulative;
+        offsetByCity[String(name).replace(/市$/, '')] = cumulative;
+        const stay = city.plan_stay === false ? 0 : Math.max(0, Number(city.days) || 0);
+        cumulative += stay;
+      });
+      const segmentDate = (segment) => {
+        let from = segment.from_city || '';
+        if (!from && segment.segment) {
+          const parts = String(segment.segment).split(/\s*[→>-]+\s*/);
+          from = (parts[0] || '').trim();
+        }
+        const offset = offsetByCity[from] ?? offsetByCity[String(from).replace(/市$/, '')] ?? 0;
+        return addDays(baseDate, offset) || baseDate;
+      };
       const segments = plan.transport_guide.filter(segment => segment.tool !== 'driving');
-      const results = await Promise.allSettled(segments.map(segment => refreshOneSegment(segment, date)));
+      const results = await Promise.allSettled(
+        segments.map(segment => refreshOneSegment(segment, segmentDate(segment)))
+      );
 
       let successCount = 0;
       let failCount = 0;
@@ -1878,7 +2157,10 @@ let draggedDraftNodeId = null;
 
     async function enrichStaticMap(pkg) {
       if (!pkg) return pkg;
-      const req = window.AeroTravelTripPackage.buildStaticMapRequest(pkg);
+      const req = window.AeroTravelTripPackage.buildStaticMapRequest(pkg, {
+        width: 1024,
+        height: 1024
+      });
       if (!req.markers.length) {
         pkg.static_map = {
           data_url: '',
@@ -1924,7 +2206,40 @@ let draggedDraftNodeId = null;
       return pkg;
     }
 
+    async function ensureDrivingRouteForExport() {
+      if (!state.workingDraft || state.workingDraft.mode !== 'self_drive') return;
+      const route = state.workingDraft.route || {};
+      const hasPolyline = Array.isArray(route.polyline) && route.polyline.length >= 2;
+      const hasSegments = Array.isArray(route.segments) && route.segments.some(
+        segment => Array.isArray(segment?.polyline) && segment.polyline.length >= 2
+      );
+      if (hasPolyline || hasSegments) return;
+      if (!window.AeroTravelSelfDrive?.buildRouteRequest) return;
+      const request = window.AeroTravelSelfDrive.buildRouteRequest(state.workingDraft);
+      if (!request.nodes || request.nodes.length < 2 || request.nodes.length > 20) return;
+      try {
+        const response = await fetchJson('/api/transport/driving-route', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(request)
+        });
+        const previousRoute = state.workingDraft.route || {};
+        const updatedDraft = JSON.parse(JSON.stringify(state.workingDraft));
+        updatedDraft.route = {
+          ...previousRoute,
+          ...response,
+          ordered_node_ids: [...(previousRoute.ordered_node_ids || [])],
+          day_segments: previousRoute.day_segments || []
+        };
+        state.workingDraft = updatedDraft;
+        if (state.draftHistory) state.draftHistory = { ...state.draftHistory, present: updatedDraft };
+      } catch (_error) {
+        // Best-effort only: overview export continues with estimate path.
+      }
+    }
+
     async function buildEnrichedTripPackage(extra) {
+      await ensureDrivingRouteForExport();
       const pkg = buildCurrentTripPackage(extra);
       if (!pkg) return null;
       return enrichStaticMap(pkg);
@@ -1977,43 +2292,64 @@ let draggedDraftNodeId = null;
         .catch(() => showToast('复制失败，您的浏览器不支持直接复制，请手动选择文本。', 'error'));
     }
 
-    async function exportLongImage() {
+    async function exportDayImages() {
       const plan = requireCurrentPlan('导出');
       if (!plan) return;
-      if (!window.html2canvas) {
-        showToast('长图组件加载失败，请先使用复制客户行程。', 'error');
+      if (!window.html2canvas || !window.AeroTravelDelivery?.buildDeliveryDaySheetHtml) {
+        showToast('每日行程图组件不可用，请先使用复制客户行程。', 'error');
         return;
       }
-
-      refreshQualityChecks();
-      const wrapper = document.createElement('div');
-      wrapper.className = 'delivery-export-host';
-      wrapper.innerHTML = window.AeroTravelDelivery.buildDeliverySheetHtml(plan, deliveryOptions());
-      document.body.appendChild(wrapper);
-      try {
-        const sheet = wrapper.querySelector('.delivery-sheet');
-        const canvas = await window.html2canvas(sheet, {
-          backgroundColor: '#faf9f5',
-          scale: 2,
-          useCORS: true,
-          logging: false
-        });
-        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png', 0.95));
-        if (!blob) throw new Error('图片生成失败');
-        window.AeroTravelExport.downloadBlob(blob, `${cleanMetaValue(plan.title) || '旅行规划'}.png`);
-        showToast('客户版长图已导出。', 'success');
-      } catch (error) {
-        showToast(`长图导出失败：${error.message || '请改用复制文案'}`, 'error');
-      } finally {
-        wrapper.remove();
+      const days = plan.days || [];
+      if (!days.length) {
+        showToast('当前行程没有可导出的日期。', 'error');
+        return;
       }
+      refreshQualityChecks();
+      const options = deliveryOptions();
+      let exported = 0;
+      showToast(`正在导出 ${days.length} 张每日行程图…`);
+      for (const day of days) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'delivery-export-host';
+        wrapper.innerHTML = window.AeroTravelDelivery.buildDeliveryDaySheetHtml(plan, day, options);
+        document.body.appendChild(wrapper);
+        try {
+          const sheet = wrapper.querySelector('.delivery-sheet');
+          const canvas = await window.html2canvas(sheet, {
+            backgroundColor: '#faf9f5',
+            scale: 2,
+            useCORS: true,
+            logging: false
+          });
+          const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png', 0.95));
+          if (!blob) throw new Error('图片生成失败');
+          const city = safeDownloadName(day.city, '行程');
+          window.AeroTravelExport.downloadBlob(
+            blob,
+            `Day${day.day}-${city}.png`
+          );
+          exported += 1;
+        } catch (error) {
+          showToast(`Day ${day.day} 导出失败：${error.message || '请改用复制文案'}`, 'error');
+          wrapper.remove();
+          return;
+        } finally {
+          wrapper.remove();
+        }
+        await new Promise(resolve => window.setTimeout(resolve, 220));
+      }
+      showToast(`已导出 ${exported} 张每日行程图。若浏览器拦截，请允许多次下载。`, 'success');
+    }
+
+    async function exportLongImage() {
+      return exportDayImages();
     }
 
     async function exportOverviewImage() {
       const pkg = await buildEnrichedTripPackage();
       if (!pkg) return;
       if (!window.html2canvas || !window.AeroTravelTripShareRender) {
-        showToast('总览图组件不可用，请改用导出客户长图。', 'error');
+        showToast('总览图组件不可用，请改用导出每日行程图。', 'error');
         return;
       }
       const wrapper = document.createElement('div');
@@ -2030,7 +2366,7 @@ let draggedDraftNodeId = null;
         });
         const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png', 0.95));
         if (!blob) throw new Error('图片生成失败');
-        window.AeroTravelExport.downloadBlob(blob, `${cleanMetaValue(pkg.title) || '行程总览'}-overview.png`);
+        window.AeroTravelExport.downloadBlob(blob, `${safeDownloadName(pkg.title, '行程总览')}-overview.png`);
         showToast('竖向总览图已导出，可用于私信或小红书。', 'success');
       } catch (error) {
         showToast(`总览图导出失败：${error.message || '请改用长图或 PDF'}`, 'error');
@@ -2113,7 +2449,7 @@ let draggedDraftNodeId = null;
         selectedOption
       });
       const blob = new Blob([text], { type: 'text/calendar;charset=utf-8' });
-      window.AeroTravelExport.downloadBlob(blob, `${cleanMetaValue(plan.title) || '行程'}.ics`);
+      window.AeroTravelExport.downloadBlob(blob, `${safeDownloadName(plan.title, '行程')}.ics`);
       showToast('日历文件已导出，可导入手机日历。', 'success');
     }
 
@@ -2121,7 +2457,15 @@ let draggedDraftNodeId = null;
       el.addCityBtn.addEventListener('click', () => {
         const name = el.cityInput.value.trim();
         if (!name) return;
-        if (!state.cities.some(city => city.name === name)) state.cities.push({ name, transport: 'auto', days: 1 });
+        if (!state.cities.some(city => city.name === name)) {
+          const isFirst = state.cities.length === 0;
+          state.cities.push({
+            name,
+            transport: 'auto',
+            days: isFirst ? 0 : 1,
+            plan_stay: !isFirst
+          });
+        }
         el.cityInput.value = '';
         renderCities();
       });
@@ -2144,13 +2488,23 @@ let draggedDraftNodeId = null;
       el.cityList.addEventListener('change', event => {
         const select = event.target.closest('.city-transport');
         const daysSelect = event.target.closest('.city-days');
+        const planStayInput = event.target.closest('.city-plan-stay-input');
         if (select) {
           state.cities[Number(select.dataset.index)].transport = select.value;
           renderWizardChrome();
         }
         if (daysSelect) {
-          state.cities[Number(daysSelect.dataset.index)].days = Number(daysSelect.value);
+          const idx = Number(daysSelect.dataset.index);
+          state.cities[idx].days = Number(daysSelect.value);
+          if (state.cities[idx].days > 0) state.cities[idx].plan_stay = true;
           renderWizardChrome();
+        }
+        if (planStayInput) {
+          const idx = Number(planStayInput.dataset.index);
+          const enabled = planStayInput.checked;
+          state.cities[idx].plan_stay = enabled;
+          state.cities[idx].days = enabled ? Math.max(1, Number(state.cities[idx].days) || 1) : 0;
+          renderCities();
         }
       });
 
@@ -2342,14 +2696,22 @@ let draggedDraftNodeId = null;
       if (el.planningModeGroup) {
         el.planningModeGroup.addEventListener('click', event => {
           const button = event.target.closest('[data-value]');
-          if (!button || !state.workingDraft) return;
+          if (!button) return;
           const mode = button.dataset.value;
           state.planningMode = mode;
+          // Allow choosing mode before first generate (no draft yet).
+          if (!state.workingDraft) {
+            if (el.selfDriveControls) el.selfDriveControls.hidden = mode !== 'self_drive';
+            setActiveByValue(el.planningModeGroup, mode);
+            setActiveByValue(el.routeShapeGroup, state.routeShape || 'one_way');
+            updateHeaderMeta();
+            return;
+          }
           let next = JSON.parse(JSON.stringify(state.workingDraft));
           if (mode === 'self_drive') {
-            next = ensureSelfDriveDraft(next);
             next.route_shape = state.routeShape || next.route_shape || 'one_way';
             next.strategy = state.routeStrategy || next.strategy || 'balanced';
+            next = ensureSelfDriveDraft(next);
           } else {
             next.mode = 'itinerary';
           }
@@ -2361,15 +2723,98 @@ let draggedDraftNodeId = null;
       }
 
       function applyRouteSetting(patch) {
-        if (!state.workingDraft) return;
-        if (state.workingDraft.mode !== 'self_drive') {
-          state.workingDraft = ensureSelfDriveDraft(state.workingDraft);
+        if (patch.route_shape) state.routeShape = patch.route_shape;
+        if (patch.strategy) state.routeStrategy = patch.strategy;
+        updateHeaderMeta();
+        setActiveByValue(el.routeShapeGroup, state.routeShape || 'one_way');
+        setActiveByValue(el.routeStrategyGroup, state.routeStrategy || 'balanced');
+        // Allow choosing ring/shape before first generate.
+        if (!state.workingDraft) {
+          if (patch.route_shape === 'round_trip') {
+            const origin = state.cities[0]?.name || '起点';
+            showToast(`已选择环线：生成后将回到${origin}。`);
+          }
+          return;
         }
-        const next = window.AeroTravelSelfDrive.updateRouteSettings(state.workingDraft, patch);
-        state.routeShape = next.route_shape;
-        state.routeStrategy = next.strategy;
-        commitDraft(next);
+        if (state.workingDraft.mode !== 'self_drive') {
+          // Itinerary mode: keep draft shape and refresh browse transport + timeline return.
+          const next = JSON.parse(JSON.stringify(state.workingDraft));
+          next.route_shape = state.routeShape || 'one_way';
+          next.strategy = state.routeStrategy || next.strategy || 'balanced';
+          next.revision = Number(next.revision || 0) + 1;
+          commitDraft(next);
+          if (state.itinerary && window.AeroTravelDraft?.draftToItinerary) {
+            try {
+              const itinerary = window.AeroTravelDraft.draftToItinerary(next, state.itinerary);
+              state.itinerary = { ...state.itinerary, ...itinerary, days: itinerary.days };
+              syncItineraryRingSurface();
+              renderPlan();
+            } catch (_err) {
+              /* keep current itinerary if reconcile fails */
+            }
+          } else if (state.itinerary) {
+            syncItineraryRingSurface();
+            renderPlan();
+          }
+          if (patch.route_shape === 'round_trip') {
+            const origin = state.cities[0]?.name || '起点';
+            showToast(`环线将回到${origin}，末日时间线与交通段已更新。`);
+          } else if (patch.route_shape === 'one_way') {
+            showToast('已切换为单程，环线回程已从时间线移除。');
+          }
+          return;
+        }
+        const seeded = JSON.parse(JSON.stringify(state.workingDraft));
+        seeded.route_shape = state.routeShape || seeded.route_shape || 'one_way';
+        seeded.strategy = state.routeStrategy || seeded.strategy || 'balanced';
+        const next = window.AeroTravelSelfDrive.updateRouteSettings(seeded, {
+          ...patch,
+          route_shape: state.routeShape,
+          strategy: state.routeStrategy
+        });
+        let applied = next;
+        if (patch.route_shape === 'round_trip' && window.AeroTravelSelfDrive.initializeSelfDriveRoute) {
+          applied = window.AeroTravelSelfDrive.initializeSelfDriveRoute(
+            next,
+            state.cityCenters || {},
+            () => `node-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+          );
+          applied.route_shape = 'round_trip';
+          applied.strategy = state.routeStrategy || applied.strategy || 'balanced';
+        } else if (patch.route_shape === 'one_way') {
+          // Clear origin fixed_order when leaving ring.
+          applied = JSON.parse(JSON.stringify(next));
+          applied.route_shape = 'one_way';
+          (applied.nodes || []).forEach(node => {
+            if (node.source === 'city_stop' && node.constraints) {
+              node.constraints.fixed_order = !!node.constraints.fixed_order && node.metadata?.keep_fixed;
+              if (node.source === 'city_stop') node.constraints.fixed_order = false;
+            }
+          });
+        }
+        state.routeShape = applied.route_shape;
+        state.routeStrategy = applied.strategy;
+        commitDraft(applied);
         scheduleDrivingRouteRefresh();
+        if (state.itinerary && window.AeroTravelDraft?.draftToItinerary) {
+          try {
+            const itinerary = window.AeroTravelDraft.draftToItinerary(applied, state.itinerary);
+            state.itinerary = { ...state.itinerary, ...itinerary, days: itinerary.days };
+            syncItineraryRingSurface();
+            renderPlan();
+          } catch (_err) {
+            /* ignore */
+          }
+        } else if (state.itinerary) {
+          syncItineraryRingSurface();
+          renderPlan();
+        }
+        if (patch.route_shape === 'round_trip') {
+          const origin = state.cities[0]?.name || '起点';
+          showToast(`环线将回到${origin}，末日时间线与交通段已更新。`);
+        } else if (patch.route_shape === 'one_way') {
+          showToast('已切换为单程，环线回程已从时间线移除。');
+        }
       }
 
       if (el.routeShapeGroup) {
@@ -2494,10 +2939,18 @@ let draggedDraftNodeId = null;
           const itinerary = window.AeroTravelDraft.draftToItinerary(state.workingDraft, state.itinerary);
           const cities = window.AeroTravelDraft.draftToCities(state.workingDraft);
           state.itinerary = { ...state.itinerary, ...itinerary, days: itinerary.days };
-          state.cities = cities;
-          state.totalDays = cities.reduce((sum, c) => sum + c.days, 0);
+          state.cities = cities.map((city, index) => normalizeCityEntry(city, index));
+          state.totalDays = cities.reduce((sum, c) => sum + (Number(c.days) || 0), 0);
+          // Drop stale train/flight picks whose segment keys no longer exist.
+          const validSegments = new Set(
+            (state.itinerary.transport_guide || []).map(seg => seg.segment)
+          );
+          Object.keys(state.selectedOptions || {}).forEach(key => {
+            if (!validSegments.has(key)) delete state.selectedOptions[key];
+          });
           state.editMode = false;
           setActiveByValue(el.planModeGroup, 'browse');
+          syncItineraryRingSurface();
           renderCities();
           renderAll();
           saveTripSnapshot();

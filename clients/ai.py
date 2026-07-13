@@ -46,12 +46,17 @@ async def request_chat_completion(
     }
     payload = build_chat_payload(model, prompt, days, destination_count)
 
-    async with httpx.AsyncClient(timeout=60, transport=transport) as client:
-        response = await client.post(
-            f"{base_url}/chat/completions",
-            headers=headers,
-            json=payload,
-        )
+    try:
+        async with httpx.AsyncClient(timeout=60, transport=transport) as client:
+            response = await client.post(
+                f"{base_url}/chat/completions",
+                headers=headers,
+                json=payload,
+            )
+    except httpx.TimeoutException as exc:
+        raise AiClientError("AI 请求超时，请稍后重试") from exc
+    except httpx.RequestError as exc:
+        raise AiClientError("AI 服务连接失败，请检查网络或 AI_BASE_URL") from exc
 
     if response.status_code != 200:
         raise AiClientError(f"AI API 错误 ({response.status_code}): {response.text[:200]}")

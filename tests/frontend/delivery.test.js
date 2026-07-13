@@ -66,3 +66,30 @@ test("delivery sheet escapes untrusted itinerary fields", () => {
   assert.match(html, /Day &lt;iframe src=x&gt;/);
   assert.match(html, /&lt;em&gt;提示&lt;\/em&gt;/);
 });
+
+test("delivery day sheet only includes the requested day", () => {
+  const plan = {
+    title: "双城",
+    days: [
+      {
+        day: 1,
+        city: "北京",
+        route: "故宫",
+        items: [{ type: "spot", time: "09:00", duration: "2小时", title: "故宫", desc: "参观", address: "东城" }]
+      },
+      {
+        day: 2,
+        city: "西安",
+        route: "兵马俑",
+        items: [{ type: "spot", time: "10:00", duration: "3小时", title: "兵马俑", desc: "参观", address: "临潼" }]
+      }
+    ],
+    tips: []
+  };
+  const html = window.AeroTravelDelivery.buildDeliveryDaySheetHtml(plan, plan.days[0], deliveryContext());
+  assert.match(html, /delivery-sheet-day/);
+  assert.match(html, /故宫/);
+  assert.match(html, /北京/);
+  assert.doesNotMatch(html, /兵马俑/);
+  assert.doesNotMatch(html, /西安/);
+});

@@ -47,9 +47,11 @@ class PlaceNode(StrictModel):
 class CityStop(StrictModel):
     id: str
     name: str = Field(min_length=1, max_length=200)
-    days: int = Field(default=1, ge=1, le=15)
+    # 0 = transit/departure only (plan_stay=false); 1–15 = play days.
+    days: int = Field(default=1, ge=0, le=15)
     transport: str = "auto"
     fixed_order: bool = False
+    plan_stay: bool | None = None
 
 
 class DayDraft(StrictModel):

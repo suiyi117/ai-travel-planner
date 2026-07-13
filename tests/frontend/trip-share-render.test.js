@@ -67,11 +67,52 @@ test("overview desktop keeps map-first three column structure markers", () => {
   assert.match(html, /trip-overview-grid/);
   assert.match(html, /每日摘要/);
   assert.match(html, /data-trip-map="overview"/);
-  assert.match(html, /关键数据/);
+  assert.match(html, /费用估算/);
+  assert.match(html, /重要提示/);
+  assert.match(html, /trip-side-card/);
+  assert.match(html, /trip-weather-chip/);
+  assert.match(html, /扫码打开/);
+  assert.doesNotMatch(html, /关键数据/);
   assert.match(html, /道路数据/);
   assert.match(html, /估算连线/);
   assert.match(html, /建议保留至 2026-09-01/);
   assert.match(html, /data-inapp-banner/);
+});
+
+test("overview side budget rows use modular label/value classes", () => {
+  const html = Render.renderOverviewDesktop({
+    ...samplePkg,
+    budget: {
+      rows: [
+        { label: "交通", value: "自驾油费+过路费约570元（按一车4人摊，人均约143元）" },
+        { label: "合计", value: "人均约1753元" }
+      ]
+    }
+  });
+  assert.match(html, /trip-budget-label/);
+  assert.match(html, /trip-budget-value/);
+  assert.match(html, /is-total/);
+  assert.match(html, /人均约1753元/);
+});
+
+test("daily sections use day badge and timeline item cards", () => {
+  const html = Render.renderTripPage(samplePkg);
+  assert.match(html, /trip-section-break/);
+  assert.match(html, /每日行程/);
+  assert.match(html, /trip-day-badge/);
+  assert.match(html, /trip-item-rail/);
+  assert.match(html, /trip-item-card/);
+  assert.match(html, /trip-type-chip/);
+  assert.match(html, /D1/);
+});
+
+test("printable day pages use modular header and item structure", () => {
+  const html = Render.renderPrintableDocument(samplePkg);
+  assert.match(html, /print-day-header/);
+  assert.match(html, /print-item-list/);
+  assert.match(html, /print-item-time/);
+  assert.match(html, /trip-day-badge/);
+  assert.doesNotMatch(html, /Day 1 · 北京/);
 });
 
 test("png sheet is vertical overview content", () => {
@@ -79,6 +120,28 @@ test("png sheet is vertical overview content", () => {
   assert.match(html, /trip-png-sheet/);
   assert.match(html, /扫码打开行程/);
   assert.match(html, /D1/);
+});
+
+test("png sheet day rows prefer attraction titles over city prose summary", () => {
+  const html = Render.renderOverviewPngSheet({
+    ...samplePkg,
+    days: [{
+      day: 1,
+      city: "淮北",
+      route: "全天在淮北市区游玩",
+      summary: "全天在淮北市区游玩，当晚住淮北。",
+      anchors: [
+        { order: 1, title: "相山公园", type: "spot", lat: 33.9, lng: 116.7 },
+        { order: 2, title: "隋唐运河古镇", type: "experience", lat: 33.91, lng: 116.71 },
+        { order: 3, title: "风味美食：牛肉汤", type: "food", lat: 33.92, lng: 116.72 }
+      ],
+      items: []
+    }]
+  });
+  assert.match(html, /相山公园/);
+  assert.match(html, /隋唐运河古镇/);
+  assert.doesNotMatch(html, /全天在淮北市区游玩/);
+  assert.doesNotMatch(html, /牛肉汤/);
 });
 
 test("png sheet uses static_map image when ready", () => {

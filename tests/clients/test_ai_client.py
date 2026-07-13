@@ -78,6 +78,36 @@ class AiClientRequestTests(unittest.TestCase):
                 transport=httpx.MockTransport(handler),
             ))
 
+    def test_request_chat_completion_maps_timeout_to_ai_client_error(self):
+        async def handler(_: httpx.Request) -> httpx.Response:
+            raise httpx.TimeoutException("timed out")
+
+        with self.assertRaisesRegex(AiClientError, "超时"):
+            asyncio.run(request_chat_completion(
+                api_key="test-token",  # pragma: allowlist secret
+                base_url="https://ai.example/v1",
+                model="demo-model",
+                prompt="hello",
+                days=1,
+                destination_count=1,
+                transport=httpx.MockTransport(handler),
+            ))
+
+    def test_request_chat_completion_maps_connect_error_to_ai_client_error(self):
+        async def handler(_: httpx.Request) -> httpx.Response:
+            raise httpx.ConnectError("connection refused")
+
+        with self.assertRaisesRegex(AiClientError, "连接失败"):
+            asyncio.run(request_chat_completion(
+                api_key="test-token",  # pragma: allowlist secret
+                base_url="https://ai.example/v1",
+                model="demo-model",
+                prompt="hello",
+                days=1,
+                destination_count=1,
+                transport=httpx.MockTransport(handler),
+            ))
+
 
 if __name__ == "__main__":
     unittest.main()

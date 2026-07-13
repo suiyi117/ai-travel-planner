@@ -35,6 +35,41 @@ class PromptingTests(unittest.TestCase):
         self.assertIn("- 北京（规划 2 天）", detail)
         self.assertEqual(route, "北京 -> 西安")
 
+    def test_build_destination_detail_marks_transit_origin(self):
+        detail, route = build_destination_detail([
+            CityInfo(name="淮北", days=0, plan_stay=False),
+            CityInfo(name="合肥", days=2, plan_stay=True),
+        ])
+
+        self.assertIn("仅出发/过境", detail)
+        self.assertIn("- 合肥（规划 2 天）", detail)
+        self.assertEqual(route, "淮北 -> 合肥")
+
+    def test_build_destination_detail_closes_round_trip_route(self):
+        detail, route = build_destination_detail(
+            [
+                CityInfo(name="淮北", days=0, plan_stay=False),
+                CityInfo(name="合肥", days=2, plan_stay=True),
+                CityInfo(name="武汉", days=2, plan_stay=True),
+            ],
+            route_shape="round_trip",
+        )
+        self.assertEqual(route, "淮北 -> 合肥 -> 武汉 -> 淮北")
+        self.assertIn("环线闭合", detail)
+
+    def test_build_transport_rules_adds_return_leg_for_round_trip(self):
+        rules = build_transport_rules(
+            [
+                CityInfo(name="淮北", days=0, plan_stay=False),
+                CityInfo(name="武汉", days=2, plan_stay=True),
+            ],
+            "train",
+            route_shape="round_trip",
+        )
+        self.assertIn("环线回程", rules)
+        self.assertIn("武汉", rules)
+        self.assertIn("淮北", rules)
+
     def test_build_transport_rules_prioritizes_segment_transport(self):
         rules = build_transport_rules(
             [

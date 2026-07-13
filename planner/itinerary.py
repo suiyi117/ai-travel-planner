@@ -148,6 +148,7 @@ def hydrate_itinerary(
     city_weather: dict,
     destinations: list,
     global_transport: str,
+    route_shape: str = "one_way",
 ) -> dict:
     """Apply deterministic backend enrichments to a parsed itinerary."""
     merge_poi_metadata(itinerary, all_pois)
@@ -160,6 +161,7 @@ def hydrate_itinerary(
         destinations,
         global_transport,
         itinerary.get("transport_guide", []),
+        route_shape=route_shape,
     )
     itinerary["quality_checks"] = build_quality_checks(itinerary)
     return itinerary
