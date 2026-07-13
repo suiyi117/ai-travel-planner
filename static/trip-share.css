@@ -200,16 +200,140 @@ body.trip-share-body {
 }
 
 .trip-budget-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 6px 0;
+  display: grid;
+  grid-template-columns: 3em minmax(0, 1fr);
+  gap: 8px 10px;
+  align-items: start;
+  padding: 8px 0;
   border-bottom: 1px dashed var(--trip-border);
 }
 
+.trip-budget-row:last-child {
+  border-bottom: 0;
+}
+
+.trip-budget-label {
+  white-space: nowrap;
+  color: var(--trip-muted);
+  font-size: 12px;
+  line-height: 1.45;
+  padding-top: 1px;
+}
+
+.trip-budget-value {
+  text-align: right;
+  font-size: 13px;
+  line-height: 1.45;
+  word-break: break-word;
+  font-weight: 600;
+  color: var(--trip-fg);
+}
+
+.trip-budget-row.is-total .trip-budget-label,
+.trip-budget-row.is-total .trip-budget-value {
+  font-weight: 700;
+}
+
+.trip-budget-row.is-total .trip-budget-value {
+  color: var(--trip-accent);
+}
+
+.trip-budget-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.trip-overview-side,
+.trip-mobile-keyfacts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.trip-side-card {
+  background: var(--trip-surface);
+  border: 1px solid var(--trip-border);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.trip-side-card-title {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--trip-fg);
+}
+
+.trip-weather-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.trip-weather-chip {
+  display: inline-flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid var(--trip-border);
+  font-size: 12px;
+  color: var(--trip-muted);
+  line-height: 1.4;
+}
+
+.trip-weather-chip em {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--trip-fg);
+  min-width: 1.8em;
+}
+
+.trip-side-card-qr .trip-qr-block {
+  min-width: 0;
+  align-items: flex-start;
+}
+
+.trip-share-url {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--trip-meta);
+  word-break: break-all;
+  line-height: 1.35;
+  max-height: 2.7em;
+  overflow: hidden;
+}
+
+.trip-section-break {
+  margin: 28px 0 8px;
+  padding: 4px 2px;
+}
+
+.trip-section-break h2 {
+  font-family: var(--trip-display);
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.trip-section-break p {
+  margin: 6px 0 0;
+}
+
 .trip-tip-list {
-  margin: 8px 0 0;
+  margin: 0;
   padding-left: 18px;
+}
+
+.trip-tip-list li {
+  margin: 6px 0;
+  color: var(--trip-muted);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .trip-mobile-cta {
@@ -223,9 +347,43 @@ body.trip-share-body {
 
 .trip-overview-grid {
   display: grid;
-  grid-template-columns: 22% 56% 22%;
+  grid-template-columns: minmax(0, 22%) minmax(0, 56%) minmax(0, 22%);
   gap: 14px;
   margin-top: 14px;
+  min-width: 0;
+}
+
+.trip-overview-days,
+.trip-overview-side,
+.trip-overview-map-wrap {
+  min-width: 0;
+}
+
+.trip-overview-side {
+  max-height: min(70vh, 640px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.trip-side-card {
+  overflow: hidden;
+}
+
+.trip-budget-row {
+  grid-template-columns: 2.75em minmax(0, 1fr);
+}
+
+.trip-budget-value,
+.trip-tip-list li,
+.trip-share-url,
+.trip-day-summary {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.trip-share-url {
+  max-height: none;
 }
 
 .trip-overview-map-wrap .trip-map {
@@ -298,6 +456,10 @@ body.trip-share-body {
   align-items: flex-start;
 }
 
+.trip-overview-foot .trip-disclaimer {
+  max-width: 100%;
+}
+
 .trip-overview-meta {
   display: flex;
   flex-wrap: wrap;
@@ -319,13 +481,17 @@ body.trip-share-body {
   display: flex;
   gap: 10px;
   align-items: center;
-  min-width: 220px;
+  min-width: 0;
+  width: 100%;
 }
 
 .trip-qr-block img {
   border-radius: 8px;
   border: 1px solid var(--trip-border);
   background: #fff;
+  flex: 0 0 auto;
+  width: 72px;
+  height: 72px;
 }
 
 .trip-disclaimer {
@@ -341,9 +507,56 @@ body.trip-share-body {
   align-items: flex-start;
 }
 
+.trip-day-title-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.trip-day-badge,
+.trip-ov-day-index {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--day-color, var(--trip-accent));
+  flex: 0 0 auto;
+}
+
 .trip-day-kicker {
   font-size: 12px;
   font-weight: 700;
+}
+
+.trip-day-header h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.trip-day-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.trip-day-summary {
+  color: var(--trip-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.trip-day-route {
+  margin: 8px 0 0;
+  color: var(--trip-meta);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .trip-day-actions {
@@ -356,32 +569,127 @@ body.trip-share-body {
   display: grid;
   grid-template-columns: 1fr;
   gap: 14px;
-  margin-top: 12px;
+  margin-top: 14px;
+}
+
+.trip-day-timeline {
+  min-width: 0;
 }
 
 .trip-item {
   display: grid;
-  grid-template-columns: 88px 1fr;
-  gap: 12px;
-  padding: 14px 0;
-  border-bottom: 1px solid var(--trip-border);
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 10px;
+  padding: 0 0 12px;
+  border-bottom: 0;
 }
 
-.trip-item:last-child { border-bottom: 0; }
-
-.trip-item-time strong {
-  display: block;
-  font-size: 14px;
+.trip-item:last-child {
+  padding-bottom: 0;
 }
 
-.trip-item-time span {
+.trip-item-rail {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  padding-top: 18px;
+}
+
+.trip-item-rail::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: -12px;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  background: var(--trip-border);
+}
+
+.trip-item:last-child .trip-item-rail::before {
+  bottom: 50%;
+}
+
+.trip-item:first-child .trip-item-rail::before {
+  top: 18px;
+}
+
+.trip-item-dot {
+  position: relative;
+  z-index: 1;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--trip-accent);
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px var(--trip-border);
+}
+
+.trip-item-dot[data-type="hotel"] { background: #0f766e; }
+.trip-item-dot[data-type="food"] { background: #b45309; }
+.trip-item-dot[data-type="transport"] { background: #4338ca; }
+.trip-item-dot[data-type="experience"],
+.trip-item-dot[data-type="spot"] { background: var(--trip-accent); }
+
+.trip-item-card {
+  background: var(--trip-surface);
+  border: 1px solid var(--trip-border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  min-width: 0;
+}
+
+.trip-item-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.trip-item-card-head time {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--trip-fg);
+}
+
+.trip-type-chip {
+  font-size: 11px;
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: #fff;
+  border: 1px solid var(--trip-border);
+  color: var(--trip-muted);
+  white-space: nowrap;
+}
+
+.trip-type-chip[data-type="hotel"] { color: #0f766e; border-color: #c7e6e1; background: #f2fbf9; }
+.trip-type-chip[data-type="food"] { color: #b45309; border-color: #f0d7b4; background: #fff8ee; }
+.trip-type-chip[data-type="transport"] { color: #4338ca; border-color: #d7d5f5; background: #f5f4ff; }
+.trip-type-chip[data-type="experience"],
+.trip-type-chip[data-type="spot"] { color: var(--trip-accent); border-color: #efd2c5; background: #fff6f1; }
+
+.trip-item-body h3,
+.trip-item-card h3 {
+  margin: 0 0 6px;
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.trip-item-desc {
+  margin: 0 0 6px;
+  color: var(--trip-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.trip-item-address,
+.trip-item-meta {
+  margin: 0;
   color: var(--trip-meta);
   font-size: 12px;
-}
-
-.trip-item-body h3 {
-  margin: 0 0 6px;
-  font-size: 17px;
+  line-height: 1.45;
 }
 
 .trip-item-actions {
@@ -389,6 +697,78 @@ body.trip-share-body {
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 10px;
+}
+
+/* Print / PDF day blocks share the same visual modules */
+.print-day {
+  margin-top: 20px;
+  padding: 16px;
+  border: 1px solid var(--trip-border);
+  border-radius: 14px;
+  background: var(--trip-card);
+  break-inside: avoid;
+}
+
+.print-day-header {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.print-day-header h2 {
+  margin: 0;
+  font-family: var(--trip-display);
+  font-size: 20px;
+}
+
+.print-day-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.print-item-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.print-item {
+  padding: 12px 0;
+  border-top: 1px dashed var(--trip-border);
+}
+
+.print-item:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.print-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+
+.print-item-head strong {
+  font-size: 15px;
+}
+
+.print-item-time {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--trip-fg);
+}
+
+.print-item-desc,
+.print-item-address {
+  margin: 4px 0 0;
+  color: var(--trip-muted);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .trip-transport-row {
@@ -477,7 +857,7 @@ body.trip-share-body {
 .png-meta { color: var(--trip-muted); font-size: 12px; margin: 6px 0 12px; }
 
 .png-map-frame {
-  height: 240px;
+  height: 360px;
   border: 1px solid var(--trip-border);
   border-radius: 12px;
   overflow: hidden;
@@ -627,21 +1007,6 @@ body.trip-share-body {
   font-family: var(--trip-font);
 }
 
-.print-day {
-  margin-top: 20px;
-  padding-top: 12px;
-  border-top: 1px solid #ddd;
-  break-inside: avoid;
-}
-
-.print-day ol {
-  padding-left: 18px;
-}
-
-.print-day li {
-  margin: 8px 0;
-}
-
 @media (min-width: 900px) {
   .trip-overview-mobile { display: none; }
   .trip-desktop-only { display: block; }
@@ -677,7 +1042,7 @@ body.trip-share-body {
   .trip-disclaimer { max-width: 100%; }
 
   .trip-item {
-    grid-template-columns: 72px 1fr;
+    grid-template-columns: 16px minmax(0, 1fr);
   }
 
   .trip-day-map-col .trip-map {

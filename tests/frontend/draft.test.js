@@ -142,7 +142,7 @@ test('itineraryToDraft reserves later exact match before earlier normalized-only
   assert.equal(isTripDraft(draft), true);
 });
 
-test('itineraryToDraft rejects an exact city match after that stop reaches capacity', () => {
+test('itineraryToDraft remaps exact city overflow onto remaining stay capacity', () => {
   const repeatedExactItinerary = {
     title: '精确城市超出容量',
     days: [
@@ -151,14 +151,15 @@ test('itineraryToDraft rejects an exact city match after that stop reaches capac
     ]
   };
 
-  assert.throws(
-    () => itineraryToDraft(
-      repeatedExactItinerary,
-      [{ name: '甲城', days: 1 }, { name: '乙城', days: 1 }],
-      { seed: 'repeated-exact-snapshot' }
-    ),
-    new Error('draft_city_unresolved')
+  const draft = itineraryToDraft(
+    repeatedExactItinerary,
+    [{ name: '甲城', days: 1 }, { name: '乙城', days: 1 }],
+    { seed: 'repeated-exact-snapshot' }
   );
+  // Day1 takes 乙城; day2 remaps to remaining stay city 甲城 instead of throwing.
+  assert.equal(draft.days[0].primary_city_id, draft.city_stops[1].id);
+  assert.equal(draft.days[1].primary_city_id, draft.city_stops[0].id);
+  assert.equal(isTripDraft(draft), true);
 });
 
 test('itineraryToDraft assigns normalized duplicate candidates in city stop order', () => {
@@ -228,6 +229,78 @@ test('itineraryToDraft rejects unresolved days without city capacity', () => {
   );
 });
 
+test('itineraryToDraft treats days=0 without plan_stay as transit', () => {
+  const plan = {
+    title: 'legacy-zero-days',
+    days: [{ day: 1, city: '西安', items: [{ id: 'p1', type: 'experience', title: '大雁塔', city: '西安', lat: 34.2, lng: 108.9 }] }]
+  };
+  const draft = itineraryToDraft(
+    plan,
+    [
+      { name: '北京', days: 0, transport: 'auto' },
+      { name: '西安', days: 1, transport: 'train' }
+    ],
+    { seed: 'legacy-zero' }
+  );
+  assert.equal(draft.city_stops[0].days, 0);
+  assert.equal(draft.city_stops[0].plan_stay, false);
+  assert.equal(draft.days[0].primary_city_id, draft.city_stops[1].id);
+});
+
+test('itineraryToDraft remaps AI day on transit city onto stay city capacity', () => {
+  const plan = {
+    title: '过境起点',
+    days: [
+      { day: 1, city: '淮北', items: [{ id: 'x1', type: 'experience', title: '误排', city: '淮北', lat: 33.9, lng: 116.7 }] },
+      { day: 2, city: '合肥', items: [{ id: 'x2', type: 'experience', title: '包公园', city: '合肥', lat: 31.8, lng: 117.2 }] }
+    ]
+  };
+  const draft = itineraryToDraft(
+    plan,
+    [
+      { name: '淮北', days: 0, plan_stay: false, transport: 'auto' },
+      { name: '合肥', days: 2, plan_stay: true, transport: 'train' }
+    ],
+    { seed: 'transit-remap' }
+  );
+  assert.equal(draft.city_stops[0].days, 0);
+  assert.equal(draft.city_stops[0].plan_stay, false);
+  assert.equal(draft.days[0].primary_city_id, draft.city_stops[1].id);
+  assert.equal(isTripDraft(draft), true);
+  assert.deepEqual(draftToCities(draft)[0], {
+    name: '淮北', days: 0, transport: 'auto', plan_stay: false
+  });
+});
+
+test('draftToItinerary keeps round_trip return transport segment', () => {
+  const base = {
+    title: '环线',
+    days: [
+      { day: 1, city: '合肥', items: [] },
+      { day: 2, city: '武汉', items: [] }
+    ],
+    transport_guide: [
+      { segment: '淮北 → 合肥', tool: 'train', options: [] },
+      { segment: '合肥 → 武汉', tool: 'train', options: [] },
+      { segment: '武汉 → 淮北', tool: 'train', advice: '回程', options: [{ id: 'G9' }] }
+    ]
+  };
+  const draft = itineraryToDraft(
+    base,
+    [
+      { name: '淮北', days: 0, plan_stay: false },
+      { name: '合肥', days: 1, plan_stay: true },
+      { name: '武汉', days: 1, plan_stay: true }
+    ],
+    { seed: 'ring-draft', routeShape: 'round_trip' }
+  );
+  assert.equal(draft.route_shape, 'round_trip');
+  const result = draftToItinerary(draft, base);
+  assert.ok(result.transport_guide.some(seg => seg.segment === '武汉 → 淮北'));
+  const ret = result.transport_guide.find(seg => seg.segment === '武汉 → 淮北');
+  assert.equal(ret.advice, '回程');
+});
+
 test('draftToItinerary round-trips current item order', () => {
   const baseItinerary = structuredClone(itinerary);
   baseItinerary.days[0].summary = '保留的每日摘要';
@@ -248,8 +321,8 @@ test('draftToItinerary round-trips current item order', () => {
   assert.equal(result.transport_guide[0].segment, '杭州 → 上海');
   assert.equal(result.transport_guide[0].advice, '保留原建议');
   assert.deepEqual(draftToCities(draft), [
-    { name: '杭州', days: 1, transport: 'auto' },
-    { name: '上海', days: 1, transport: 'train' }
+    { name: '杭州', days: 1, transport: 'auto', plan_stay: true },
+    { name: '上海', days: 1, transport: 'train', plan_stay: true }
   ]);
 
   const fallback = draftToItinerary(draft, { ...baseItinerary, transport_guide: undefined });

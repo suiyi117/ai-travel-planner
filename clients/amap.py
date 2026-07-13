@@ -189,8 +189,9 @@ def build_static_map_params(
     if path and len(path) >= 2:
         # style: weight,color,transparency,fillcolor,filltransparency:lng1,lat1;...
         # path points are [lat, lng]; Amap wants lng,lat
+        # Slightly thicker brand stroke reads better on multi-city overview zoom.
         coords = ";".join(f"{float(p[1])},{float(p[0])}" for p in path[:200])
-        params["paths"] = f"5,0xC96442,1,,:{coords}"
+        params["paths"] = f"6,0xC96442,0.9,,:{coords}"
     return params
 
 

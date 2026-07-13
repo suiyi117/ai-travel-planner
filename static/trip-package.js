@@ -68,6 +68,101 @@
     return Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0);
   }
 
+  function anchorTypeWeight(type, title) {
+    const name = clean(title);
+    // Synthetic mapPlanToItems placeholders sit near city center; demote them.
+    if (name.startsWith('住宿区域：') || name.startsWith('风味美食：')) return 5;
+    if (type === 'spot' || type === 'experience') return 100;
+    if (type === 'hotel') return 40;
+    if (type === 'food') return 15;
+    return 20;
+  }
+
+  function rankMappableItems(items) {
+    return (Array.isArray(items) ? items : [])
+      .map((item, index) => ({ item, index }))
+      .filter(entry => isMappableItem(entry.item))
+      .sort((a, b) => {
+        const wa = anchorTypeWeight(a.item.type, a.item.title);
+        const wb = anchorTypeWeight(b.item.type, b.item.title);
+        if (wb !== wa) return wb - wa;
+        return a.index - b.index;
+      })
+      .map(entry => entry.item);
+  }
+
+  function selectDayAnchors(items, dayNumber, limit) {
+    const max = Math.max(1, Number(limit) || 5);
+    return rankMappableItems(items)
+      .slice(0, max)
+      .map((item, index) => toAnchor(item, index + 1, dayNumber));
+  }
+
+  function buildDaySummary(dayRoute, anchors) {
+    const titles = (Array.isArray(anchors) ? anchors : [])
+      .filter(a => a && a.title && a.type !== 'food' && !clean(a.title).startsWith('风味美食：'))
+      .map(a => clean(a.title))
+      .filter(Boolean)
+      .slice(0, 3);
+    if (titles.length) return titles.join(' · ');
+    return clean(dayRoute) || '安排待补充';
+  }
+
+  function selectOverviewMarkers(anchors, limit) {
+    const max = Math.max(1, Math.min(10, Number(limit) || 10));
+    const list = (Array.isArray(anchors) ? anchors : []).filter(a =>
+      Number.isFinite(Number(a.lat)) && Number.isFinite(Number(a.lng))
+    );
+    if (!list.length) return [];
+
+    const dayKeys = [];
+    const buckets = new Map();
+    list.forEach(anchor => {
+      const key = Number.isFinite(Number(anchor.day)) ? Number(anchor.day) : 0;
+      if (!buckets.has(key)) {
+        buckets.set(key, []);
+        dayKeys.push(key);
+      }
+      buckets.get(key).push(anchor);
+    });
+    dayKeys.sort((a, b) => a - b);
+    dayKeys.forEach(key => {
+      buckets.get(key).sort((a, b) => {
+        const wa = anchorTypeWeight(a.type, a.title);
+        const wb = anchorTypeWeight(b.type, b.title);
+        if (wb !== wa) return wb - wa;
+        return (Number(a.order) || 0) - (Number(b.order) || 0);
+      });
+    });
+
+    const pointers = new Map(dayKeys.map(key => [key, 0]));
+    const selected = [];
+    let progress = true;
+    while (selected.length < max && progress) {
+      progress = false;
+      for (const key of dayKeys) {
+        if (selected.length >= max) break;
+        const bucket = buckets.get(key) || [];
+        const idx = pointers.get(key) || 0;
+        if (idx < bucket.length) {
+          selected.push(bucket[idx]);
+          pointers.set(key, idx + 1);
+          progress = true;
+        }
+      }
+    }
+
+    return selected
+      .slice()
+      .sort((a, b) => {
+        const da = Number(a.day) || 0;
+        const db = Number(b.day) || 0;
+        if (da !== db) return da - db;
+        return (Number(a.order) || 0) - (Number(b.order) || 0);
+      })
+      .map((anchor, index) => ({ ...anchor, order: index + 1 }));
+  }
+
   function toAnchor(item, order, dayNumber) {
     return {
       order,
@@ -117,24 +212,31 @@
     };
   }
 
+  function pickOverviewRouteLine(routeLines) {
+    const lines = Array.isArray(routeLines) ? routeLines : [];
+    const overview = lines.filter(l => l && (l.day == null || l.day === undefined || l.day === ''));
+    return overview.find(l => l.status === 'provider')
+      || overview.find(l => l.status === 'intercity')
+      || overview.find(l => l.status === 'estimate')
+      || lines.find(l => l && l.status === 'provider')
+      || overview[0]
+      || null;
+  }
+
   function buildStaticMapRequest(pkg, options) {
     const opts = options || {};
-    const width = Math.min(1024, Math.max(200, Number(opts.width) || 640));
-    const height = Math.min(1024, Math.max(200, Number(opts.height) || 640));
-    const markers = (pkg.map_anchors || [])
-      .filter(a => Number.isFinite(Number(a.lat)) && Number.isFinite(Number(a.lng)))
-      .slice(0, 10)
+    const width = Math.min(1024, Math.max(200, Number(opts.width) || 1024));
+    const height = Math.min(1024, Math.max(200, Number(opts.height) || 1024));
+    const markers = selectOverviewMarkers(pkg.map_anchors || [], 10)
       .map((a, i) => ({
         lat: Number(a.lat),
         lng: Number(a.lng),
-        label: String(a.order || i + 1)
+        label: String(i + 1)
       }));
-    const overview = (pkg.route_lines || []).find(l => l.day == null)
-      || (pkg.route_lines || []).find(l => l.status === 'provider')
-      || null;
+    const overview = pickOverviewRouteLine(pkg.route_lines);
     let path = null;
     if (overview && Array.isArray(overview.points) && overview.points.length >= 2) {
-      path = simplifyPoints(overview.points, 80);
+      path = simplifyPath(overview.points, 80);
     }
     return { width, height, markers, path, path_status: overview?.status || 'estimate' };
   }
@@ -218,6 +320,90 @@
     return out;
   }
 
+  function pointDistanceSq(a, b) {
+    const dx = Number(a[0]) - Number(b[0]);
+    const dy = Number(a[1]) - Number(b[1]);
+    return dx * dx + dy * dy;
+  }
+
+  function perpendicularDistanceSq(point, start, end) {
+    const x = Number(point[0]);
+    const y = Number(point[1]);
+    const x1 = Number(start[0]);
+    const y1 = Number(start[1]);
+    const x2 = Number(end[0]);
+    const y2 = Number(end[1]);
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    if (dx === 0 && dy === 0) return pointDistanceSq(point, start);
+    const t = ((x - x1) * dx + (y - y1) * dy) / (dx * dx + dy * dy);
+    const projX = x1 + t * dx;
+    const projY = y1 + t * dy;
+    const pdx = x - projX;
+    const pdy = y - projY;
+    return pdx * pdx + pdy * pdy;
+  }
+
+  function douglasPeucker(points, epsilonSq, first, last, keep) {
+    let maxDist = 0;
+    let index = -1;
+    for (let i = first + 1; i < last; i += 1) {
+      const dist = perpendicularDistanceSq(points[i], points[first], points[last]);
+      if (dist > maxDist) {
+        index = i;
+        maxDist = dist;
+      }
+    }
+    if (index > 0 && maxDist > epsilonSq) {
+      keep[index] = true;
+      if (index - first > 1) douglasPeucker(points, epsilonSq, first, index, keep);
+      if (last - index > 1) douglasPeucker(points, epsilonSq, index, last, keep);
+    }
+  }
+
+  function simplifyPath(points, maxPoints) {
+    const normalized = (Array.isArray(points) ? points : [])
+      .map(normalizePoint)
+      .filter(Boolean);
+    const limit = Math.max(2, Number(maxPoints) || 80);
+    if (normalized.length <= limit) return normalized;
+
+    // Binary-search epsilon so RDP keeps roughly `limit` points (smoother than uniform step).
+    let low = 0;
+    let high = 1;
+    // Expand upper bound until under limit or geometrically large.
+    for (let i = 0; i < 12; i += 1) {
+      const keep = new Array(normalized.length).fill(false);
+      keep[0] = true;
+      keep[normalized.length - 1] = true;
+      douglasPeucker(normalized, high * high, 0, normalized.length - 1, keep);
+      const count = keep.reduce((sum, flag) => sum + (flag ? 1 : 0), 0);
+      if (count <= limit) break;
+      high *= 2;
+    }
+
+    let best = null;
+    for (let i = 0; i < 18; i += 1) {
+      const mid = (low + high) / 2;
+      const keep = new Array(normalized.length).fill(false);
+      keep[0] = true;
+      keep[normalized.length - 1] = true;
+      douglasPeucker(normalized, mid * mid, 0, normalized.length - 1, keep);
+      const selected = normalized.filter((_, idx) => keep[idx]);
+      if (selected.length > limit) {
+        low = mid;
+      } else {
+        high = mid;
+        best = selected;
+      }
+    }
+    if (best && best.length >= 2) {
+      if (best.length <= limit) return best;
+      return simplifyPoints(best, limit);
+    }
+    return simplifyPoints(normalized, limit);
+  }
+
   function normalizePoint(point) {
     if (!point) return null;
     if (Array.isArray(point) && point.length >= 2) {
@@ -260,6 +446,17 @@
       .filter(Boolean);
   }
 
+  function representativeAnchorForDay(anchors) {
+    const list = Array.isArray(anchors) ? anchors : [];
+    if (!list.length) return null;
+    return list.slice().sort((a, b) => {
+      const wa = anchorTypeWeight(a.type, a.title);
+      const wb = anchorTypeWeight(b.type, b.title);
+      if (wb !== wa) return wb - wa;
+      return (Number(a.order) || 0) - (Number(b.order) || 0);
+    })[0];
+  }
+
   function estimateRouteLinesFromDays(packageDays) {
     const lines = [];
     (packageDays || []).forEach(day => {
@@ -274,18 +471,19 @@
         });
       }
     });
+    // Overview: one representative pin per day keeps multi-city lines clean
+    // (avoids zig-zag "yarn" through every local POI on a national zoom).
     const overview = [];
     (packageDays || []).forEach(day => {
-      (day.anchors || []).forEach(anchor => {
-        const point = normalizePoint([anchor.lat, anchor.lng]);
-        if (point) overview.push(point);
-      });
+      const rep = representativeAnchorForDay(day.anchors);
+      const point = rep ? normalizePoint([rep.lat, rep.lng]) : null;
+      if (point) overview.push(point);
     });
     if (overview.length >= 2) {
       lines.push({
         day: null,
         status: 'estimate',
-        points: simplifyPoints(overview, 200)
+        points: simplifyPath(overview, 80)
       });
     }
     return lines;
@@ -298,7 +496,7 @@
     if (segments.length) {
       segments.forEach(segment => {
         const status = segment.status === 'provider' ? 'provider' : 'estimate';
-        const points = simplifyPoints(
+        const points = simplifyPath(
           (segment.polyline || []).map(normalizePoint).filter(Boolean),
           200
         );
@@ -308,7 +506,7 @@
       });
     }
     if (!lines.length) {
-      const points = simplifyPoints(
+      const points = simplifyPath(
         (route.polyline || []).map(normalizePoint).filter(Boolean),
         200
       );
@@ -340,8 +538,7 @@
     const packageDays = days.map(day => {
       const dayNumber = Number(day.day) || 1;
       const items = (day.items || []).map(item => normalizeItem(item, opts, dayNumber));
-      const mappable = items.filter(isMappableItem);
-      const anchors = mappable.slice(0, 5).map((item, index) => toAnchor(item, index + 1, dayNumber));
+      const anchors = selectDayAnchors(items, dayNumber, 5);
       const date = typeof opts.addDays === 'function' && opts.departureDate
         ? opts.addDays(opts.departureDate, dayNumber - 1)
         : clean(day.date);
@@ -353,7 +550,7 @@
         route: clean(day.route),
         weather: weatherLabel(cast),
         color: dayColor(dayNumber),
-        summary: clean(day.route) || anchors.map(anchor => anchor.title).slice(0, 3).join(' · '),
+        summary: buildDaySummary(day.route, anchors),
         anchors,
         items
       };
@@ -443,6 +640,13 @@
     budgetRows,
     lineStyleForStatus,
     simplifyPoints,
+    simplifyPath,
+    anchorTypeWeight,
+    rankMappableItems,
+    selectDayAnchors,
+    buildDaySummary,
+    selectOverviewMarkers,
+    pickOverviewRouteLine,
     normalizeRefs,
     normalizeStaticMap,
     buildStaticMapRequest,

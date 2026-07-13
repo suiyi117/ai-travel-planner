@@ -7,6 +7,7 @@ class CityInfo(BaseModel):
     name: str
     days: Optional[int] = None
     transport: Optional[str] = None
+    plan_stay: Optional[bool] = None
 
 
 class PlanRequest(BaseModel):
@@ -19,3 +20,4 @@ class PlanRequest(BaseModel):
     city_data: list[dict] = []
     global_transport: str = "auto"
     start_date: str = ""
+    route_shape: str = "one_way"

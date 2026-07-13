@@ -48,14 +48,14 @@
   <meta name="referrer" content="no-referrer">
   <title>${root.AeroTravelTripShareRender.escapeHtml(title)} · AeroTravel</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""><!-- pragma: allowlist secret -->
   <style>
 ${css}
   </style>
 </head>
 <body class="trip-share-body">
   <script>window.__TRIP_PACKAGE__ = ${safeJsonForScript(pkg)};</script>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script><!-- pragma: allowlist secret -->
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script>
 ${scripts.nav || ''}
@@ -115,13 +115,14 @@ ${scripts.boot || ''}
 
     const assets = opts.assets || await loadPublishAssets(opts.assetBase || '');
     const html = buildSelfContainedHtml(enriched, assets);
-    const basename = `trip-${token}`;
+    const htmlName = `${token}.html`;
+    const jsonName = `${token}.json`;
 
     if (opts.downloadHtml !== false) {
-      downloadText(`${basename}.html`, html, 'text/html;charset=utf-8');
+      downloadText(htmlName, html, 'text/html;charset=utf-8');
     }
     if (opts.downloadJson) {
-      downloadText(`${basename}.json`, JSON.stringify(enriched, null, 2), 'application/json;charset=utf-8');
+      downloadText(jsonName, JSON.stringify(enriched, null, 2), 'application/json;charset=utf-8');
     }
     if (opts.openPreview) {
       openPreview(enriched);
@@ -130,9 +131,10 @@ ${scripts.boot || ''}
     return {
       package: enriched,
       html,
-      filename: `${basename}.html`,
+      filename: htmlName,
       instructions: [
-        `将 ${basename}.html 上传到静态托管目录，建议路径：/t/${token}.html 或 /t/${token}/index.html`,
+        `下载文件名为 ${htmlName}。请上传到静态托管的 /t/ 目录，使最终访问路径为 /t/${token}.html（与二维码链接一致）。`,
+        '若托管不支持 .html 扩展名，请配置 /t/{token} → 该文件的重写，并重新发布填写实际 URL。',
         '页面已设置 noindex，且使用高强度随机路径，勿放入证件号等敏感信息',
         '同时向客户发送可复制文字与 PDF 备份',
         enriched.share_url

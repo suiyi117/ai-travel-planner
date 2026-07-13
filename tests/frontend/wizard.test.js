@@ -27,6 +27,54 @@ test('validateStep1 rejects days out of range', () => {
   assert.equal(result.ok, false);
 });
 
+test('validateStep1 allows origin transit-only days=0 with plan_stay false when another city plays', () => {
+  const result = W.validateStep1({
+    cities: [
+      { name: '淮北', days: 0, plan_stay: false, transport: 'auto' },
+      { name: '合肥', days: 2, plan_stay: true, transport: 'train' }
+    ]
+  });
+  assert.equal(result.ok, true);
+});
+
+test('validateStep1 allows non-origin transit city with plan_stay false', () => {
+  const result = W.validateStep1({
+    cities: [
+      { name: '合肥', days: 2, plan_stay: true, transport: 'auto' },
+      { name: '淮北', days: 0, plan_stay: false, transport: 'train' },
+      { name: '武汉', days: 2, plan_stay: true, transport: 'train' }
+    ]
+  });
+  assert.equal(result.ok, true);
+});
+
+test('validateStep1 rejects all-transit routes', () => {
+  const result = W.validateStep1({
+    cities: [
+      { name: '北京', days: 0, plan_stay: false, transport: 'auto' },
+      { name: '西安', days: 0, plan_stay: false, transport: 'train' }
+    ]
+  });
+  assert.equal(result.ok, false);
+});
+
+test('validateStep1 treats days=0 without plan_stay as transit', () => {
+  const result = W.validateStep1({
+    cities: [
+      { name: '淮北', days: 0, transport: 'auto' },
+      { name: '合肥', days: 2, plan_stay: true, transport: 'train' }
+    ]
+  });
+  assert.equal(result.ok, true);
+});
+
+test('routeLabel appends origin for round_trip', () => {
+  assert.equal(
+    W.routeLabel([{ name: '淮北' }, { name: '合肥' }, { name: '武汉' }], 'round_trip'),
+    '淮北 → 合肥 → 武汉 → 淮北'
+  );
+});
+
 test('validateStep1 rejects empty city name', () => {
   const result = W.validateStep1({
     cities: [{ name: '   ', days: 2, transport: 'auto' }]

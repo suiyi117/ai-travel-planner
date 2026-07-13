@@ -45,11 +45,17 @@ async def generate_itinerary(request: PlanRequest, *, settings, logger: logging.
                 on_error=make_weather_error_handler(city.name),
             )
             for city in request.destinations
+            if getattr(city, "plan_stay", None) is not False and (city.days is None or city.days > 0)
         )
     )
+    playable_cities = [
+        city
+        for city in request.destinations
+        if getattr(city, "plan_stay", None) is not False and (city.days is None or city.days > 0)
+    ]
     city_weather = {
         city.name: weather
-        for city, weather in zip(request.destinations, weather_results)
+        for city, weather in zip(playable_cities, weather_results)
         if weather
     }
     prompt, all_pois = build_itinerary_prompt(request, city_weather)
@@ -61,7 +67,7 @@ async def generate_itinerary(request: PlanRequest, *, settings, logger: logging.
             model=settings.ai_model,
             prompt=prompt,
             days=request.days,
-            destination_count=len(request.destinations),
+            destination_count=max(1, len(playable_cities) or len(request.destinations)),
         )
     except AiClientError as exc:
         raise ItineraryGenerationError(str(exc)) from exc
@@ -78,6 +84,7 @@ async def generate_itinerary(request: PlanRequest, *, settings, logger: logging.
         city_weather=city_weather,
         destinations=request.destinations,
         global_transport=request.global_transport,
+        route_shape=getattr(request, "route_shape", None) or "one_way",
     )
 
     if request.start_date:

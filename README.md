@@ -90,12 +90,19 @@ AI_MODEL=gpt-5.5
 
 ### 3. 启动
 
+**推荐（Windows）：** 双击仓库根目录的 [`start.bat`](start.bat)。  
+会自动选用项目 `.conda` 或系统 Python、按需启动后端，并打开 [http://localhost:8000](http://localhost:8000)。服务已在跑时只会打开浏览器。
+
+手动启动：
+
 ```powershell
 python server.py
 ```
 
 打开 [http://localhost:8000](http://localhost:8000)。没有真实 API 时，前端仍会载入可交互的示例行程；真实 POI、天气与 AI 生成需要相应 Key。
 
+> **排障：** 若生成时提示「无法连接后端」或浏览器 `Failed to fetch`，请确认服务已启动，并用 **http://localhost:8000** 打开页面。不要直接双击 `static/index.html`（`file://` 会因 CORS 无法调用 API）。
+> 关闭后端控制台窗口即可停止服务。
 ## 模型配置
 
 项目使用 OpenAI-compatible `chat/completions` 接口。模型名称和 endpoint 更新较快，下表按 2026-07-09 的官方文档整理，实际可用性以账号权限为准。

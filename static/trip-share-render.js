@@ -35,35 +35,129 @@
     return `https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(url)}`;
   }
 
+  function dayOverviewLine(day) {
+    const titles = (day.anchors || [])
+      .filter(a => a && a.title && a.type !== 'food' && !String(a.title).startsWith('风味美食：'))
+      .slice(0, 3)
+      .map(a => a.title);
+    if (titles.length) return titles.join(' · ');
+    return day.summary || day.route || '';
+  }
+
   function overviewDayRows(pkg) {
     return (pkg.days || []).map(day => {
-      const anchors = (day.anchors || []).slice(0, 3).map(a => escapeHtml(a.title)).join(' · ');
+      const line = dayOverviewLine(day);
       return `
         <div class="trip-ov-day">
           <div class="trip-ov-day-index" style="--day-color:${escapeHtml(day.color || '#c96442')}">D${escapeHtml(day.day)}</div>
           <div class="trip-ov-day-body">
             <strong>${escapeHtml(day.city || '')}</strong>
-            <p>${escapeHtml(day.summary || anchors || '安排待补充')}</p>
+            <p>${escapeHtml(line || '安排待补充')}</p>
           </div>
         </div>
       `;
     }).join('');
   }
 
+  function shortShareHost(url) {
+    if (!url) return '';
+    try {
+      const parsed = new URL(url);
+      const path = parsed.pathname + (parsed.search || '');
+      const compact = `${parsed.host}${path}`;
+      return compact.length > 42 ? `${compact.slice(0, 39)}…` : compact;
+    } catch (_err) {
+      return String(url).length > 42 ? `${String(url).slice(0, 39)}…` : String(url);
+    }
+  }
+
   function budgetBlock(pkg) {
     const rows = pkg.budget?.rows || [];
-    return rows.map(row => `
-      <div class="trip-budget-row">
-        <span>${escapeHtml(row.label)}</span>
-        <strong>${escapeHtml(row.value)}</strong>
-      </div>
-    `).join('');
+    return `<ul class="trip-budget-list">${rows.map(row => `
+      <li class="trip-budget-row${row.label === '合计' ? ' is-total' : ''}">
+        <span class="trip-budget-label">${escapeHtml(row.label)}</span>
+        <span class="trip-budget-value">${escapeHtml(row.value)}</span>
+      </li>
+    `).join('')}</ul>`;
   }
 
   function tipsBlock(pkg, limit) {
     const tips = (pkg.tips || []).slice(0, limit || 2);
     if (!tips.length) return '<p class="trip-muted">暂无特别提示</p>';
     return `<ul class="trip-tip-list">${tips.map(tip => `<li>${escapeHtml(tip)}</li>`).join('')}</ul>`;
+  }
+
+  function budgetCard(pkg) {
+    const rows = pkg.budget?.rows || [];
+    if (!rows.length) return '';
+    return `
+      <section class="trip-side-card">
+        <h3 class="trip-side-card-title">费用估算</h3>
+        ${budgetBlock(pkg)}
+      </section>
+    `;
+  }
+
+  function tipsCard(pkg, limit) {
+    const tips = (pkg.tips || []).slice(0, limit || 2);
+    if (!tips.length) return '';
+    return `
+      <section class="trip-side-card">
+        <h3 class="trip-side-card-title">重要提示</h3>
+        ${tipsBlock(pkg, limit || 2)}
+      </section>
+    `;
+  }
+
+  function weatherCard(pkg) {
+    const days = (pkg.days || []).filter(day => day && day.weather);
+    if (!days.length) return '';
+    return `
+      <section class="trip-side-card">
+        <h3 class="trip-side-card-title">天气</h3>
+        <div class="trip-weather-chips">
+          ${days.map(day => `
+            <span class="trip-weather-chip">
+              <em>D${escapeHtml(day.day)}</em>
+              <span>${escapeHtml(day.weather)}</span>
+            </span>
+          `).join('')}
+        </div>
+      </section>
+    `;
+  }
+
+  function qrCard(pkg) {
+    const shareUrl = pkg.share_url || '';
+    const qr = qrImageUrl(shareUrl);
+    const hostLabel = shortShareHost(shareUrl);
+    return `
+      <section class="trip-side-card trip-side-card-qr">
+        <h3 class="trip-side-card-title">扫码打开</h3>
+        <div class="trip-qr-block">
+          ${qr
+            ? `<img src="${escapeHtml(qr)}" alt="专属行程二维码" width="88" height="88" loading="lazy">`
+            : '<div class="png-qr-placeholder">QR</div>'}
+          <div>
+            <p class="trip-muted">${shareUrl ? '扫码查看专属行程' : '发布后生成访问链接'}</p>
+            ${shareUrl
+              ? `<p class="trip-share-url" title="${escapeHtml(shareUrl)}">${escapeHtml(hostLabel)}</p>`
+              : '<p class="trip-share-url">链接待填写</p>'}
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  function sideModulesHtml(pkg, options) {
+    const opts = options || {};
+    const includeQr = opts.includeQr !== false;
+    return [
+      budgetCard(pkg),
+      tipsCard(pkg, opts.tipsLimit || 2),
+      weatherCard(pkg),
+      includeQr ? qrCard(pkg) : ''
+    ].join('');
   }
 
   function metaSpans(pkg) {
@@ -87,8 +181,6 @@
   }
 
   function renderOverviewDesktop(pkg) {
-    const shareUrl = pkg.share_url || '';
-    const qr = qrImageUrl(shareUrl);
     return `
       <section class="trip-overview trip-overview-desktop" aria-label="行程总览">
         <header class="trip-overview-head">
@@ -116,22 +208,11 @@
             </div>
           </div>
           <aside class="trip-overview-side">
-            <h2>关键数据</h2>
-            ${budgetBlock(pkg)}
-            <h3>重要提示</h3>
-            ${tipsBlock(pkg, 2)}
-            ${(pkg.days || []).some(d => d.weather) ? `<h3>天气</h3><p class="trip-muted">${(pkg.days || []).filter(d => d.weather).slice(0, 3).map(d => `D${escapeHtml(d.day)} ${escapeHtml(d.weather)}`).join(' · ')}</p>` : ''}
+            ${sideModulesHtml(pkg, { tipsLimit: 2, includeQr: true })}
           </aside>
         </div>
         <footer class="trip-overview-foot">
           <p class="trip-disclaimer">${escapeHtml(pkg.disclaimer || '')}</p>
-          <div class="trip-qr-block">
-            ${qr ? `<img src="${escapeHtml(qr)}" alt="专属行程二维码" width="88" height="88" loading="lazy">` : ''}
-            <div>
-              <strong>扫码打开专属行程</strong>
-              <p class="trip-muted">${escapeHtml(shareUrl || '发布后填写访问链接')}</p>
-            </div>
-          </div>
         </footer>
       </section>
     `;
@@ -158,8 +239,7 @@
           ${overviewDayRows(pkg)}
         </div>
         <div class="trip-mobile-keyfacts">
-          ${budgetBlock(pkg)}
-          ${tipsBlock(pkg, 2)}
+          ${sideModulesHtml(pkg, { tipsLimit: 2, includeQr: true })}
         </div>
         <div class="trip-mobile-cta">
           <a class="trip-btn trip-btn-primary" href="#daily">查看每日详情</a>
@@ -187,8 +267,8 @@
     const shareUrl = pkg.share_url || '';
     const qr = qrImageUrl(shareUrl);
     const dayLines = (pkg.days || []).map(day => {
-      const anchors = (day.anchors || []).slice(0, 2).map(a => a.title).join(' / ');
-      return `<div class="png-day"><span>D${escapeHtml(day.day)}</span><strong>${escapeHtml(day.city || '')}</strong><em>${escapeHtml(day.summary || anchors || '')}</em></div>`;
+      const line = dayOverviewLine(day);
+      return `<div class="png-day"><span>D${escapeHtml(day.day)}</span><strong>${escapeHtml(day.city || '')}</strong><em>${escapeHtml(line || '')}</em></div>`;
     }).join('');
     const tips = (pkg.overview_notes || pkg.tips || []).slice(0, 2);
     return `
@@ -226,19 +306,24 @@
       }
       return `<button type="button" class="trip-chip" data-copy="${escapeHtml(action.copyText || '')}">${escapeHtml(action.label)}</button>`;
     }).join('');
+    const type = item.type || 'spot';
+    const metaBits = [item.duration, item.extra, item.rating ? `评分 ${item.rating}` : ''].filter(Boolean);
 
     return `
       <article class="trip-item" id="item-${escapeHtml(item.id || `${index}`)}" data-item-id="${escapeHtml(item.id || '')}">
-        <div class="trip-item-time">
-          <strong>${escapeHtml(item.time || '—')}</strong>
-          <span>${escapeHtml(typeLabel(item.type))}</span>
+        <div class="trip-item-rail" aria-hidden="true">
+          <span class="trip-item-dot" data-type="${escapeHtml(type)}"></span>
         </div>
-        <div class="trip-item-body">
+        <div class="trip-item-card">
+          <div class="trip-item-card-head">
+            <time>${escapeHtml(item.time || '—')}</time>
+            <span class="trip-type-chip" data-type="${escapeHtml(type)}">${escapeHtml(typeLabel(type))}</span>
+          </div>
           <h3>${escapeHtml(item.title)}</h3>
-          <p class="trip-meta-line">${[item.duration, item.extra, item.rating ? `评分 ${item.rating}` : ''].filter(Boolean).map(escapeHtml).join(' · ')}</p>
-          ${item.desc ? `<p>${escapeHtml(item.desc)}</p>` : ''}
-          ${item.address ? `<p class="trip-meta-line">地址：${escapeHtml(item.address)}</p>` : ''}
-          ${item.opentime ? `<p class="trip-meta-line">开放：${escapeHtml(item.opentime)}</p>` : ''}
+          ${metaBits.length ? `<p class="trip-item-meta">${metaBits.map(escapeHtml).join(' · ')}</p>` : ''}
+          ${item.desc ? `<p class="trip-item-desc">${escapeHtml(item.desc)}</p>` : ''}
+          ${item.address ? `<p class="trip-item-address">地址：${escapeHtml(item.address)}</p>` : ''}
+          ${item.opentime ? `<p class="trip-item-meta">开放：${escapeHtml(item.opentime)}</p>` : ''}
           <div class="trip-item-actions">${actionHtml}</div>
         </div>
       </article>
@@ -248,14 +333,21 @@
   function renderDailySections(pkg) {
     return (pkg.days || []).map(day => {
       const items = day.items || [];
+      const summary = dayOverviewLine(day);
+      const showRoute = day.route && summary && day.route !== summary && day.route !== day.summary;
       return `
         <section class="trip-day-section" id="day-${escapeHtml(day.day)}">
           <header class="trip-day-header">
-            <div>
-              <div class="trip-day-kicker" style="color:${escapeHtml(day.color || '#c96442')}">Day ${escapeHtml(day.day)}</div>
-              <h2>${escapeHtml(day.city || '')}${day.date ? ` · ${escapeHtml(day.date)}` : ''}</h2>
-              ${day.weather ? `<p class="trip-muted">${escapeHtml(day.weather)}</p>` : ''}
-              ${day.route ? `<p>${escapeHtml(day.route)}</p>` : ''}
+            <div class="trip-day-title-row">
+              <span class="trip-day-badge" style="--day-color:${escapeHtml(day.color || '#c96442')}">D${escapeHtml(day.day)}</span>
+              <div>
+                <h2>${escapeHtml(day.city || '')}${day.date ? ` · ${escapeHtml(day.date)}` : ''}</h2>
+                <div class="trip-day-meta">
+                  ${day.weather ? `<span class="trip-weather-chip">${escapeHtml(day.weather)}</span>` : ''}
+                  ${summary ? `<span class="trip-day-summary">${escapeHtml(summary)}</span>` : ''}
+                </div>
+                ${showRoute ? `<p class="trip-day-route">${escapeHtml(day.route)}</p>` : ''}
+              </div>
             </div>
             <div class="trip-day-actions">
               <button type="button" class="trip-btn" data-action="copy-day" data-day="${escapeHtml(day.day)}">复制当日文字</button>
@@ -326,17 +418,24 @@
           <div class="trip-desktop-only">
             ${renderOverviewDesktop(data)}
           </div>
-          <div id="daily" class="trip-daily-anchor"></div>
+          <div class="trip-section-break" id="daily">
+            <h2>每日行程</h2>
+            <p class="trip-muted">按天查看时间线、地图与导航</p>
+          </div>
           ${renderDailySections(data)}
           ${renderTransport(data)}
           <section class="trip-panel">
             <h2>费用参考</h2>
-            ${budgetBlock(data)}
-            ${data.budget?.selected_transport_total > 0 ? `<p class="trip-muted">已选交通参考合计：约 ¥${escapeHtml(Math.round(data.budget.selected_transport_total))}</p>` : ''}
+            <div class="trip-side-card">
+              ${budgetBlock(data)}
+              ${data.budget?.selected_transport_total > 0 ? `<p class="trip-muted">已选交通参考合计：约 ¥${escapeHtml(Math.round(data.budget.selected_transport_total))}</p>` : ''}
+            </div>
           </section>
           <section class="trip-panel">
             <h2>出行注意事项</h2>
-            ${tipsBlock(data, 10)}
+            <div class="trip-side-card">
+              ${tipsBlock(data, 10)}
+            </div>
           </section>
           <footer class="trip-footer">
             <p>${escapeHtml(data.disclaimer || '')}</p>
@@ -350,23 +449,39 @@
   }
 
   function renderPrintableDocument(pkg) {
-    const daysHtml = (pkg.days || []).map(day => `
-      <section class="print-day">
-        <h2>Day ${escapeHtml(day.day)} · ${escapeHtml(day.city || '')}${day.date ? ` · ${escapeHtml(day.date)}` : ''}</h2>
-        ${day.weather ? `<p>${escapeHtml(day.weather)}</p>` : ''}
-        ${day.route ? `<p>${escapeHtml(day.route)}</p>` : ''}
-        <ol>
-          ${(day.items || []).map(item => `
-            <li>
-              <strong>${escapeHtml(item.time || '')} ${escapeHtml(item.title || '')}</strong>
-              <div>${escapeHtml([typeLabel(item.type), item.duration].filter(Boolean).join(' · '))}</div>
-              ${item.desc ? `<div>${escapeHtml(item.desc)}</div>` : ''}
-              ${item.address ? `<div>地址：${escapeHtml(item.address)}</div>` : ''}
-            </li>
-          `).join('')}
-        </ol>
-      </section>
-    `).join('');
+    const daysHtml = (pkg.days || []).map(day => {
+      const summary = dayOverviewLine(day);
+      return `
+        <section class="print-day">
+          <header class="print-day-header">
+            <span class="trip-day-badge" style="--day-color:${escapeHtml(day.color || '#c96442')}">D${escapeHtml(day.day)}</span>
+            <div>
+              <h2>${escapeHtml(day.city || '')}${day.date ? ` · ${escapeHtml(day.date)}` : ''}</h2>
+              <div class="print-day-meta">
+                ${day.weather ? `<span class="trip-weather-chip">${escapeHtml(day.weather)}</span>` : ''}
+                ${summary ? `<span class="trip-day-summary">${escapeHtml(summary)}</span>` : ''}
+              </div>
+            </div>
+          </header>
+          <ol class="print-item-list">
+            ${(day.items || []).map(item => `
+              <li class="print-item">
+                <div class="print-item-head">
+                  <span class="print-item-time">${escapeHtml(item.time || '')}</span>
+                  <span class="trip-type-chip" data-type="${escapeHtml(item.type || 'spot')}">${escapeHtml(typeLabel(item.type))}</span>
+                  <strong>${escapeHtml(item.title || '')}</strong>
+                </div>
+                ${[item.duration, item.extra].filter(Boolean).length
+                  ? `<div class="print-item-desc">${escapeHtml([item.duration, item.extra].filter(Boolean).join(' · '))}</div>`
+                  : ''}
+                ${item.desc ? `<div class="print-item-desc">${escapeHtml(item.desc)}</div>` : ''}
+                ${item.address ? `<div class="print-item-address">地址：${escapeHtml(item.address)}</div>` : ''}
+              </li>
+            `).join('')}
+          </ol>
+        </section>
+      `;
+    }).join('');
 
     const printMap = staticMapBlock(pkg, 'print-static-map png-static-map');
 
@@ -378,9 +493,9 @@
         ${renderTransport(pkg)}
         <section class="print-day">
           <h2>费用与提示</h2>
-          ${budgetBlock(pkg)}
-          ${tipsBlock(pkg, 10)}
-          <p>${escapeHtml(pkg.disclaimer || '')}</p>
+          <div class="trip-side-card">${budgetBlock(pkg)}</div>
+          <div class="trip-side-card" style="margin-top:10px">${tipsBlock(pkg, 10)}</div>
+          <p class="trip-muted" style="margin-top:12px">${escapeHtml(pkg.disclaimer || '')}</p>
         </section>
       </article>
     `;

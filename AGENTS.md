@@ -27,9 +27,10 @@ pip install -r requirements-dev.txt
 # Create local env file
 Copy-Item .env.example .env
 
-# Start dev server
+# Start dev server (Windows one-click: double-click start.bat)
 python server.py
 # http://localhost:8000
+# Or: .\scripts\start.ps1  /  start.bat
 
 # Optional reload server
 python -m uvicorn server:app --reload --host 0.0.0.0 --port 8000
@@ -146,6 +147,7 @@ Browser (static/index.html + no-build static/*.js modules)
 - Preserve the single mutable `state` object and `applyPlan()` as the main hydration path.
 - Preserve boot-time fallback itinerary behavior: the app should be useful before backend generation succeeds.
 - Preserve `fetchJson()` behavior that routes `/api` calls to `http://localhost:8000` when opened via `file://` or a non-8000 port.
+- Prefer opening the app at `http://localhost:8000`. `file://` still rewrites API URLs but browsers send `Origin: null`, which is not in default CORS allowlist and surfaces as a network failure; keep user-facing errors actionable instead of raw `Failed to fetch`.
 - Preserve per-city days: `state.cities[].days` is source of truth; global total days is derived.
 - Preserve the **scrollable three-step wizard shell** (route → preferences → itinerary): sticky summary rail on desktop, page-level scrolling on the main column, and **on-demand map drawer** (not a locked 100vh three-pane workbench). Do not restore pane brief-collapse / `.pane-body` as the primary scroll model.
 - Keep wizard pure helpers in `static/wizard.js` (`window.AeroTravelWizard`) and cover them with `tests/frontend/wizard.test.js` when changing unlock or summary rules.

@@ -123,28 +123,34 @@
         <div class="topbar-menu export-menu" id="exportMenuWrap">
           <button class="btn btn-ghost" id="exportMenuBtn" type="button" aria-haspopup="menu" aria-expanded="false">导出</button>
           <div class="topbar-menu-panel" id="exportMenuPanel" role="menu" hidden>
+            <div class="menu-group-label" role="presentation">客户交付</div>
             <button type="button" role="menuitem" data-action="copy">复制客户行程</button>
-            <button type="button" role="menuitem" data-action="export-image">导出客户长图</button>
-            <button type="button" role="menuitem" data-action="export-overview">导出总览图</button>
-            <button type="button" role="menuitem" data-action="export-pdf">导出 PDF 备份</button>
             <button type="button" role="menuitem" data-action="publish-trip">发布专属行程</button>
             <button type="button" role="menuitem" data-action="preview-trip">预览专属页</button>
-            <button type="button" role="menuitem" data-action="refs-check">参考链接检查</button>
+            <button type="button" role="menuitem" data-action="export-image">导出每日行程图</button>
+            <button type="button" role="menuitem" data-action="export-overview">导出总览图</button>
+            <div class="menu-group-label" role="presentation">备份</div>
+            <button type="button" role="menuitem" data-action="export-pdf">导出 PDF 备份</button>
             <button type="button" role="menuitem" data-action="export-ics">导出日历</button>
+            <div class="menu-group-label" role="presentation">检查</div>
+            <button type="button" role="menuitem" data-action="refs-check">参考链接检查</button>
           </div>
         </div>
         <div class="topbar-menu mobile-more" id="mobileMoreWrap">
           <button class="btn btn-ghost btn-icon topbar-more-btn" id="mobileMoreBtn" type="button" aria-label="更多操作" title="更多操作" aria-haspopup="menu" aria-expanded="false"><span aria-hidden="true">&#8943;</span></button>
           <div class="topbar-menu-panel" id="mobileMorePanel" role="menu" hidden>
             <button type="button" role="menuitem" data-action="saved-trips">我的行程</button>
+            <div class="menu-group-label" role="presentation">客户交付</div>
             <button type="button" role="menuitem" data-action="copy">复制客户行程</button>
-            <button type="button" role="menuitem" data-action="export-image">导出客户长图</button>
-            <button type="button" role="menuitem" data-action="export-overview">导出总览图</button>
-            <button type="button" role="menuitem" data-action="export-pdf">导出 PDF 备份</button>
             <button type="button" role="menuitem" data-action="publish-trip">发布专属行程</button>
             <button type="button" role="menuitem" data-action="preview-trip">预览专属页</button>
-            <button type="button" role="menuitem" data-action="refs-check">参考链接检查</button>
+            <button type="button" role="menuitem" data-action="export-image">导出每日行程图</button>
+            <button type="button" role="menuitem" data-action="export-overview">导出总览图</button>
+            <div class="menu-group-label" role="presentation">备份</div>
+            <button type="button" role="menuitem" data-action="export-pdf">导出 PDF 备份</button>
             <button type="button" role="menuitem" data-action="export-ics">导出日历</button>
+            <div class="menu-group-label" role="presentation">检查</div>
+            <button type="button" role="menuitem" data-action="refs-check">参考链接检查</button>
           </div>
         </div>
       </div>
@@ -200,15 +206,21 @@
                 <button class="is-active" type="button" data-value="itinerary">城市行程</button>
                 <button type="button" data-value="self_drive">自驾路线</button>
               </div>
+              <p class="field-help">城市行程按天排景点与节奏；自驾路线按驾车顺序排点并可重算路网。生成后仍可在结果页切换。</p>
             </div>
 
-            <div class="field" id="selfDriveControls" hidden>
-              <label>自驾设置</label>
+            <div class="field" id="routeShapeField">
+              <label>路线形态</label>
               <div class="segmented" style="--segments: 2" id="routeShapeGroup">
                 <button class="is-active" type="button" data-value="one_way">单程</button>
                 <button type="button" data-value="round_trip">环线</button>
               </div>
-              <div class="segmented" style="--segments: 3; margin-top: var(--space-3);" id="routeStrategyGroup">
+              <p class="field-help">环线会在行程结束时回到起点城市（交通与末日安排会体现回程）。</p>
+            </div>
+
+            <div class="field" id="selfDriveControls" hidden>
+              <label>自驾策略</label>
+              <div class="segmented" style="--segments: 3" id="routeStrategyGroup">
                 <button type="button" data-value="efficient">少开车</button>
                 <button class="is-active" type="button" data-value="balanced">均衡</button>
                 <button type="button" data-value="experience">多体验</button>
@@ -223,11 +235,12 @@
               </div>
 
               <div class="field" data-od-id="days-field">
-                <div class="row-between">
-                  <label for="daysRange">计划天数（由各城市天数自动求和）</label>
+                <label>计划天数</label>
+                <div class="days-summary" id="daysSummary" role="status" aria-live="polite">
                   <strong id="daysValue">3 天</strong>
+                  <span class="field-help" id="daysHelp">由各城市天数自动汇总，不可单独拖动。</span>
                 </div>
-                <input id="daysRange" type="range" min="1" max="15" value="3" disabled style="opacity:0.5;">
+                <input id="daysRange" type="hidden" value="3">
               </div>
             </div>
           </div>
@@ -291,113 +304,135 @@
             <h2 class="pane-title" id="planTitle">北京到西安的 3 天游览计划</h2>
             <p class="pane-subtitle" id="planSummary">上午留给城市核心景点，跨城交通单独成块，预算和贴士在结果区集中处理。</p>
           </div>
-          <div class="wizard-panel-toolbar">
+          <div class="wizard-panel-toolbar" data-od-id="results-toolbar">
             <button class="btn btn-ghost" id="openMapDrawerBtn" type="button">看地图</button>
             <button class="btn btn-ghost" id="refreshTransportBtn" type="button">刷新班次</button>
             <button class="btn btn-ghost" id="regenerateBtn" type="button">重新生成</button>
+            <div class="plan-mode-bar" id="planModeBar" hidden>
+              <div class="segmented" id="planModeGroup" style="--segments:2">
+                <button class="is-active" type="button" data-value="browse">浏览</button>
+                <button type="button" data-value="edit">编辑</button>
+              </div>
+            </div>
           </div>
           <div class="wizard-panel-body">
-            <div class="stack">
+            <div class="stack" id="resultsStack" data-results-mode="browse">
               <div class="stats-strip" data-od-id="summary-metrics">
                 <div class="metric-card"><div class="metric-value" id="metricDays">3</div><div class="metric-label">总天数</div></div>
                 <div class="metric-card"><div class="metric-value" id="metricCities">2</div><div class="metric-label">目的地</div></div>
                 <div class="metric-card"><div class="metric-value" id="metricStops">8</div><div class="metric-label">行程节点</div></div>
               </div>
 
-              <!-- === 可编辑行程工作台 === -->
-                <div class="plan-mode-bar" id="planModeBar" hidden>
-                  <div class="segmented" id="planModeGroup" style="--segments:2">
-                    <button class="is-active" type="button" data-value="browse">浏览</button>
-                    <button type="button" data-value="edit">编辑</button>
-                  </div>
-                </div>
+              <div class="results-layer results-layer-edit" id="resultsEditLayer" hidden>
                 <div class="candidate-diff-panel" id="candidateDiffPanel" hidden></div>
                 <div class="itinerary-editor" id="itineraryEditor" hidden>
-              <aside class="wishlist-panel">
-                <div class="row-between"><h3 class="section-label">城市顺序</h3></div>
-                <div id="cityStopOrder"></div>
-                <div class="row-between"><h3 class="section-label">想去清单</h3><button class="btn btn-icon" id="addWishBtn" type="button" aria-label="添加想去地点">+</button></div>
-                <div id="wishlistList"></div>
-              </aside>
-              <section class="day-editor">
-                <div id="selfDrivePanel" hidden>
-                  <div id="selfDriveSummary"></div>
-                  <div class="row-between" style="margin: var(--space-3) 0;">
-                    <h3 class="section-label">自驾节点</h3>
-                    <button class="btn btn-ghost" id="recalcRouteBtn" type="button">重算道路</button>
-                  </div>
-                  <div id="selfDriveNodeList"></div>
+                  <aside class="wishlist-panel">
+                    <div class="row-between"><h3 class="section-label">城市顺序</h3></div>
+                    <div id="cityStopOrder"></div>
+                    <div class="row-between"><h3 class="section-label">想去清单</h3><button class="btn btn-icon" id="addWishBtn" type="button" aria-label="添加想去地点">+</button></div>
+                    <div id="wishlistList"></div>
+                  </aside>
+                  <section class="day-editor">
+                    <div id="selfDrivePanel" hidden>
+                      <div id="selfDriveSummary"></div>
+                      <div class="row-between" style="margin: var(--space-3) 0;">
+                        <h3 class="section-label">自驾节点</h3>
+                        <button class="btn btn-ghost" id="recalcRouteBtn" type="button">重算道路</button>
+                      </div>
+                      <div id="selfDriveNodeList"></div>
+                    </div>
+                    <div id="draftDayTabs"></div>
+                    <div id="draftNodeList"></div>
+                  </section>
                 </div>
-                <div id="draftDayTabs"></div>
-                <div id="draftNodeList"></div>
+                <div class="draft-action-bar" id="draftActionBar" hidden>
+                  <span id="draftStatus">没有未应用修改</span>
+                  <button class="btn btn-ghost" id="undoDraftBtn" type="button">撤销</button>
+                  <button class="btn btn-ghost" id="redoDraftBtn" type="button">重做</button>
+                  <button class="btn btn-ghost" id="undoAppliedBtn" type="button" hidden>撤销已应用优化</button>
+                  <button class="btn btn-ghost" id="saveDraftBtn" type="button">仅保存</button>
+                  <button class="btn btn-primary" id="optimizeDraftBtn" type="button">智能优化</button>
+                </div>
+              </div>
+
+              <dialog id="constraintDialog" aria-labelledby="constraintDialogTitle">
+                <form id="constraintForm">
+                  <h2 id="constraintDialogTitle">地点约束</h2>
+                  <label class="constraint-dialog-label"><input id="constraintRequired" type="checkbox"> 必去</label>
+                  <label class="constraint-dialog-label"><input id="constraintFixedDay" type="checkbox"> 固定日期</label>
+                  <label class="constraint-dialog-label"><input id="constraintFixedTime" type="checkbox"> 固定时段</label>
+                  <label class="constraint-dialog-label">到达时间 <input id="constraintTime" type="text" placeholder="例如 09:00"></label>
+                  <label class="constraint-dialog-label"><input id="constraintFixedOrder" type="checkbox"> 固定顺序</label>
+                  <div class="dialog-actions">
+                    <button class="btn btn-ghost" id="cancelConstraintBtn" type="button">取消</button>
+                    <button class="btn btn-primary" type="submit">保存约束</button>
+                  </div>
+                </form>
+              </dialog>
+              <dialog id="addPlaceDialog" aria-labelledby="addPlaceDialogTitle">
+                <form id="addPlaceForm">
+                  <h2 id="addPlaceDialogTitle">添加想去地点</h2>
+                  <input id="addPlaceQuery" type="text" placeholder="搜索景点名称或粘贴名称...">
+                  <div class="dialog-actions">
+                    <button class="btn btn-ghost" id="usePlaceNameBtn" type="button">按名称添加</button>
+                    <button class="btn btn-ghost" id="pickPlaceOnMapBtn" type="button">从地图选点</button>
+                  </div>
+                  <div id="addPlaceResults"></div>
+                </form>
+              </dialog>
+
+              <div class="results-layer results-layer-browse" id="resultsBrowseLayer" data-od-id="browse-layer">
+                <div class="day-tabs" id="dayTabs" data-od-id="day-tabs"></div>
+
+                <div class="filter-tabs" id="filterTabs" data-od-id="filter-tabs">
+                  <button class="filter-tab is-active" type="button" data-filter="all">全部</button>
+                  <button class="filter-tab" type="button" data-filter="transport">交通</button>
+                  <button class="filter-tab" type="button" data-filter="experience">景点</button>
+                  <button class="filter-tab" type="button" data-filter="food">美食</button>
+                  <button class="filter-tab" type="button" data-filter="hotel">住宿</button>
+                </div>
+
+                <div class="timeline" id="timelineList" data-od-id="timeline-list"></div>
+
+                <section class="fold-section" id="transportSection" data-od-id="transport-section" data-open="false">
+                  <button class="fold-trigger" id="transportFoldBtn" type="button" aria-expanded="false" aria-controls="transportFoldBody">
+                    <span class="fold-trigger-main">
+                      <span class="section-label">城际交通</span>
+                      <span class="fold-meta" id="transportFoldMeta">默认收起</span>
+                    </span>
+                    <span class="fold-chevron" aria-hidden="true"></span>
+                  </button>
+                  <div class="fold-body" id="transportFoldBody" hidden>
+                    <div class="transport-list" id="transportList" data-od-id="transport-list"></div>
+                  </div>
+                </section>
+              </div>
+
+              <section class="fold-section" id="insightsSection" data-od-id="insights-section" data-open="false">
+                <button class="fold-trigger" id="insightsFoldBtn" type="button" aria-expanded="false" aria-controls="insightsFoldBody">
+                  <span class="fold-trigger-main">
+                    <span class="section-label">费用与贴士</span>
+                    <span class="fold-meta">默认收起 · 点击展开</span>
+                  </span>
+                  <span class="fold-chevron" aria-hidden="true"></span>
+                </button>
+                <div class="fold-body" id="insightsFoldBody" hidden>
+                  <div class="quality-panel" id="qualityPanel" data-status="pass"></div>
+                  <div class="insight-grid" data-od-id="insight-grid">
+                    <div class="insight-card">
+                      <div class="row-between">
+                        <h3 class="section-label">费用估算</h3>
+                        <span class="badge" id="budgetLevelBadge">舒适型</span>
+                      </div>
+                      <div id="budgetList" style="margin-top: var(--space-3);"></div>
+                    </div>
+                    <div class="insight-card">
+                      <h3 class="section-label">出行贴士</h3>
+                      <ul class="tips-list" id="tipsList" style="margin-top: var(--space-3);"></ul>
+                    </div>
+                  </div>
+                </div>
               </section>
-            </div>
-            <div class="draft-action-bar" id="draftActionBar" hidden>
-              <span id="draftStatus">没有未应用修改</span>
-              <button class="btn btn-ghost" id="undoDraftBtn" type="button">撤销</button>
-              <button class="btn btn-ghost" id="redoDraftBtn" type="button">重做</button>
-              <button class="btn btn-ghost" id="undoAppliedBtn" type="button" hidden>撤销已应用优化</button>
-              <button class="btn btn-ghost" id="saveDraftBtn" type="button">仅保存</button>
-              <button class="btn btn-primary" id="optimizeDraftBtn" type="button">智能优化</button>
-            </div>
-
-            <dialog id="constraintDialog" aria-labelledby="constraintDialogTitle">
-              <form id="constraintForm">
-                <h2 id="constraintDialogTitle">地点约束</h2>
-                <label class="constraint-dialog-label"><input id="constraintRequired" type="checkbox"> 必去</label>
-                <label class="constraint-dialog-label"><input id="constraintFixedDay" type="checkbox"> 固定日期</label>
-                <label class="constraint-dialog-label"><input id="constraintFixedTime" type="checkbox"> 固定时段</label>
-                <label class="constraint-dialog-label">到达时间 <input id="constraintTime" type="text" placeholder="例如 09:00"></label>
-                <label class="constraint-dialog-label"><input id="constraintFixedOrder" type="checkbox"> 固定顺序</label>
-                <div class="dialog-actions">
-                  <button class="btn btn-ghost" id="cancelConstraintBtn" type="button">取消</button>
-                  <button class="btn btn-primary" type="submit">保存约束</button>
-                </div>
-              </form>
-            </dialog>
-            <dialog id="addPlaceDialog" aria-labelledby="addPlaceDialogTitle">
-              <form id="addPlaceForm">
-                <h2 id="addPlaceDialogTitle">添加想去地点</h2>
-                <input id="addPlaceQuery" type="text" placeholder="搜索景点名称或粘贴名称...">
-                <div class="dialog-actions">
-                  <button class="btn btn-ghost" id="usePlaceNameBtn" type="button">按名称添加</button>
-                  <button class="btn btn-ghost" id="pickPlaceOnMapBtn" type="button">从地图选点</button>
-                </div>
-                <div id="addPlaceResults"></div>
-              </form>
-            </dialog>
-                          <div class="quality-panel" id="qualityPanel" data-status="pass"></div>
-
-              <div class="day-tabs" id="dayTabs" data-od-id="day-tabs"></div>
-
-              <div class="filter-tabs" id="filterTabs" data-od-id="filter-tabs">
-                <button class="filter-tab is-active" type="button" data-filter="all">全部</button>
-                <button class="filter-tab" type="button" data-filter="transport">交通</button>
-                <button class="filter-tab" type="button" data-filter="experience">景点</button>
-                <button class="filter-tab" type="button" data-filter="food">美食</button>
-                <button class="filter-tab" type="button" data-filter="hotel">住宿</button>
-              </div>
-
-              <div class="timeline" id="timelineList" data-od-id="timeline-list"></div>
-
-              <div class="stack-tight">
-                <h3 class="section-label">城际交通</h3>
-                <div class="transport-list" id="transportList" data-od-id="transport-list"></div>
-              </div>
-
-              <div class="insight-grid" data-od-id="insight-grid">
-                <div class="insight-card">
-                  <div class="row-between">
-                    <h3 class="section-label">费用估算</h3>
-                    <span class="badge" id="budgetLevelBadge">舒适型</span>
-                  </div>
-                  <div id="budgetList" style="margin-top: var(--space-3);"></div>
-                </div>
-                <div class="insight-card">
-                  <h3 class="section-label">出行贴士</h3>
-                  <ul class="tips-list" id="tipsList" style="margin-top: var(--space-3);"></ul>
-                </div>
-              </div>
             </div>
           </div>
           <div class="wizard-panel-actions">

@@ -75,6 +75,7 @@ class AmapStaticMapTests(unittest.TestCase):
         self.assertIn("paths", params)
         self.assertIn("116.4,39.9", params["paths"])
         self.assertIn("116.41,39.91", params["paths"])
+        self.assertTrue(params["paths"].startswith("6,0xC96442,0.9,,:"))
 
     def test_fetch_static_map_without_key_returns_error(self):
         from clients.amap import fetch_static_map

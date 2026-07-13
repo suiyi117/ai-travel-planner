@@ -28,12 +28,13 @@
       if (node.constraints.fixed_day) constraintBadges.push("固定日期");
       if (node.constraints.fixed_time) constraintBadges.push("固定时段");
       if (node.constraints.fixed_order) constraintBadges.push("固定顺序");
+      const lockHint = isLocked ? "已锁定，不可拖拽" : (isSystemNode ? "系统节点不可拖拽" : "拖拽调整顺序");
       return `
-      <article class="draft-node" draggable="${draggable}" data-node-id="${escapeHtml(node.id)}" data-index="${index}">
-        <button class="drag-handle" type="button" aria-label="移动 ${escapeHtml(node.name)}" ${draggable === "false" ? "disabled" : ""}>⠿</button>
+      <article class="draft-node ${draggable === "false" ? "is-locked" : ""}" draggable="${draggable}" data-node-id="${escapeHtml(node.id)}" data-index="${index}" aria-grabbed="false" title="${lockHint}">
+        <button class="drag-handle" type="button" tabindex="-1" aria-hidden="true" ${draggable === "false" ? "disabled" : ""}>⠿</button>
         <div class="draft-node-info">
           <strong>${escapeHtml(node.name)}</strong>
-          <small>${escapeHtml(timeDisplay)}</small>
+          <small>${escapeHtml(timeDisplay)}${draggable === "false" ? " · " + lockHint : " · 可拖拽"}</small>
           ${constraintBadges.length ? `<span class="node-constraint-badges">${constraintBadges.map((b) => `<span class="badge badge-constraint">${b}</span>`).join("")}</span>` : ""}
         </div>
         <div class="draft-node-actions">
@@ -53,9 +54,12 @@
   function renderCityStops(cities, escapeHtml) {
     if (!cities.length) return "";
     return cities.map((city, index) => `
-      <article class="city-order-item" data-city-id="${escapeHtml(city.id)}">
-        <strong>${escapeHtml(city.name)}</strong>
-        <span>${city.days}天 · ${city.transport}</span>
+      <article class="city-order-item" draggable="true" data-city-id="${escapeHtml(city.id)}" data-index="${index}" aria-grabbed="false" title="拖拽调整城市顺序">
+        <span class="city-order-handle" aria-hidden="true">⠿</span>
+        <div class="city-order-info">
+          <strong>${escapeHtml(city.name)}</strong>
+          <span>${city.days}天 · ${escapeHtml(city.transport || "auto")}</span>
+        </div>
         <div class="city-order-actions">
           <button class="btn btn-icon" type="button" data-action="city-up" data-index="${index}" ${index === 0 ? "disabled" : ""} aria-label="${escapeHtml(city.name)} 上移">↑</button>
           <button class="btn btn-icon" type="button" data-action="city-down" data-index="${index}" ${index === cities.length - 1 ? "disabled" : ""} aria-label="${escapeHtml(city.name)} 下移">↓</button>
