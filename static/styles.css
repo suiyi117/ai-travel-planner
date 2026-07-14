@@ -1469,6 +1469,45 @@ p { text-wrap: pretty; }
 
 /* Self-drive editor */
 #selfDriveControls .segmented { margin-top: 0; }
+#selfDriveControls.progressive-field:not([hidden]) {
+  animation: progressive-in 160ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  #selfDriveControls.progressive-field:not([hidden]) {
+    animation: none;
+  }
+}
+@keyframes progressive-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.self-drive-segment-hint {
+  margin-top: calc(var(--space-2) * -1);
+  margin-bottom: var(--space-3);
+}
+.edit-tool-bar {
+  display: grid;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+.edit-tool-bar .segmented {
+  max-width: 100%;
+}
+.edit-tool-hint {
+  margin: 0;
+}
+.text-link {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.text-link:hover {
+  color: var(--accent-hover);
+}
 #selfDrivePanel { margin-bottom: var(--space-4); }
 .route-summary, .route-node-list, .self-drive-empty {
   border: 1px solid var(--border-soft);

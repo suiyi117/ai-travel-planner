@@ -200,31 +200,13 @@
                 <p class="field-help">城市顺序就是旅行顺序。每个城市之间可单独指定高铁、飞机或自驾。</p>
               </div>
 
-              <div class="field">
-              <label>规划模式</label>
-              <div class="segmented" style="--segments: 2" id="planningModeGroup">
-                <button class="is-active" type="button" data-value="itinerary">城市行程</button>
-                <button type="button" data-value="self_drive">自驾路线</button>
-              </div>
-              <p class="field-help">城市行程按天排景点与节奏；自驾路线按驾车顺序排点并可重算路网。生成后仍可在结果页切换。</p>
-            </div>
-
             <div class="field" id="routeShapeField">
-              <label>路线形态</label>
-              <div class="segmented" style="--segments: 2" id="routeShapeGroup">
-                <button class="is-active" type="button" data-value="one_way">单程</button>
-                <button type="button" data-value="round_trip">环线</button>
+              <label id="routeShapeLabel">路线形态</label>
+              <div class="segmented" style="--segments: 2" id="routeShapeGroup" role="radiogroup" aria-labelledby="routeShapeLabel">
+                <button class="is-active" type="button" data-value="one_way" role="radio" aria-checked="true">单程</button>
+                <button type="button" data-value="round_trip" role="radio" aria-checked="false">环线</button>
               </div>
-              <p class="field-help">环线会在行程结束时回到起点城市（交通与末日安排会体现回程）。</p>
-            </div>
-
-            <div class="field" id="selfDriveControls" hidden>
-              <label>自驾策略</label>
-              <div class="segmented" style="--segments: 3" id="routeStrategyGroup">
-                <button type="button" data-value="efficient">少开车</button>
-                <button class="is-active" type="button" data-value="balanced">均衡</button>
-                <button type="button" data-value="experience">多体验</button>
-              </div>
+              <p class="field-help">环线会在行程结束时返回起点；交通段和末日安排会体现回程。</p>
             </div>
 
               <div class="city-list" id="cityList" data-od-id="city-list"></div>
@@ -268,14 +250,25 @@
               </div>
 
               <div class="field" data-od-id="transport-field">
-                <label>默认城际交通</label>
-                <div class="segmented" style="--segments: 4" id="transportGroup">
-                  <button class="is-active" type="button" data-value="auto">智能</button>
-                  <button type="button" data-value="train">高铁</button>
-                  <button type="button" data-value="plane">飞机</button>
-                  <button type="button" data-value="driving">自驾</button>
+                <label id="transportLabel">默认城际交通</label>
+                <div class="segmented" style="--segments: 4" id="transportGroup" role="radiogroup" aria-labelledby="transportLabel">
+                  <button class="is-active" type="button" data-value="auto" role="radio" aria-checked="true">智能推荐</button>
+                  <button type="button" data-value="train" role="radio" aria-checked="false">高铁</button>
+                  <button type="button" data-value="plane" role="radio" aria-checked="false">飞机</button>
+                  <button type="button" data-value="driving" role="radio" aria-checked="false">自驾</button>
                 </div>
               </div>
+
+              <div class="field progressive-field" id="selfDriveControls" hidden>
+                <label id="routeStrategyLabel">自驾偏好</label>
+                <div class="segmented" style="--segments: 3" id="routeStrategyGroup" role="radiogroup" aria-labelledby="routeStrategyLabel">
+                  <button type="button" data-value="efficient" role="radio" aria-checked="false">少开车</button>
+                  <button class="is-active" type="button" data-value="balanced" role="radio" aria-checked="true">均衡</button>
+                  <button type="button" data-value="experience" role="radio" aria-checked="false">多体验</button>
+                </div>
+                <p class="field-help">自驾偏好会影响生成后的路线优化；初始行程仍按天安排。</p>
+              </div>
+              <p class="field-help self-drive-segment-hint" id="selfDriveSegmentHint" hidden>当前包含自驾路段，可在生成后优化途经点和道路顺序。</p>
 
               <div class="field" data-od-id="budget-field">
                 <label>预算档位</label>
@@ -325,6 +318,17 @@
 
               <div class="results-layer results-layer-edit" id="resultsEditLayer" hidden>
                 <div class="candidate-diff-panel" id="candidateDiffPanel" hidden></div>
+                <div class="edit-tool-bar" id="editToolBar" hidden>
+                  <div class="segmented" id="editToolGroup" style="--segments:2" role="radiogroup" aria-label="编辑任务">
+                    <button class="is-active" type="button" data-value="daily" role="radio" aria-checked="true">调整每日安排</button>
+                    <button type="button" data-value="driving" role="radio" aria-checked="false" id="editToolDrivingBtn" hidden>优化自驾路线</button>
+                  </div>
+                  <p class="field-help edit-tool-hint" id="editToolSelfDriveHint" hidden>
+                    <button type="button" class="text-link" id="needSelfDriveLink">需要自驾规划？</button>
+                    可在偏好中将默认交通或某一路段设为自驾。
+                  </p>
+                  <p class="field-help" id="selfDriveBootNote" hidden>已根据当前行程建立自驾节点。你可以调整顺序，再重新计算道路。</p>
+                </div>
                 <div class="itinerary-editor" id="itineraryEditor" hidden>
                   <aside class="wishlist-panel">
                     <div class="row-between"><h3 class="section-label">城市顺序</h3></div>
@@ -337,7 +341,7 @@
                       <div id="selfDriveSummary"></div>
                       <div class="row-between" style="margin: var(--space-3) 0;">
                         <h3 class="section-label">自驾节点</h3>
-                        <button class="btn btn-ghost" id="recalcRouteBtn" type="button">重算道路</button>
+                        <button class="btn btn-ghost" id="recalcRouteBtn" type="button">重新计算道路</button>
                       </div>
                       <div id="selfDriveNodeList"></div>
                     </div>
@@ -469,13 +473,13 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script><!-- pragma: allowlist secret -->
   <script src="app-utils.js?v=productization-20260709"></script>
-  <script src="wizard.js?v=page-redesign-20260711"></script>
-  <script src="state.js?v=merge-master-20260711"></script>
+  <script src="wizard.js?v=self-drive-ia-20260714"></script>
+  <script src="state.js?v=self-drive-ia-20260714"></script>
   <script src="draft.js?v=editable-itinerary-20260710"></script>
   <script src="draft-ops.js?v=editable-itinerary-20260710"></script>
   <script src="history.js?v=editable-itinerary-20260710"></script>
   <script src="editor.js?v=editable-itinerary-20260710"></script>
-  <script src="candidate.js?v=editable-itinerary-20260710"></script>
+  <script src="candidate.js?v=self-drive-ia-20260714"></script>
   <script src="self-drive.js?v=editable-itinerary-20260710"></script>
   <script src="api.js?v=page-redesign-20260711"></script>
   <script src="map.js?v=editable-itinerary-20260711"></script>
@@ -486,6 +490,6 @@
   <script src="trip-nav.js?v=trip-share-20260712"></script>
   <script src="trip-share-render.js?v=trip-share-20260712"></script>
   <script src="trip-publish.js?v=trip-share-20260712"></script>
-  <script src="app.js?v=trip-share-20260712"></script>
+  <script src="app.js?v=self-drive-ia-20260714"></script>
 </body>
 </html>
