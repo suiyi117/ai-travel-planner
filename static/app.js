@@ -77,29 +77,35 @@ const {
     usePlaceNameBtn: document.getElementById('usePlaceNameBtn'),
     pickPlaceOnMapBtn: document.getElementById('pickPlaceOnMapBtn'),
     addPlaceResults: document.getElementById('addPlaceResults'),
-    planningModeGroup: document.getElementById('planningModeGroup'),
     selfDriveControls: document.getElementById('selfDriveControls'),
+    selfDriveSegmentHint: document.getElementById('selfDriveSegmentHint'),
     routeShapeGroup: document.getElementById('routeShapeGroup'),
     routeStrategyGroup: document.getElementById('routeStrategyGroup'),
     selfDrivePanel: document.getElementById('selfDrivePanel'),
     selfDriveSummary: document.getElementById('selfDriveSummary'),
     selfDriveNodeList: document.getElementById('selfDriveNodeList'),
     recalcRouteBtn: document.getElementById('recalcRouteBtn'),
-      wizardSteps: document.getElementById('wizardSteps'),
-      wizardSummaryRoute: document.getElementById('wizardSummaryRoute'),
-      wizardSummaryMeta: document.getElementById('wizardSummaryMeta'),
-      wizardCompactSummary: document.getElementById('wizardCompactSummary'),
-      wizardNextBtn: document.getElementById('wizardNextBtn'),
-      wizardBackBtn: document.getElementById('wizardBackBtn'),
-      wizardEditPrefsBtn: document.getElementById('wizardEditPrefsBtn'),
-      stepRouteNote: document.getElementById('stepRouteNote'),
-      openMapDrawerBtn: document.getElementById('openMapDrawerBtn'),
-      closeMapDrawerBtn: document.getElementById('closeMapDrawerBtn'),
-      mapDrawer: document.getElementById('mapDrawer'),
-      mapDrawerBackdrop: document.getElementById('mapDrawerBackdrop'),
-      mobileMoreBtn: document.getElementById('mobileMoreBtn'),
-      mobileMorePanel: document.getElementById('mobileMorePanel'),
-      mobileMoreWrap: document.getElementById('mobileMoreWrap')
+    editToolBar: document.getElementById('editToolBar'),
+    editToolGroup: document.getElementById('editToolGroup'),
+    editToolDrivingBtn: document.getElementById('editToolDrivingBtn'),
+    editToolSelfDriveHint: document.getElementById('editToolSelfDriveHint'),
+    needSelfDriveLink: document.getElementById('needSelfDriveLink'),
+    selfDriveBootNote: document.getElementById('selfDriveBootNote'),
+    wizardSteps: document.getElementById('wizardSteps'),
+    wizardSummaryRoute: document.getElementById('wizardSummaryRoute'),
+    wizardSummaryMeta: document.getElementById('wizardSummaryMeta'),
+    wizardCompactSummary: document.getElementById('wizardCompactSummary'),
+    wizardNextBtn: document.getElementById('wizardNextBtn'),
+    wizardBackBtn: document.getElementById('wizardBackBtn'),
+    wizardEditPrefsBtn: document.getElementById('wizardEditPrefsBtn'),
+    stepRouteNote: document.getElementById('stepRouteNote'),
+    openMapDrawerBtn: document.getElementById('openMapDrawerBtn'),
+    closeMapDrawerBtn: document.getElementById('closeMapDrawerBtn'),
+    mapDrawer: document.getElementById('mapDrawer'),
+    mapDrawerBackdrop: document.getElementById('mapDrawerBackdrop'),
+    mobileMoreBtn: document.getElementById('mobileMoreBtn'),
+    mobileMorePanel: document.getElementById('mobileMorePanel'),
+    mobileMoreWrap: document.getElementById('mobileMoreWrap')
     };
 
     let map = null;
@@ -324,8 +330,145 @@ let draggedDraftNodeId = null;
     function setActiveByValue(group, value) {
       if (!group) return;
       group.querySelectorAll('button[data-value]').forEach(button => {
-        button.classList.toggle('is-active', button.dataset.value === value);
+        const active = button.dataset.value === value;
+        button.classList.toggle('is-active', active);
+        if (button.getAttribute('role') === 'radio') {
+          button.setAttribute('aria-checked', active ? 'true' : 'false');
+        }
       });
+    }
+
+    function wizardApi() {
+      return window.AeroTravelWizard || {};
+    }
+
+    function selfDriveStateSlice() {
+      return {
+        globalTransport: state.globalTransport,
+        cities: state.cities,
+        workingDraft: state.workingDraft,
+        planningMode: state.planningMode
+      };
+    }
+
+    function derivePlanningModeFromIntent() {
+      const Wizard = wizardApi();
+      if (Wizard.hasSelfDriveIntent?.(selfDriveStateSlice())) {
+        return 'self_drive';
+      }
+      return 'itinerary';
+    }
+
+    function syncSelfDrivePreferenceControls() {
+      const Wizard = wizardApi();
+      const slice = selfDriveStateSlice();
+      const showPrefs = Boolean(Wizard.shouldShowSelfDrivePrefs?.(slice));
+      if (el.selfDriveControls) el.selfDriveControls.hidden = !showPrefs;
+      if (el.selfDriveSegmentHint) {
+        // Segment-only self-drive: compact hint when default transport is not driving
+        // but a city leg is. When default is driving, prefs already cover it.
+        el.selfDriveSegmentHint.hidden = !(
+          !isDrivingDefault()
+          && Array.isArray(state.cities)
+          && state.cities.some(city => Wizard.isDrivingTransport?.(city?.transport))
+        );
+      }
+      setActiveByValue(el.routeShapeGroup, state.routeShape || 'one_way');
+      setActiveByValue(el.routeStrategyGroup, state.routeStrategy || 'balanced');
+      setActiveByValue(el.transportGroup, state.globalTransport || 'auto');
+      // Keep internal planningMode aligned for draft seeding without exposing UI.
+      if (Wizard.hasSelfDriveIntent?.(slice)) {
+        state.planningMode = 'self_drive';
+      } else if (state.planningMode === 'self_drive' && !Wizard.hasSelfDriveRouteData?.(state.workingDraft)) {
+        state.planningMode = 'itinerary';
+      }
+    }
+
+    function isDrivingDefault() {
+      return wizardApi().isDrivingTransport?.(state.globalTransport);
+    }
+
+    function syncEditToolControls() {
+      const Wizard = wizardApi();
+      const showDriving = Boolean(Wizard.shouldShowSelfDriveEditEntry?.(selfDriveStateSlice()));
+      const tool = Wizard.normalizeEditTool?.(state.editTool) || 'daily';
+      state.editTool = tool;
+      if (el.editToolBar) el.editToolBar.hidden = !state.editMode || !state.workingDraft;
+      if (el.editToolDrivingBtn) el.editToolDrivingBtn.hidden = !showDriving;
+      if (el.editToolSelfDriveHint) el.editToolSelfDriveHint.hidden = !state.editMode || showDriving;
+      if (el.editToolGroup) {
+        el.editToolGroup.style.setProperty('--segments', showDriving ? '2' : '1');
+        // When driving entry is hidden, force visual selection to daily.
+        setActiveByValue(el.editToolGroup, showDriving ? tool : 'daily');
+      }
+    }
+
+    function confirmDiscardCandidateIfNeeded() {
+      if (!state.candidatePlan) return true;
+      const leave = window.confirm('当前有未处理的优化候选。切换编辑任务将保留当前草稿，但候选方案会被放弃。是否继续？');
+      if (!leave) return false;
+      state.candidatePlan = null;
+      return true;
+    }
+
+    function openDailyEditTool(options = {}) {
+      if (!state.workingDraft) return;
+      if (!options.skipCandidateGuard && !confirmDiscardCandidateIfNeeded()) return;
+      state.editTool = 'daily';
+      state.editMode = true;
+      // Keep route data; only change UI task. Do not strip self_drive mode if route exists —
+      // PRD: switching tools must not delete route. Daily editor works on days/nodes regardless.
+      setActiveByValue(el.planModeGroup, 'edit');
+      if (el.selfDriveBootNote) el.selfDriveBootNote.hidden = true;
+      syncEditToolControls();
+      renderAll();
+    }
+
+    function openDrivingEditTool(options = {}) {
+      if (!state.workingDraft) return;
+      if (!options.skipCandidateGuard && !confirmDiscardCandidateIfNeeded()) return;
+      const Wizard = wizardApi();
+      if (!Wizard.shouldShowSelfDriveEditEntry?.(selfDriveStateSlice()) && !options.force) {
+        showToast('请先将默认交通或某一路段设为自驾', 'error');
+        return;
+      }
+      state.editTool = 'driving';
+      state.editMode = true;
+      state.planningMode = 'self_drive';
+      const current = state.workingDraft;
+      const hadRoute = Array.isArray(current.route?.ordered_node_ids)
+        && current.route.ordered_node_ids.length;
+      if (!hadRoute) {
+        let next = JSON.parse(JSON.stringify(current));
+        next.route_shape = state.routeShape || next.route_shape || 'one_way';
+        next.strategy = state.routeStrategy || next.strategy || 'balanced';
+        next = ensureSelfDriveDraft(next);
+        next.revision = Number(next.revision || 0) + 1;
+        commitDraft(next);
+        if (el.selfDriveBootNote) el.selfDriveBootNote.hidden = false;
+      } else {
+        // Reuse existing route; only sync strategy/shape into UI state.
+        state.routeShape = current.route_shape || state.routeShape || 'one_way';
+        state.routeStrategy = current.strategy || state.routeStrategy || 'balanced';
+        if (el.selfDriveBootNote) el.selfDriveBootNote.hidden = true;
+      }
+      setActiveByValue(el.planModeGroup, 'edit');
+      syncEditToolControls();
+      renderAll();
+    }
+
+    function setEditTool(tool, options = {}) {
+      const Wizard = wizardApi();
+      const nextTool = Wizard.normalizeEditTool?.(tool) || 'daily';
+      const isChange = Wizard.isEditToolChange
+        ? Wizard.isEditToolChange(state.editTool, nextTool)
+        : state.editTool !== nextTool;
+      if (state.editMode && !isChange) return;
+      if (nextTool === 'driving') {
+        openDrivingEditTool(options);
+      } else {
+        openDailyEditTool(options);
+      }
     }
 
     function restoreTripSnapshot(id) {
@@ -1219,25 +1362,32 @@ let draggedDraftNodeId = null;
         state.draftHistory = null;
         state.editMode = false;
       } else {
-        state.workingDraft = options.draft
-          ? JSON.parse(JSON.stringify(options.draft))
-          : window.AeroTravelDraft.itineraryToDraft(state.itinerary, state.cities, {
-            seed: options.seed || `${plan.title || 'trip'}-${el.departureDate.value}`,
-            startDate: el.departureDate.value,
-            mode: state.planningMode || 'itinerary',
-            routeShape: state.routeShape || 'one_way',
-            strategy: state.routeStrategy || 'balanced'
-          });
-        state.draftHistory = window.AeroTravelHistory.createHistory(state.workingDraft, 50);
-      }
-      state.selectedOptions = { ...selectedOptionsSnapshot };
-      if (state.workingDraft) {
-        state.planningMode = state.workingDraft.mode || 'itinerary';
-        state.routeShape = state.workingDraft.route_shape || state.routeShape || 'one_way';
-        state.routeStrategy = state.workingDraft.strategy || state.routeStrategy || 'balanced';
-      }
-      syncPlanningModeControls();
-      refreshQualityChecks();
+          state.workingDraft = options.draft
+            ? JSON.parse(JSON.stringify(options.draft))
+            : window.AeroTravelDraft.itineraryToDraft(state.itinerary, state.cities, {
+              seed: options.seed || `${plan.title || 'trip'}-${el.departureDate.value}`,
+              startDate: el.departureDate.value,
+              mode: 'itinerary',
+              routeShape: state.routeShape || 'one_way',
+              strategy: state.routeStrategy || 'balanced'
+            });
+          state.draftHistory = window.AeroTravelHistory.createHistory(state.workingDraft, 50);
+        }
+        state.selectedOptions = { ...selectedOptionsSnapshot };
+        if (state.workingDraft) {
+          // Restore internal compatibility fields from draft; do not force self_drive generation.
+          if (state.workingDraft.mode === 'self_drive' || wizardApi().hasSelfDriveRouteData?.(state.workingDraft)) {
+            state.planningMode = 'self_drive';
+            state.editTool = state.editMode && state.editTool === 'driving' ? 'driving' : (state.editTool || 'daily');
+          } else {
+            state.planningMode = derivePlanningModeFromIntent();
+          }
+          state.routeShape = state.workingDraft.route_shape || state.routeShape || 'one_way';
+          state.routeStrategy = state.workingDraft.strategy || state.routeStrategy || 'balanced';
+        }
+        syncSelfDrivePreferenceControls();
+        syncEditToolControls();
+        refreshQualityChecks();
       state.currentDay = 1;
       state.currentFilter = 'all';
       state.activeItemId = mappedDays[0]?.items[0]?.id || null;
@@ -1308,7 +1458,7 @@ let draggedDraftNodeId = null;
 
     function ensureSelfDriveDraft(draft) {
       if (!draft) return draft;
-      if (draft.mode === 'self_drive' && draft.route && Array.isArray(draft.route.ordered_node_ids) && draft.route.ordered_node_ids.length) {
+      if (draft.route && Array.isArray(draft.route.ordered_node_ids) && draft.route.ordered_node_ids.length) {
         return draft;
       }
       return window.AeroTravelSelfDrive.initializeSelfDriveRoute(
@@ -1318,22 +1468,13 @@ let draggedDraftNodeId = null;
       );
     }
 
-    function syncPlanningModeControls() {
-      const mode = state.planningMode || 'itinerary';
-      setActiveByValue(el.planningModeGroup, mode);
-      // Route shape is always available; strategy only for self-drive.
-      if (el.selfDriveControls) el.selfDriveControls.hidden = mode !== 'self_drive';
-      setActiveByValue(el.routeShapeGroup, state.routeShape || 'one_way');
-      setActiveByValue(el.routeStrategyGroup, state.routeStrategy || 'balanced');
-    }
-
     function scheduleDrivingRouteRefresh() {
       window.clearTimeout(state.routeRequestTimer);
       state.routeRequestTimer = window.setTimeout(refreshDrivingRoute, 300);
     }
 
     async function refreshDrivingRoute() {
-      if (!state.workingDraft || state.workingDraft.mode !== 'self_drive') return;
+      if (!state.workingDraft || state.editTool !== 'driving') return;
       state.activeRouteController?.abort();
       const controller = new AbortController();
       state.activeRouteController = controller;
@@ -1626,17 +1767,23 @@ let draggedDraftNodeId = null;
       if (!state.workingDraft || !state.editMode) {
         el.itineraryEditor.hidden = true;
         el.draftActionBar.hidden = true;
+        if (el.editToolBar) el.editToolBar.hidden = true;
         return;
       }
-      syncPlanningModeControls();
-      const isSelfDrive = state.workingDraft.mode === 'self_drive';
+      syncSelfDrivePreferenceControls();
+      syncEditToolControls();
+      const Wizard = wizardApi();
+      const tool = Wizard.normalizeEditTool?.(state.editTool) || 'daily';
+      const showDrivingTool = tool === 'driving'
+        && Boolean(Wizard.shouldShowSelfDriveEditEntry?.(selfDriveStateSlice()));
+      const isSelfDriveView = showDrivingTool;
       const nodeById = new Map(state.workingDraft.nodes.map(node => [node.id, node]));
       const wishlist = state.workingDraft.nodes.filter(node => node.status === 'wishlist' && node.source !== 'system');
       const day = state.workingDraft.days.find(d => d.day === state.currentDay) || state.workingDraft.days[0];
       el.cityStopOrder.innerHTML = window.AeroTravelEditor.renderCityStops(state.workingDraft.city_stops, escapeHtml);
       el.wishlistList.innerHTML = window.AeroTravelEditor.renderWishlist(wishlist, escapeHtml);
-      if (el.selfDrivePanel) el.selfDrivePanel.hidden = !isSelfDrive;
-      if (isSelfDrive) {
+      if (el.selfDrivePanel) el.selfDrivePanel.hidden = !isSelfDriveView;
+      if (isSelfDriveView) {
         if (el.selfDriveSummary) {
           el.selfDriveSummary.innerHTML = window.AeroTravelSelfDrive.renderRouteSummary(
             state.workingDraft.route,
@@ -1652,6 +1799,7 @@ let draggedDraftNodeId = null;
         el.draftDayTabs.innerHTML = '';
         el.draftNodeList.innerHTML = '';
       } else {
+        if (el.selfDriveBootNote) el.selfDriveBootNote.hidden = true;
         renderDraftTabs();
         el.draftNodeList.innerHTML = window.AeroTravelEditor.renderDayNodes(
           (day?.node_ids || []).map(id => nodeById.get(id)).filter(Boolean),
@@ -1729,8 +1877,27 @@ let draggedDraftNodeId = null;
       el.constraintDialog.showModal();
     }
 
+    function syncResultsLayers() {
+      const editLayer = document.getElementById('resultsEditLayer');
+      const browseLayer = document.getElementById('resultsBrowseLayer');
+      const stack = document.getElementById('resultsStack');
+      const editing = Boolean(state.editMode && state.workingDraft);
+      if (editLayer) editLayer.hidden = !editing;
+      if (browseLayer) browseLayer.hidden = editing;
+      if (stack) stack.setAttribute('data-results-mode', editing ? 'edit' : 'browse');
+    }
+
     function renderAll() {
-      renderCities(); if (state.editMode) { renderEditor(); return; }
+      renderCities();
+      syncResultsLayers();
+      if (state.editMode) {
+        renderEditor();
+        renderWizardChrome();
+        if (state.mapDrawerOpen) {
+          try { renderMap(); } catch (_) { /* map not ready */ }
+        }
+        return;
+      }
       renderPlan();
       renderWizardChrome();
       if (state.mapDrawerOpen) {
@@ -1741,9 +1908,11 @@ let draggedDraftNodeId = null;
     function renderPlan() {
       if (!state.itinerary) return;
       el.planModeBar.hidden = !state.workingDraft;
+      syncResultsLayers();
       if (state.editMode) { renderEditor(); return; }
       el.itineraryEditor.hidden = true;
       el.draftActionBar.hidden = true;
+      if (el.editToolBar) el.editToolBar.hidden = true;
       const plan = state.itinerary;
       if (!plan) return;
       refreshQualityChecks();
@@ -1927,7 +2096,8 @@ let draggedDraftNodeId = null;
 
       let points = [];
       if (state.editMode && state.workingDraft) {
-        const draftNodes = state.workingDraft.mode === 'self_drive'
+        const drivingView = state.editTool === 'driving';
+        const draftNodes = drivingView
           ? window.AeroTravelSelfDrive.orderedNodes(state.workingDraft)
           : (() => {
               const day = state.workingDraft.days.find(d => d.day === state.currentDay) || state.workingDraft.days[0];
@@ -2207,7 +2377,7 @@ let draggedDraftNodeId = null;
     }
 
     async function ensureDrivingRouteForExport() {
-      if (!state.workingDraft || state.workingDraft.mode !== 'self_drive') return;
+      if (!state.workingDraft || !wizardApi().hasSelfDriveRouteData?.(state.workingDraft)) return;
       const route = state.workingDraft.route || {};
       const hasPolyline = Array.isArray(route.polyline) && route.polyline.length >= 2;
       const hasSegments = Array.isArray(route.segments) && route.segments.some(
@@ -2491,6 +2661,9 @@ let draggedDraftNodeId = null;
         const planStayInput = event.target.closest('.city-plan-stay-input');
         if (select) {
           state.cities[Number(select.dataset.index)].transport = select.value;
+          state.planningMode = derivePlanningModeFromIntent();
+          syncSelfDrivePreferenceControls();
+          syncEditToolControls();
           renderWizardChrome();
         }
         if (daysSelect) {
@@ -2564,6 +2737,16 @@ let draggedDraftNodeId = null;
             state.pace = getActive(el.paceGroup);
             state.globalTransport = getActive(el.transportGroup);
             state.budget = getActive(el.budgetGroup);
+            if (group === el.transportGroup) {
+              // Prefer progressive self-drive prefs; keep last strategy in session.
+              if (isDrivingDefault()) {
+                state.planningMode = 'self_drive';
+              } else {
+                state.planningMode = derivePlanningModeFromIntent();
+              }
+              syncSelfDrivePreferenceControls();
+              syncEditToolControls();
+            }
             if (group === el.budgetGroup && state.itinerary) {
               renderPlan();
             }
@@ -2687,38 +2870,33 @@ let draggedDraftNodeId = null;
           const button = event.target.closest('[data-value]');
           if (!button) return;
           const mode = button.dataset.value;
-          state.editMode = mode === 'edit';
-          setActiveByValue(el.planModeGroup, mode);
+          if (mode === 'edit') {
+            // Default to daily edit; preserve driving tool if already selected and available.
+            const Wizard = wizardApi();
+            const preferDriving = state.editTool === 'driving'
+              && Wizard.shouldShowSelfDriveEditEntry?.(selfDriveStateSlice());
+            setEditTool(preferDriving ? 'driving' : 'daily', { skipCandidateGuard: true });
+            return;
+          }
+          state.editMode = false;
+          setActiveByValue(el.planModeGroup, 'browse');
+          if (el.editToolBar) el.editToolBar.hidden = true;
           renderAll();
         });
       }
 
-      if (el.planningModeGroup) {
-        el.planningModeGroup.addEventListener('click', event => {
+      if (el.editToolGroup) {
+        el.editToolGroup.addEventListener('click', event => {
           const button = event.target.closest('[data-value]');
-          if (!button) return;
-          const mode = button.dataset.value;
-          state.planningMode = mode;
-          // Allow choosing mode before first generate (no draft yet).
-          if (!state.workingDraft) {
-            if (el.selfDriveControls) el.selfDriveControls.hidden = mode !== 'self_drive';
-            setActiveByValue(el.planningModeGroup, mode);
-            setActiveByValue(el.routeShapeGroup, state.routeShape || 'one_way');
-            updateHeaderMeta();
-            return;
-          }
-          let next = JSON.parse(JSON.stringify(state.workingDraft));
-          if (mode === 'self_drive') {
-            next.route_shape = state.routeShape || next.route_shape || 'one_way';
-            next.strategy = state.routeStrategy || next.strategy || 'balanced';
-            next = ensureSelfDriveDraft(next);
-          } else {
-            next.mode = 'itinerary';
-          }
-          next.revision = Number(next.revision || 0) + 1;
-          commitDraft(next);
-          syncPlanningModeControls();
-          if (mode === 'self_drive') scheduleDrivingRouteRefresh();
+          if (!button || button.hidden) return;
+          setEditTool(button.dataset.value);
+        });
+      }
+
+      if (el.needSelfDriveLink) {
+        el.needSelfDriveLink.addEventListener('click', () => {
+          setWizardStep(2);
+          showToast('将默认交通或某一城际段设为自驾后，即可优化自驾路线');
         });
       }
 
@@ -2736,11 +2914,16 @@ let draggedDraftNodeId = null;
           }
           return;
         }
-        if (state.workingDraft.mode !== 'self_drive') {
-          // Itinerary mode: keep draft shape and refresh browse transport + timeline return.
+        const inDrivingTool = state.editMode
+          && state.editTool === 'driving';
+        if (!inDrivingTool) {
+          // Daily / browse: keep draft shape and refresh browse transport + timeline return.
+          // Do not apply self-drive strategy to ordinary itinerary optimization paths.
           const next = JSON.parse(JSON.stringify(state.workingDraft));
           next.route_shape = state.routeShape || 'one_way';
-          next.strategy = state.routeStrategy || next.strategy || 'balanced';
+          if (next.mode === 'self_drive') {
+            next.strategy = state.routeStrategy || next.strategy || 'balanced';
+          }
           next.revision = Number(next.revision || 0) + 1;
           commitDraft(next);
           if (state.itinerary && window.AeroTravelDraft?.draftToItinerary) {
@@ -2795,7 +2978,8 @@ let draggedDraftNodeId = null;
         state.routeShape = applied.route_shape;
         state.routeStrategy = applied.strategy;
         commitDraft(applied);
-        scheduleDrivingRouteRefresh();
+        // Strategy change alone should not auto-fetch roads (PRD FR-03).
+        if (patch.route_shape) scheduleDrivingRouteRefresh();
         if (state.itinerary && window.AeroTravelDraft?.draftToItinerary) {
           try {
             const itinerary = window.AeroTravelDraft.draftToItinerary(applied, state.itinerary);
@@ -2971,19 +3155,17 @@ let draggedDraftNodeId = null;
         el.optimizeDraftBtn.disabled = true;
         try {
           const currentDay = state.workingDraft.days.find(d => d.day === state.currentDay);
-          const scope = state.workingDraft.mode === 'self_drive'
-            ? { type: 'trip', id: null }
-            : { type: 'day', id: currentDay?.id || null };
+          const optimizationRequest = wizardApi().buildEditToolOptimizationRequest(
+            state.workingDraft,
+            state.editTool,
+            currentDay?.id || null
+          );
           const controller = new AbortController();
           state.activeOptimizationController = controller;
           const data = await fetchJson('/api/plan/optimize', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              base_revision: state.workingDraft.revision,
-              scope,
-              draft: state.workingDraft
-            }),
+            body: JSON.stringify(optimizationRequest),
             signal: controller.signal
           });
           state.candidatePlan = {
@@ -3050,6 +3232,7 @@ let draggedDraftNodeId = null;
     function boot() {
       el.departureDate.value = todayPlus(1);
       renderCities();
+      syncSelfDrivePreferenceControls();
       // Lazy map init: #map lives in a hidden drawer; ensureMap() runs on first open.
       const fallback = buildFallbackItinerary(state.cities.map(city => ({ city: city.name, center: getCenter(city.name), pois: fallbackPois(city.name) })));
       applyPlan(fallback, '已载入可交互示例。修改路线后点击生成即可连接后端规划。', { skipWizardJump: true });

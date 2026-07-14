@@ -74,10 +74,77 @@
     };
   }
 
+  function isDrivingTransport(value) {
+    return String(value || '').trim() === 'driving';
+  }
+
+  function hasSelfDriveRouteData(draft) {
+    if (!draft || typeof draft !== 'object') return false;
+    if (draft.mode === 'self_drive') return true;
+    const ordered = draft.route?.ordered_node_ids;
+    return Array.isArray(ordered) && ordered.length > 0;
+  }
+
+  /**
+   * Derive whether the user has self-drive intent (UI only; not an API field).
+   * auto/智能推荐 alone is never self-drive intent.
+   */
+  function hasSelfDriveIntent(stateLike) {
+    if (!stateLike || typeof stateLike !== 'object') return false;
+    if (isDrivingTransport(stateLike.globalTransport)) return true;
+    const cities = Array.isArray(stateLike.cities) ? stateLike.cities : [];
+    if (cities.some(city => isDrivingTransport(city?.transport))) return true;
+    return hasSelfDriveRouteData(stateLike.workingDraft || stateLike.draft);
+  }
+
+  function shouldShowSelfDrivePrefs(stateLike) {
+    if (!stateLike || typeof stateLike !== 'object') return false;
+    if (isDrivingTransport(stateLike.globalTransport)) return true;
+    const cities = Array.isArray(stateLike.cities) ? stateLike.cities : [];
+    return cities.some(city => isDrivingTransport(city?.transport));
+  }
+
+  function shouldShowSelfDriveEditEntry(stateLike) {
+    return hasSelfDriveIntent(stateLike);
+  }
+
+  function canSwitchEditTool(candidatePlan) {
+    return !candidatePlan;
+  }
+
+  function normalizeEditTool(value) {
+    return value === 'driving' ? 'driving' : 'daily';
+  }
+
+  function isEditToolChange(currentTool, nextTool) {
+    return normalizeEditTool(currentTool) !== normalizeEditTool(nextTool);
+  }
+
+  function buildEditToolOptimizationRequest(draft, editTool, currentDayId) {
+    const tool = normalizeEditTool(editTool);
+    const mode = tool === 'driving' ? 'self_drive' : 'itinerary';
+    return {
+      base_revision: Number(draft?.revision || 0),
+      scope: mode === 'self_drive'
+        ? { type: 'trip', id: null }
+        : { type: 'day', id: currentDayId || null },
+      draft: { ...draft, mode }
+    };
+  }
+
   global.AeroTravelWizard = Object.freeze({
     validateStep1,
     canEnterStep,
     buildSummary,
-    routeLabel
+    routeLabel,
+    isDrivingTransport,
+    hasSelfDriveRouteData,
+    hasSelfDriveIntent,
+    shouldShowSelfDrivePrefs,
+    shouldShowSelfDriveEditEntry,
+    canSwitchEditTool,
+    normalizeEditTool,
+    isEditToolChange,
+    buildEditToolOptimizationRequest
   });
 })(typeof window !== 'undefined' ? window : global);

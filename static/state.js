@@ -38,6 +38,7 @@
       mapDrawerOpen: false,
       mapFocusItemId: null,
       editMode: false,
+      editTool: 'daily',
       workingDraft: null,
       candidatePlan: null,
       draftHistory: null,
