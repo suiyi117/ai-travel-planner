@@ -118,6 +118,13 @@ test('canEnterStep: invalid step is false', () => {
   assert.equal(W.canEnterStep(4, { step1Done: true, hasPlan: true }), false);
 });
 
+test('shouldAnimateStepTransition only animates real step changes', () => {
+  assert.equal(W.shouldAnimateStepTransition(null, 1, false), false);
+  assert.equal(W.shouldAnimateStepTransition(1, 1, false), false);
+  assert.equal(W.shouldAnimateStepTransition(1, 2, false), true);
+  assert.equal(W.shouldAnimateStepTransition(1, 2, true), false);
+});
+
 test('buildSummary lines from state', () => {
   const summary = W.buildSummary({
     cities: [
@@ -143,6 +150,28 @@ test('buildSummary maps transport labels', () => {
   assert.match(W.buildSummary({ cities: [{ name: '北京', days: 1 }], globalTransport: 'train' }).meta, /高铁/);
   assert.match(W.buildSummary({ cities: [{ name: '北京', days: 1 }], globalTransport: 'plane' }).meta, /飞机/);
   assert.match(W.buildSummary({ cities: [{ name: '北京', days: 1 }], globalTransport: 'driving' }).meta, /自驾/);
+});
+
+test('findAddedCityNames returns only cities that were not rendered before', () => {
+  assert.deepEqual(
+    W.findAddedCityNames(['北京', '西安'], [
+      { name: '西安' },
+      { name: '成都' },
+      { name: '北京' }
+    ]),
+    ['成都']
+  );
+});
+
+test('findAddedCityNames ignores blank and duplicate city names', () => {
+  assert.deepEqual(
+    W.findAddedCityNames([], [
+      { name: '  ' },
+      { name: '杭州' },
+      { name: '杭州' }
+    ]),
+    ['杭州']
+  );
 });
 
 test('hasSelfDriveIntent true when default transport is driving', () => {

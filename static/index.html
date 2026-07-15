@@ -103,6 +103,894 @@
   <link rel="stylesheet" href="styles.css?v=page-redesign-20260711">
   <link rel="stylesheet" href="delivery.css?v=project-cleanup-20260711">
   <link rel="stylesheet" href="trip-share.css?v=trip-share-20260712">
+  <style>
+    /* Topbar glass summary: scoped to the two merged summary surfaces. */
+    .topbar-summary {
+      position: relative;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: center;
+      gap: var(--space-2) var(--space-3);
+      flex: 1 1 420px;
+      min-width: 0;
+      max-width: 480px;
+      padding: 10px 16px 11px;
+      border: 1px solid color-mix(in srgb, var(--accent-on) 54%, var(--border-soft));
+      border-radius: var(--radius-lg);
+      background: var(--surface);
+      background: color-mix(in srgb, var(--surface) 72%, transparent);
+      box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--border) 72%, transparent),
+        inset 0 1px 0 color-mix(in srgb, var(--accent-on) 74%, transparent),
+        0 8px 20px rgba(20, 20, 19, 0.06);
+      -webkit-backdrop-filter: blur(18px) saturate(1.2);
+      backdrop-filter: blur(18px) saturate(1.2);
+      transition:
+        box-shadow var(--motion-base) var(--ease-standard),
+        transform var(--motion-base) var(--ease-standard);
+    }
+
+    .topbar-summary::before {
+      content: "";
+      position: absolute;
+      top: 1px;
+      left: 18px;
+      right: 18px;
+      height: 1px;
+      border-radius: var(--radius-pill);
+      background: color-mix(in srgb, var(--accent-on) 80%, transparent);
+      pointer-events: none;
+    }
+
+    .topbar-summary:focus-within {
+      box-shadow: var(--focus-ring), inset 0 1px 0 color-mix(in srgb, var(--accent-on) 74%, transparent), 0 8px 20px rgba(20, 20, 19, 0.06);
+    }
+
+    .topbar-summary-label {
+      align-self: start;
+      padding-top: 2px;
+      color: var(--meta);
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      line-height: 1.3;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .topbar-summary-copy {
+      min-width: 0;
+      display: grid;
+      gap: 2px;
+    }
+
+    .topbar-summary-route,
+    .topbar-summary-meta {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .topbar-summary-route {
+      color: var(--fg);
+      font-family: var(--font-display);
+      font-size: var(--text-base);
+      font-weight: 500;
+      line-height: 1.25;
+    }
+
+    .topbar-summary-meta {
+      color: var(--muted);
+      font-size: var(--text-sm);
+      line-height: 1.35;
+    }
+
+    .topbar-summary #routeMeta[hidden] {
+      display: none;
+    }
+
+    @media (max-width: 900px) {
+      .topbar {
+        flex-wrap: wrap;
+        row-gap: var(--space-3);
+      }
+
+      .topbar-summary {
+        order: 3;
+        flex: 1 0 100%;
+        width: 100%;
+        max-width: none;
+      }
+
+      .wizard-compact-summary {
+        display: none !important;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .topbar-summary {
+        transition: none;
+      }
+    }
+  </style>
+  <style>
+    /* Phase 0: result-page fold controls. Keep the existing IDs, ARIA state,
+       and data-open attributes as the single source of interaction state. */
+    .fold-section {
+      margin-top: var(--space-8);
+      overflow: hidden;
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius-lg);
+      background: color-mix(in oklab, var(--surface), var(--bg) 18%);
+      box-shadow: var(--elev-ring);
+    }
+
+    .fold-trigger {
+      width: 100%;
+      min-height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-4);
+      padding: var(--space-4) var(--space-5);
+      border: 0;
+      border-radius: var(--radius-lg);
+      background: transparent;
+      color: var(--fg);
+      text-align: left;
+      transition:
+        background var(--motion-fast) var(--ease-standard),
+        box-shadow var(--motion-fast) var(--ease-standard);
+    }
+
+    .fold-trigger:hover {
+      background: color-mix(in oklab, var(--surface-warm), var(--surface) 48%);
+    }
+
+    .fold-trigger:focus-visible {
+      outline: none;
+      box-shadow: var(--focus-ring), inset 0 0 0 1px var(--accent);
+    }
+
+    .fold-section[data-open="true"] .fold-trigger {
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+      background: color-mix(in oklab, var(--surface-warm), var(--surface) 58%);
+    }
+
+    .fold-trigger-main {
+      min-width: 0;
+      display: flex;
+      align-items: baseline;
+      gap: var(--space-3);
+    }
+
+    .fold-trigger .section-label {
+      flex: 0 0 auto;
+      color: var(--fg);
+      font-family: var(--font-display);
+      font-size: var(--text-lg);
+      font-weight: 500;
+      line-height: 1.25;
+    }
+
+    .fold-meta {
+      min-width: 0;
+      overflow: hidden;
+      color: var(--muted);
+      font-size: var(--text-sm);
+      line-height: 1.4;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .fold-chevron {
+      flex: 0 0 auto;
+      width: 10px;
+      height: 10px;
+      margin-right: 2px;
+      border-right: 1.5px solid var(--muted);
+      border-bottom: 1.5px solid var(--muted);
+      transform: rotate(45deg) translateY(-2px);
+      transition: transform var(--motion-fast) var(--ease-standard);
+    }
+
+    .fold-section[data-open="true"] .fold-chevron {
+      transform: rotate(225deg) translateY(-1px);
+    }
+
+    .fold-body {
+      padding: 0 var(--space-5) var(--space-5);
+      border-top: 1px solid var(--border);
+    }
+
+    .fold-body > *:first-child {
+      margin-top: var(--space-4);
+    }
+
+    .fold-body[hidden] {
+      display: none;
+    }
+
+    /* Phase 3: move time out of the card's hierarchy and make the card's
+       existing badges read as a compact right-side metadata rail. */
+    .timeline {
+      gap: var(--space-8);
+      padding-left: 88px;
+    }
+
+    .timeline::before {
+      left: 16px;
+      top: 22px;
+      bottom: 22px;
+    }
+
+    .timeline-item {
+      min-width: 0;
+    }
+
+    .timeline-item::before {
+      left: -78px;
+      top: 22px;
+    }
+
+    .timeline-item .item-time {
+      position: absolute;
+      left: -116px;
+      top: 44px;
+      z-index: 1;
+      width: 88px;
+      padding-inline: 4px;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--font-mono);
+      font-size: var(--text-base);
+      font-weight: 700;
+      line-height: 1.25;
+      text-align: center;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+    }
+
+    .itinerary-card {
+      grid-template-columns: minmax(0, 1fr) minmax(112px, 150px);
+      grid-template-areas:
+        "head head"
+        "desc meta"
+        "address meta";
+      align-items: start;
+    }
+
+    .itinerary-card .card-top {
+      grid-area: head;
+    }
+
+    .itinerary-card .item-title {
+      margin-top: 0;
+    }
+
+    .itinerary-card .item-desc {
+      grid-area: desc;
+      min-width: 0;
+      margin: 0;
+    }
+
+    .itinerary-card .poi-meta-line {
+      grid-area: address;
+      min-width: 0;
+      margin-top: 0;
+    }
+
+    .itinerary-card .badge-row {
+      position: relative;
+      grid-area: meta;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      align-content: flex-end;
+      justify-content: flex-start;
+      gap: var(--space-2);
+      padding-left: var(--space-4);
+      border-left: 1px solid var(--border);
+    }
+
+    .itinerary-card .badge-row::before {
+      content: "行程信息";
+      margin-bottom: var(--space-1);
+      color: var(--meta);
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: 0.12px;
+      line-height: 1.3;
+    }
+
+    .itinerary-card .badge-row .badge {
+      max-width: 100%;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 720px) {
+      .fold-trigger-main {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .fold-meta {
+        white-space: normal;
+      }
+
+      .timeline {
+        gap: var(--space-6);
+        padding-left: 68px;
+      }
+
+      .timeline::before {
+        left: 12px;
+      }
+
+      .timeline-item::before {
+        left: -60px;
+        top: 20px;
+      }
+
+      .timeline-item .item-time {
+        left: -91px;
+        top: 42px;
+        width: 78px;
+        font-size: var(--text-sm);
+      }
+
+      .itinerary-card {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas:
+          "head"
+          "desc"
+          "address"
+          "meta";
+        padding: var(--space-4);
+      }
+
+      .itinerary-card .badge-row {
+        align-items: center;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+        padding-top: var(--space-3);
+        padding-left: 0;
+        border-top: 1px solid var(--border);
+        border-left: 0;
+      }
+
+      .itinerary-card .badge-row::before {
+        width: 100%;
+        margin-bottom: 0;
+      }
+
+      .itinerary-card .badge-row .badge {
+        white-space: normal;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .fold-trigger,
+      .fold-chevron {
+        transition: none;
+      }
+    }
+  </style>
+  <style>
+    /* Phase 4: keep editing purposeful and make the draft state legible. */
+    #resultsEditLayer {
+      display: grid;
+      gap: var(--space-4);
+    }
+
+    #resultsEditLayer .edit-tool-bar {
+      display: grid;
+      gap: var(--space-2);
+      padding: var(--space-3) var(--space-4);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius-md);
+      background: color-mix(in oklab, var(--surface-warm), var(--surface) 62%);
+    }
+
+    #resultsEditLayer .itinerary-editor {
+      margin: 0;
+      gap: var(--space-5);
+      align-items: start;
+    }
+
+    #resultsEditLayer .wishlist-panel,
+    #resultsEditLayer .day-editor {
+      min-width: 0;
+      padding: var(--space-4);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: color-mix(in oklab, var(--surface), var(--bg) 14%);
+    }
+
+    #resultsEditLayer .wishlist-panel {
+      position: sticky;
+      top: var(--space-5);
+      max-height: min(64vh, 620px);
+    }
+
+    #resultsEditLayer .day-editor {
+      min-height: 280px;
+    }
+
+    #resultsEditLayer .draft-node {
+      position: relative;
+      min-height: 64px;
+      margin-bottom: var(--space-2);
+      border-radius: var(--radius-md);
+      box-shadow: var(--elev-ring);
+      transition:
+        border-color var(--motion-fast) var(--ease-standard),
+        background var(--motion-fast) var(--ease-standard),
+        box-shadow var(--motion-fast) var(--ease-standard),
+        opacity var(--motion-fast) var(--ease-standard),
+        transform var(--motion-fast) var(--ease-standard);
+    }
+
+    #resultsEditLayer .draft-node[draggable="true"]:hover {
+      border-color: var(--border-soft);
+      box-shadow: 0 0 0 1px var(--border-soft), var(--elev-raised);
+    }
+
+    #resultsEditLayer .draft-node.is-dragging,
+    #resultsEditLayer .draft-node[aria-grabbed="true"] {
+      opacity: 0.58;
+      border-color: var(--accent);
+      background: color-mix(in oklab, var(--surface-warm), var(--surface) 48%);
+      box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent), transparent 68%);
+      transform: scale(0.99);
+    }
+
+    #resultsEditLayer .draft-node.is-drag-over {
+      border-color: var(--accent);
+      background: color-mix(in oklab, var(--surface-warm), var(--surface) 34%);
+      box-shadow: 0 -3px 0 0 var(--accent), var(--elev-raised);
+    }
+
+    #resultsEditLayer .drag-handle {
+      min-width: 36px;
+      min-height: 36px;
+      border-radius: var(--radius-sm);
+    }
+
+    #resultsEditLayer .drag-handle:focus-visible,
+    #resultsEditLayer .draft-node-actions .btn:focus-visible {
+      outline: none;
+      box-shadow: var(--focus-ring);
+    }
+
+    #resultsEditLayer .draft-action-bar {
+      position: sticky;
+      bottom: var(--space-4);
+      z-index: 4;
+      min-height: 56px;
+      margin: 0;
+      padding: var(--space-2) var(--space-3);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius-md);
+      background: color-mix(in oklab, var(--surface-warm), var(--surface) 42%);
+      box-shadow: var(--elev-raised);
+      backdrop-filter: blur(12px);
+    }
+
+    #resultsEditLayer #draftStatus {
+      min-width: 12ch;
+      color: var(--fg-2);
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: 0.03em;
+    }
+
+    #resultsEditLayer #draftStatus.is-updated {
+      color: var(--accent);
+    }
+
+    #candidateDiffPanel:not([hidden]) {
+      position: relative;
+      padding: var(--space-5);
+      border-color: var(--accent);
+      background: color-mix(in oklab, var(--surface), var(--surface-warm) 45%);
+      box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent), transparent 72%), var(--elev-raised);
+    }
+
+    #candidateDiffPanel:not([hidden])::before {
+      content: "优化建议";
+      display: block;
+      margin-bottom: var(--space-2);
+      color: var(--accent);
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      font-weight: 800;
+      letter-spacing: 0.08em;
+    }
+
+    #candidateDiffPanel .candidate-actions {
+      align-items: center;
+      padding-top: var(--space-3);
+      border-top: 1px solid var(--border-soft);
+    }
+
+    /* Phase 5: keep the map as the main canvas and the delivery menu as one
+       grouped entry point instead of adding parallel action rows. */
+    #mapDrawer .map-stop-rail {
+      scroll-snap-type: x proximity;
+    }
+
+    #mapDrawer .map-stop-chip {
+      scroll-snap-align: start;
+    }
+
+    #mapDrawer .map-place-card[data-sheet="expanded"] {
+      border-color: var(--border-soft);
+      box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent), transparent 82%), var(--elev-raised);
+    }
+
+    #exportMenuPanel .menu-group-label {
+      padding: var(--space-2) var(--space-3) var(--space-1);
+      color: var(--meta);
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+    }
+
+    @media (max-width: 900px) {
+      #resultsEditLayer .wishlist-panel {
+        position: static;
+        max-height: none;
+      }
+
+      #resultsEditLayer .draft-action-bar {
+        bottom: var(--space-2);
+      }
+    }
+
+    @media (max-width: 560px) {
+      #resultsEditLayer .draft-action-bar {
+        align-items: stretch;
+      }
+
+      #resultsEditLayer #draftStatus {
+        flex-basis: 100%;
+      }
+
+      #resultsEditLayer .draft-action-bar .btn {
+        flex: 1 1 auto;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      #resultsEditLayer .draft-node,
+      #resultsEditLayer .draft-action-bar {
+        transition: none;
+      }
+    }
+  </style>
+  <style>
+    /* Phase 6: responsive and motion close. Keep the product hierarchy intact
+       while making the compact layouts touch-first instead of merely smaller. */
+    @media (min-width: 901px) and (max-width: 1120px) {
+      .wizard-shell {
+        grid-template-columns: 196px minmax(0, 1fr);
+        gap: var(--space-4);
+        padding-inline: var(--space-5);
+      }
+
+      .wizard-panel-header,
+      .wizard-panel-body {
+        padding-inline: var(--space-6);
+      }
+
+      .wizard-panel-toolbar {
+        padding-inline: var(--space-6);
+      }
+    }
+
+    @media (max-width: 900px) {
+      .wizard-shell {
+        padding-bottom: calc(var(--space-10) + env(safe-area-inset-bottom));
+      }
+
+      .wizard-step {
+        min-height: 56px;
+      }
+
+      .wizard-step:focus-visible {
+        position: relative;
+        z-index: 1;
+      }
+
+      .wizard-panel-toolbar > .btn,
+      .wizard-panel-toolbar .plan-mode-bar {
+        min-height: 44px;
+      }
+
+      .map-place-card[data-sheet="expanded"] {
+        overscroll-behavior: contain;
+      }
+
+      .map-stop-chip:focus-visible,
+      .map-place-toggle:focus-visible,
+      #resultsBrowseLayer .filter-tab:focus-visible {
+        outline: none;
+        box-shadow: var(--focus-ring);
+      }
+    }
+
+    @media (max-width: 560px) {
+      body {
+        overflow-x: hidden;
+      }
+
+      .topbar {
+        gap: var(--space-2);
+        padding: 10px var(--space-3);
+      }
+
+      .brand {
+        min-width: 0;
+        gap: var(--space-2);
+      }
+
+      .brand-mark {
+        width: 32px;
+        height: 32px;
+        flex: 0 0 32px;
+      }
+
+      .brand h1 {
+        overflow: hidden;
+        font-size: var(--text-base);
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .brand p {
+        display: none;
+      }
+
+      .topbar-actions {
+        gap: var(--space-1);
+      }
+
+      .topbar-summary {
+        gap: var(--space-1) var(--space-2);
+        padding: var(--space-2) var(--space-3);
+        border-radius: var(--radius-md);
+      }
+
+      .topbar-summary-label {
+        padding-top: 1px;
+        font-size: 9px;
+      }
+
+      .topbar-summary-route {
+        font-size: var(--text-sm);
+      }
+
+      .topbar-summary-meta {
+        font-size: var(--text-xs);
+      }
+
+      .wizard-shell {
+        gap: var(--space-3);
+        padding: var(--space-3) var(--space-3) calc(72px + env(safe-area-inset-bottom));
+      }
+
+      .wizard-rail {
+        gap: var(--space-2);
+      }
+
+      .wizard-steps {
+        gap: var(--space-1);
+      }
+
+      .wizard-step {
+        min-height: 52px;
+        gap: var(--space-1);
+        padding: var(--space-2) var(--space-1);
+        border-radius: var(--radius-sm);
+      }
+
+      .wizard-step-index {
+        width: 24px;
+        height: 24px;
+      }
+
+      .wizard-step-label {
+        font-size: var(--text-xs);
+        white-space: nowrap;
+      }
+
+      .wizard-panel {
+        border-radius: var(--radius-md);
+      }
+
+      .wizard-panel-header {
+        padding: var(--space-5) var(--space-3) var(--space-4);
+      }
+
+      .wizard-panel-body {
+        padding: var(--space-3);
+      }
+
+      .wizard-panel-toolbar {
+        gap: var(--space-2);
+        padding: var(--space-2) var(--space-3);
+      }
+
+      .wizard-panel-toolbar > .btn {
+        flex: 1 1 calc(50% - var(--space-1));
+        min-width: 0;
+        padding-inline: var(--space-2);
+        white-space: nowrap;
+      }
+
+      .wizard-panel-toolbar .plan-mode-bar {
+        flex: 1 1 100%;
+        width: 100%;
+        padding: 0;
+      }
+
+      .wizard-panel-toolbar .plan-mode-bar .segmented {
+        width: 100%;
+      }
+
+      .wizard-panel-actions {
+        gap: var(--space-2);
+        padding: var(--space-3);
+      }
+
+      .stats-strip {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: var(--space-1);
+      }
+
+      .metric-card {
+        min-width: 0;
+        padding: var(--space-2) var(--space-1);
+      }
+
+      .metric-value {
+        font-size: var(--text-lg);
+      }
+
+      #resultsBrowseLayer .filter-tabs {
+        gap: var(--space-1);
+        margin-inline: calc(var(--space-3) * -1);
+        padding-inline: var(--space-3);
+        overflow-x: auto;
+        scrollbar-width: none;
+      }
+
+      #resultsBrowseLayer .filter-tabs::-webkit-scrollbar {
+        display: none;
+      }
+
+      #resultsBrowseLayer .filter-tab {
+        flex: 0 0 auto;
+        min-height: 44px;
+        padding-inline: var(--space-3);
+      }
+
+      .timeline {
+        gap: var(--space-6);
+        padding-left: 64px;
+      }
+
+      .timeline::before {
+        left: 11px;
+      }
+
+      .timeline-item::before {
+        left: -56px;
+        top: 20px;
+      }
+
+      .timeline-item .item-time {
+        left: -84px;
+        top: 40px;
+        width: 68px;
+        font-size: var(--text-sm);
+      }
+
+      .fold-trigger {
+        min-height: 56px;
+        gap: var(--space-2);
+        padding: var(--space-3);
+      }
+
+      .fold-trigger .section-label {
+        font-size: var(--text-base);
+      }
+
+      .fold-body {
+        padding-inline: var(--space-3);
+        padding-bottom: var(--space-3);
+      }
+
+      #resultsEditLayer .wishlist-panel,
+      #resultsEditLayer .day-editor {
+        padding: var(--space-3);
+      }
+
+      #resultsEditLayer .draft-action-bar {
+        bottom: calc(var(--space-2) + env(safe-area-inset-bottom));
+        gap: var(--space-1);
+        padding: var(--space-2);
+      }
+
+      #resultsEditLayer .draft-action-bar .btn {
+        min-height: 44px;
+        padding-inline: var(--space-2);
+      }
+
+      .map-drawer-panel .map-toolbar {
+        min-height: 56px;
+      }
+
+      .map-drawer-panel .map-toolbar strong {
+        display: block;
+        max-width: 42vw;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .map-place-card {
+        max-height: 176px;
+        padding: var(--space-3);
+      }
+
+      .map-place-card[data-sheet="expanded"] {
+        max-height: min(58dvh, 480px);
+      }
+
+      .map-stop-rail {
+        scroll-padding-inline: var(--space-3);
+        scroll-snap-type: x proximity;
+      }
+
+      .map-stop-chip {
+        flex-basis: min(72vw, 260px);
+        min-height: 52px;
+        scroll-snap-align: start;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html {
+        scroll-behavior: auto !important;
+      }
+
+      .topbar-summary,
+      .fold-trigger,
+      .fold-chevron,
+      .timeline-item,
+      .map-place-card,
+      .map-stop-rail,
+      .map-stop-chip,
+      #resultsEditLayer .draft-node,
+      #resultsEditLayer .draft-action-bar,
+      #resultsEditLayer .draft-status {
+        transition: none !important;
+        animation: none !important;
+      }
+
+      .map-stop-rail {
+        scroll-snap-type: none;
+      }
+    }
+  </style>
 </head>
 <body data-wizard-step="1">
   <div class="app">
@@ -116,7 +1004,14 @@
           <p>多城市智能旅行规划工作台</p>
         </div>
       </div>
-      <p class="topbar-meta" id="routeMeta">北京 → 西安 · 3 天 · 舒适型</p>
+      <div class="topbar-summary" id="topbarSummary" data-od-id="topbar-summary" aria-label="当前行程摘要">
+        <div class="topbar-summary-label">当前行程</div>
+        <div class="topbar-summary-copy">
+          <div class="topbar-summary-route" id="wizardSummaryRoute">北京 → 西安</div>
+          <div class="topbar-summary-meta" id="wizardSummaryMeta">3 天 · 舒适型 · 适中均衡 · 智能交通</div>
+        </div>
+        <p class="topbar-meta" id="routeMeta" hidden>北京 → 西安 · 3 天 · 舒适型</p>
+      </div>
       <div class="topbar-actions">
         <button class="btn btn-ghost" id="savedTripsBtn" type="button">我的行程</button>
         <div id="savedTripsPanel" class="snapshot-dropdown" hidden></div>
@@ -172,15 +1067,13 @@
             <span class="wizard-step-label">行程</span>
           </button>
         </nav>
-        <div class="wizard-summary" id="wizardSummary">
-          <div class="wizard-summary-label">当前摘要</div>
-          <div class="wizard-summary-route" id="wizardSummaryRoute"></div>
-          <div class="wizard-summary-meta" id="wizardSummaryMeta"></div>
-        </div>
       </aside>
 
       <div class="wizard-main" id="wizardMain">
-        <p class="wizard-compact-summary" id="wizardCompactSummary"></p>
+        <div class="wizard-compact-summary" id="wizardCompactSummary" data-od-id="path-0-1-1-0" hidden>
+          <div class="wizard-compact-summary-route" id="wizardCompactRoute"></div>
+          <div class="wizard-compact-summary-meta" id="wizardCompactMeta"></div>
+        </div>
         <div class="status-note" id="statusNote" data-od-id="status-note">已载入示例路线。完成路线与偏好后即可生成规划。</div>
 
         <section class="wizard-panel" id="stepRoute" data-step-panel="1" aria-label="路线设置">
@@ -350,7 +1243,7 @@
                   </section>
                 </div>
                 <div class="draft-action-bar" id="draftActionBar" hidden>
-                  <span id="draftStatus">没有未应用修改</span>
+                  <span id="draftStatus" aria-live="polite">没有未应用修改</span>
                   <button class="btn btn-ghost" id="undoDraftBtn" type="button">撤销</button>
                   <button class="btn btn-ghost" id="redoDraftBtn" type="button">重做</button>
                   <button class="btn btn-ghost" id="undoAppliedBtn" type="button" hidden>撤销已应用优化</button>
@@ -382,6 +1275,18 @@
                     <button class="btn btn-ghost" id="pickPlaceOnMapBtn" type="button">从地图选点</button>
                   </div>
                   <div id="addPlaceResults"></div>
+                </form>
+              </dialog>
+              <dialog id="moveDayDialog" aria-labelledby="moveDayDialogTitle">
+                <form id="moveDayForm">
+                  <h2 id="moveDayDialogTitle">移动到其他日期</h2>
+                  <p class="field-help">保留当前地点信息，并把它放入目标日期的末尾。</p>
+                  <label class="constraint-dialog-label" for="moveDaySelect">目标日期</label>
+                  <select id="moveDaySelect" required></select>
+                  <div class="dialog-actions">
+                    <button class="btn btn-ghost" id="cancelMoveDayBtn" type="button">取消</button>
+                    <button class="btn btn-primary" id="confirmMoveDayBtn" type="submit">确认移动</button>
+                  </div>
                 </form>
               </dialog>
 
@@ -448,8 +1353,8 @@
 
     <div class="map-drawer" id="mapDrawer" hidden aria-hidden="true">
       <div class="map-drawer-backdrop" id="mapDrawerBackdrop"></div>
-      <div class="map-drawer-panel" role="dialog" aria-modal="true" aria-label="地图上下文">
-        <div class="map-toolbar">
+      <div class="map-drawer-panel" role="dialog" aria-modal="true" aria-label="地图上下文" data-od-id="map-workspace">
+        <div class="map-toolbar" data-od-id="map-toolbar">
           <div>
             <div class="pane-kicker" style="margin-bottom: var(--space-1);">Map</div>
             <strong id="mapTitle">Day 1 · 北京</strong>
@@ -459,14 +1364,23 @@
             <button class="btn btn-ghost" id="closeMapDrawerBtn" type="button" aria-label="关闭地图">关闭</button>
           </div>
         </div>
-        <div class="map-shell">
-          <div id="map" data-od-id="leaflet-map"></div>
-          <div class="map-empty" id="mapEmpty">地图资源暂不可用，但行程卡片仍可正常评审。</div>
+        <div class="map-workspace">
+          <div class="map-shell" data-od-id="map-canvas">
+            <div id="map" data-od-id="leaflet-map"></div>
+            <div class="map-empty" id="mapEmpty">地图资源暂不可用，但行程卡片仍可正常评审。</div>
+          </div>
+          <section class="map-place-card" id="placeDetail" data-od-id="place-detail" data-sheet="peek" aria-live="polite">
+            <div class="map-place-card-head">
+              <div>
+                <div class="map-place-kicker">当前地点</div>
+                <h2>故宫博物院</h2>
+              </div>
+              <button class="map-place-toggle" type="button" data-map-action="toggle-sheet" aria-expanded="false">展开详情</button>
+            </div>
+            <p>点击日程卡片或地图标记后，这里会显示当前地点的时间、类型和游玩建议。</p>
+          </section>
+          <nav class="map-stop-rail" id="mapStopRail" aria-label="当日行程节点"></nav>
         </div>
-        <aside class="place-detail" id="placeDetail" data-od-id="place-detail">
-          <h3>故宫博物院</h3>
-          <p>点击日程卡片或地图标记后，这里会显示当前地点的时间、类型和游玩建议。</p>
-        </aside>
       </div>
     </div>
   </div>
@@ -491,5 +1405,164 @@
   <script src="trip-share-render.js?v=trip-share-20260712"></script>
   <script src="trip-publish.js?v=trip-share-20260712"></script>
   <script src="app.js?v=self-drive-ia-20260714"></script>
+  <script>
+    // Keep fold behavior local to this page so existing app modules and
+    // their selectors remain untouched.
+    (() => {
+      const setFoldOpen = (section, isOpen) => {
+        if (!section) return;
+        const trigger = section.querySelector('.fold-trigger');
+        const body = section.querySelector('.fold-body');
+        if (!trigger || !body) return;
+        section.dataset.open = String(isOpen);
+        trigger.setAttribute('aria-expanded', String(isOpen));
+        body.hidden = !isOpen;
+      };
+
+      document.querySelectorAll('.fold-section').forEach(section => {
+        const trigger = section.querySelector('.fold-trigger');
+        if (!trigger) return;
+        const isOpen = section.dataset.open === 'true' || trigger.getAttribute('aria-expanded') === 'true';
+        setFoldOpen(section, isOpen);
+        trigger.addEventListener('click', () => setFoldOpen(section, section.dataset.open !== 'true'));
+      });
+
+      const transportSection = document.getElementById('transportSection');
+      const filterTabs = document.getElementById('filterTabs');
+      if (filterTabs && transportSection) {
+        filterTabs.addEventListener('click', event => {
+          const filterButton = event.target.closest('[data-filter]');
+          if (!filterButton) return;
+          setFoldOpen(transportSection, filterButton.dataset.filter === 'transport');
+        });
+      }
+    })();
+  </script>
+  <script>
+    // Phase 4–5 interaction polish. These handlers only add presentation
+    // state around the existing editor/map actions; draft mutations remain
+    // owned by app.js and the existing draft modules.
+    (() => {
+      const draftList = document.getElementById('draftNodeList');
+      const moveDialog = document.getElementById('moveDayDialog');
+      const moveForm = document.getElementById('moveDayForm');
+      const moveSelect = document.getElementById('moveDaySelect');
+      const cancelMoveDayBtn = document.getElementById('cancelMoveDayBtn');
+      const draftStatus = document.getElementById('draftStatus');
+      const candidatePanel = document.getElementById('candidateDiffPanel');
+      let pendingMoveButton = null;
+      let replayingMove = false;
+
+      const closeMoveDialog = () => {
+        pendingMoveButton = null;
+        if (moveDialog?.open) moveDialog.close();
+      };
+
+      const syncMoveDayOptions = () => {
+        if (!moveSelect) return;
+        const buttons = Array.from(document.querySelectorAll('#draftDayTabs [data-draft-day]'));
+        const current = buttons.find(button => button.classList.contains('is-active'))?.dataset.draftDay;
+        const options = buttons.filter(button => button.dataset.draftDay !== current);
+        moveSelect.replaceChildren();
+        if (options.length) {
+          options.forEach(button => {
+            const day = button.dataset.draftDay || '';
+            const city = button.querySelector('small')?.textContent?.trim() || '';
+            const option = document.createElement('option');
+            option.value = day;
+            option.textContent = `第 ${day} 天${city ? ` · ${city}` : ''}`;
+            moveSelect.append(option);
+          });
+        } else {
+          const emptyOption = document.createElement('option');
+          emptyOption.value = '';
+          emptyOption.textContent = '暂无其他日期';
+          moveSelect.append(emptyOption);
+        }
+        moveSelect.disabled = !options.length;
+        const confirmButton = document.getElementById('confirmMoveDayBtn');
+        if (confirmButton) confirmButton.disabled = !options.length;
+      };
+
+      if (draftList && moveDialog && moveForm && moveSelect) {
+        draftList.addEventListener('click', event => {
+          if (replayingMove) return;
+          const button = event.target.closest('[data-action="move-day"]');
+          if (!button || button.disabled) return;
+          event.preventDefault();
+          event.stopPropagation();
+          pendingMoveButton = button;
+          syncMoveDayOptions();
+          if (moveDialog.showModal) moveDialog.showModal();
+          moveSelect.focus();
+        }, true);
+
+        moveForm.addEventListener('submit', event => {
+          event.preventDefault();
+          if (!pendingMoveButton || !moveSelect.value) return;
+          const button = pendingMoveButton;
+          replayingMove = true;
+          const nativePrompt = window.prompt;
+          window.prompt = () => moveSelect.value;
+          try {
+            button.click();
+          } finally {
+            window.prompt = nativePrompt;
+            replayingMove = false;
+            closeMoveDialog();
+          }
+        });
+
+        cancelMoveDayBtn?.addEventListener('click', closeMoveDialog);
+        moveDialog.addEventListener('cancel', closeMoveDialog);
+      }
+
+      const clearDragState = () => {
+        draftList?.querySelectorAll('.draft-node').forEach(node => {
+          node.classList.remove('is-dragging', 'is-drag-over');
+          node.setAttribute('aria-grabbed', 'false');
+        });
+      };
+
+      if (draftList) {
+        draftList.addEventListener('dragstart', event => {
+          const node = event.target.closest('.draft-node[draggable="true"]');
+          if (!node) return;
+          clearDragState();
+          node.classList.add('is-dragging');
+          node.setAttribute('aria-grabbed', 'true');
+        }, true);
+        draftList.addEventListener('dragover', event => {
+          const target = event.target.closest('.draft-node');
+          draftList.querySelectorAll('.draft-node.is-drag-over').forEach(node => {
+            if (node !== target) node.classList.remove('is-drag-over');
+          });
+          if (target) target.classList.add('is-drag-over');
+        }, true);
+        draftList.addEventListener('drop', () => window.setTimeout(clearDragState, 0), true);
+        draftList.addEventListener('dragend', clearDragState, true);
+      }
+
+      if (draftStatus) {
+        let lastStatus = draftStatus.textContent;
+        const statusObserver = new MutationObserver(() => {
+          const nextStatus = draftStatus.textContent;
+          if (nextStatus === lastStatus) return;
+          lastStatus = nextStatus;
+          draftStatus.classList.add('is-updated');
+          window.setTimeout(() => draftStatus.classList.remove('is-updated'), 900);
+        });
+        statusObserver.observe(draftStatus, { childList: true, characterData: true, subtree: true });
+      }
+
+      if (candidatePanel) {
+        const candidateObserver = new MutationObserver(() => {
+          candidatePanel.dataset.open = String(!candidatePanel.hidden);
+        });
+        candidateObserver.observe(candidatePanel, { attributes: true, attributeFilter: ['hidden'] });
+        candidatePanel.dataset.open = String(!candidatePanel.hidden);
+      }
+    })();
+  </script>
 </body>
 </html>
