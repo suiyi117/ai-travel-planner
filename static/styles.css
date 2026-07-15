@@ -175,15 +175,26 @@ p { text-wrap: pretty; }
 #stepRoute .pane-kicker,
 #stepPrefs .pane-kicker {
   margin-bottom: 6px;
+  color: var(--accent);
   font-size: 11px;
+  font-weight: 700;
   letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+#stepRoute .pane-title,
+#stepPrefs .pane-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.02em;
 }
 
 #stepRoute .pane-subtitle,
 #stepPrefs .pane-subtitle {
   margin-top: 8px;
-  font-size: 13px;
   max-width: 46ch;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .days-summary {
@@ -194,7 +205,7 @@ p { text-wrap: pretty; }
   min-height: 36px;
   padding: 8px 12px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--surface-warm);
 }
 
@@ -411,15 +422,16 @@ p { text-wrap: pretty; }
 }
 
 .city-card {
+  position: relative;
   display: grid;
   grid-template-columns: 28px minmax(0, 1fr);
   gap: 10px;
   align-items: start;
-  padding: 10px 12px;
+  padding: 12px 12px 12px 14px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--surface);
-  box-shadow: none;
+  box-shadow: var(--elev-ring);
   transition:
     border-color var(--motion-fast) var(--ease-standard),
     box-shadow var(--motion-fast) var(--ease-standard),
@@ -428,9 +440,22 @@ p { text-wrap: pretty; }
   cursor: grab;
 }
 
+/* Left accent rail — order cue without admin density */
+.city-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 4px;
+  border-radius: 0 2px 2px 0;
+  background: color-mix(in oklab, var(--accent), var(--border) 40%);
+  pointer-events: none;
+}
+
 .city-card:hover {
-  border-color: color-mix(in oklab, var(--border), var(--fg) 18%);
-  box-shadow: none;
+  border-color: color-mix(in oklab, var(--border), var(--fg) 14%);
+  box-shadow: var(--elev-ring), var(--elev-raised);
 }
 
 .city-card:hover .city-actions {
@@ -505,7 +530,7 @@ p { text-wrap: pretty; }
   color: var(--fg);
   font-family: var(--font-body);
   font-weight: 700;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.25;
   letter-spacing: -0.015em;
 }
@@ -513,7 +538,7 @@ p { text-wrap: pretty; }
 .city-meta {
   color: var(--meta);
   font-size: 11px;
-  margin-top: 1px;
+  margin-top: 2px;
   line-height: 1.3;
 }
 
@@ -522,7 +547,7 @@ p { text-wrap: pretty; }
   gap: 0;
   align-items: center;
   flex-shrink: 0;
-  opacity: 1;
+  opacity: 0.72;
   transition: opacity var(--motion-fast) var(--ease-standard);
 }
 
@@ -540,16 +565,22 @@ p { text-wrap: pretty; }
   line-height: 1;
   cursor: grab;
   user-select: none;
-  opacity: 0.65;
+  opacity: 0.28;
+  transition:
+    opacity var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard),
+    background var(--motion-fast) var(--ease-standard);
 }
 
 .city-card:hover .city-drag-handle {
+  opacity: 0.9;
   color: var(--muted);
   background: color-mix(in oklab, var(--surface-warm), transparent 40%);
 }
 
 .city-card.is-dragging .city-drag-handle {
   cursor: grabbing;
+  opacity: 1;
 }
 
 .city-actions .btn,
@@ -577,13 +608,14 @@ p { text-wrap: pretty; }
   background: color-mix(in oklab, var(--danger), transparent 92%);
 }
 
+/* Secondary row: days / transport / plan-stay — product density under name */
 .city-controls {
   display: flex;
   gap: 6px;
   align-items: center;
   flex-wrap: wrap;
-  padding-top: 0;
-  border-top: 0;
+  padding-top: 8px;
+  border-top: 1px solid color-mix(in oklab, var(--border), transparent 35%);
 }
 
 .city-days-label,
@@ -593,7 +625,7 @@ p { text-wrap: pretty; }
   gap: 4px;
   min-height: 28px;
   padding: 0 8px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--surface-warm);
   box-shadow: inset 0 0 0 1px var(--border);
   font-size: 12px;
@@ -627,7 +659,7 @@ p { text-wrap: pretty; }
   gap: 5px;
   min-height: 28px;
   padding: 0 8px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--surface-warm);
   box-shadow: inset 0 0 0 1px var(--border);
   font-size: 12px;
@@ -650,7 +682,7 @@ p { text-wrap: pretty; }
 
 @media (max-width: 640px) {
   .city-card {
-    padding: var(--space-4);
+    padding: var(--space-4) var(--space-4) var(--space-4) calc(var(--space-4) + 2px);
     gap: var(--space-3);
   }
 
@@ -661,6 +693,10 @@ p { text-wrap: pretty; }
   .city-actions {
     opacity: 1;
     margin-left: auto;
+  }
+
+  .city-drag-handle {
+    opacity: 0.55;
   }
 
   .city-name {
@@ -2448,6 +2484,19 @@ body[data-wizard-step="2"] .wizard-panel-body {
 body[data-wizard-step="1"] .wizard-panel-actions,
 body[data-wizard-step="2"] .wizard-panel-actions {
   padding: 14px 24px 18px;
+  gap: 10px;
+}
+
+/* Step footer: one terracotta primary; secondary stays outlined ivory / ghost */
+#stepRoute .wizard-panel-actions .btn-primary,
+#stepPrefs .wizard-panel-actions .btn-primary {
+  min-width: 132px;
+}
+
+#stepRoute .wizard-panel-actions .btn:not(.btn-primary),
+#stepPrefs .wizard-panel-actions .btn:not(.btn-primary) {
+  background: var(--surface);
+  color: var(--fg-2);
 }
 
 /* Keep edit hint inside panel actions area, not floating under the card */
@@ -2458,6 +2507,7 @@ body[data-wizard-step="2"] .wizard-panel-actions {
   color: var(--meta);
 }
 
+/* Secondary CTA next to city input — not terracotta */
 #addCityBtn {
   min-width: 72px;
 }
