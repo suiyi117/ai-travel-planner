@@ -180,7 +180,10 @@
       </aside>
 
       <div class="wizard-main" id="wizardMain">
-        <p class="wizard-compact-summary" id="wizardCompactSummary"></p>
+        <div class="wizard-compact-summary" id="wizardCompactSummary" data-od-id="path-0-1-1-0" hidden>
+          <div class="wizard-compact-summary-route" id="wizardCompactRoute"></div>
+          <div class="wizard-compact-summary-meta" id="wizardCompactMeta"></div>
+        </div>
         <div class="status-note" id="statusNote" data-od-id="status-note">已载入示例路线。完成路线与偏好后即可生成规划。</div>
 
         <section class="wizard-panel" id="stepRoute" data-step-panel="1" aria-label="路线设置">
@@ -448,8 +451,8 @@
 
     <div class="map-drawer" id="mapDrawer" hidden aria-hidden="true">
       <div class="map-drawer-backdrop" id="mapDrawerBackdrop"></div>
-      <div class="map-drawer-panel" role="dialog" aria-modal="true" aria-label="地图上下文">
-        <div class="map-toolbar">
+      <div class="map-drawer-panel" role="dialog" aria-modal="true" aria-label="地图上下文" data-od-id="map-workspace">
+        <div class="map-toolbar" data-od-id="map-toolbar">
           <div>
             <div class="pane-kicker" style="margin-bottom: var(--space-1);">Map</div>
             <strong id="mapTitle">Day 1 · 北京</strong>
@@ -459,14 +462,23 @@
             <button class="btn btn-ghost" id="closeMapDrawerBtn" type="button" aria-label="关闭地图">关闭</button>
           </div>
         </div>
-        <div class="map-shell">
-          <div id="map" data-od-id="leaflet-map"></div>
-          <div class="map-empty" id="mapEmpty">地图资源暂不可用，但行程卡片仍可正常评审。</div>
+        <div class="map-workspace">
+          <div class="map-shell" data-od-id="map-canvas">
+            <div id="map" data-od-id="leaflet-map"></div>
+            <div class="map-empty" id="mapEmpty">地图资源暂不可用，但行程卡片仍可正常评审。</div>
+          </div>
+          <section class="map-place-card" id="placeDetail" data-od-id="place-detail" data-sheet="peek" aria-live="polite">
+            <div class="map-place-card-head">
+              <div>
+                <div class="map-place-kicker">当前地点</div>
+                <h2>故宫博物院</h2>
+              </div>
+              <button class="map-place-toggle" type="button" data-map-action="toggle-sheet" aria-expanded="false">展开详情</button>
+            </div>
+            <p>点击日程卡片或地图标记后，这里会显示当前地点的时间、类型和游玩建议。</p>
+          </section>
+          <nav class="map-stop-rail" id="mapStopRail" aria-label="当日行程节点"></nav>
         </div>
-        <aside class="place-detail" id="placeDetail" data-od-id="place-detail">
-          <h3>故宫博物院</h3>
-          <p>点击日程卡片或地图标记后，这里会显示当前地点的时间、类型和游玩建议。</p>
-        </aside>
       </div>
     </div>
   </div>

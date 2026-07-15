@@ -40,6 +40,7 @@ const {
       mapTitle: document.getElementById('mapTitle'),
       mapEmpty: document.getElementById('mapEmpty'),
       placeDetail: document.getElementById('placeDetail'),
+      mapStopRail: document.getElementById('mapStopRail'),
       fitMapBtn: document.getElementById('fitMapBtn'),
       refreshTransportBtn: document.getElementById('refreshTransportBtn'),
       savedTripsBtn: document.getElementById('savedTripsBtn'),
@@ -95,6 +96,8 @@ const {
     wizardSummaryRoute: document.getElementById('wizardSummaryRoute'),
     wizardSummaryMeta: document.getElementById('wizardSummaryMeta'),
     wizardCompactSummary: document.getElementById('wizardCompactSummary'),
+    wizardCompactRoute: document.getElementById('wizardCompactRoute'),
+    wizardCompactMeta: document.getElementById('wizardCompactMeta'),
     wizardNextBtn: document.getElementById('wizardNextBtn'),
     wizardBackBtn: document.getElementById('wizardBackBtn'),
     wizardEditPrefsBtn: document.getElementById('wizardEditPrefsBtn'),
@@ -112,7 +115,18 @@ const {
     let routeLine = null;
     let markers = [];
     let mapDrawerLastFocus = null;
+    let mapViewMode = 'route';
+    let mapSheetState = 'peek';
     let draggedCityIndex = null;
+    let wizardPanelMotionToken = 0;
+    let wizardPanelMotionTimer = null;
+    let wizardPanelTargetStep = null;
+    let compactSummaryMotionToken = 0;
+    let renderedCityNames = [];
+    let hasRenderedCities = false;
+
+    const WIZARD_PANEL_ENTER_MS = 220;
+    const CITY_CARD_ENTER_MS = 180;
 
     const {
       todayPlus,
@@ -160,13 +174,101 @@ let draggedDraftNodeId = null;
       };
     }
 
+    function prefersReducedMotion() {
+      return typeof window.matchMedia === 'function'
+        && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    }
+
+    function getWizardPanels() {
+      return Array.from(document.querySelectorAll('[data-step-panel]'));
+    }
+
+    function settleWizardPanels(targetPanel) {
+      getWizardPanels().forEach(panel => {
+        panel.hidden = panel !== targetPanel;
+        panel.classList.remove('is-entering', 'is-exiting');
+      });
+    }
+
+    function swapWizardPanel(targetStep) {
+      const panels = getWizardPanels();
+      const targetPanel = panels.find(panel => Number(panel.dataset.stepPanel) === targetStep);
+      if (!targetPanel) return;
+      if (wizardPanelTargetStep === targetStep && !targetPanel.hidden) return;
+
+      if (wizardPanelMotionTimer) {
+        window.clearTimeout(wizardPanelMotionTimer);
+        wizardPanelMotionTimer = null;
+      }
+      const token = ++wizardPanelMotionToken;
+      const visiblePanel = panels.find(panel => (
+        !panel.hidden
+        && !panel.classList.contains('is-exiting')
+        && panel !== targetPanel
+      ));
+      const targetIsExiting = targetPanel.classList.contains('is-exiting');
+      const shouldAnimate = Wizard.shouldAnimateStepTransition(
+        wizardPanelTargetStep,
+        targetStep,
+        prefersReducedMotion()
+      );
+      wizardPanelTargetStep = targetStep;
+
+      if (!visiblePanel || targetIsExiting || !shouldAnimate) {
+        settleWizardPanels(targetPanel);
+        return;
+      }
+
+      panels.forEach(panel => {
+        if (panel !== visiblePanel && panel !== targetPanel) {
+          panel.hidden = true;
+          panel.classList.remove('is-entering', 'is-exiting');
+        }
+      });
+      visiblePanel.classList.remove('is-entering');
+      visiblePanel.classList.add('is-exiting');
+      targetPanel.hidden = false;
+      targetPanel.classList.remove('is-exiting');
+      targetPanel.classList.add('is-entering');
+
+      window.requestAnimationFrame(() => {
+        if (token !== wizardPanelMotionToken) return;
+        targetPanel.classList.remove('is-entering');
+      });
+      wizardPanelMotionTimer = window.setTimeout(() => {
+        if (token !== wizardPanelMotionToken) return;
+        visiblePanel.hidden = true;
+        visiblePanel.classList.remove('is-exiting');
+        targetPanel.classList.remove('is-entering');
+        wizardPanelMotionTimer = null;
+      }, WIZARD_PANEL_ENTER_MS);
+    }
+
+    function syncCompactSummary(hasCompact) {
+      const summary = el.wizardCompactSummary;
+      if (!summary) return;
+      if (!hasCompact) {
+        compactSummaryMotionToken += 1;
+        summary.hidden = true;
+        summary.classList.remove('is-entering');
+        return;
+      }
+      if (!summary.hidden) return;
+
+      const token = ++compactSummaryMotionToken;
+      summary.hidden = false;
+      if (prefersReducedMotion()) return;
+      summary.classList.add('is-entering');
+      window.requestAnimationFrame(() => {
+        if (token !== compactSummaryMotionToken) return;
+        summary.classList.remove('is-entering');
+      });
+    }
+
     function renderWizardChrome() {
       const flags = wizardFlags();
       document.body.dataset.wizardStep = String(state.wizardStep);
-      document.querySelectorAll('[data-step-panel]').forEach(panel => {
-        const step = Number(panel.getAttribute('data-step-panel'));
-        panel.hidden = step !== state.wizardStep;
-      });
+      swapWizardPanel(state.wizardStep);
       document.querySelectorAll('.wizard-step').forEach(btn => {
         const step = Number(btn.dataset.step);
         const allowed = Wizard.canEnterStep(step, flags);
@@ -177,7 +279,12 @@ let draggedDraftNodeId = null;
       const summary = Wizard.buildSummary(state);
       if (el.wizardSummaryRoute) el.wizardSummaryRoute.textContent = summary.route;
       if (el.wizardSummaryMeta) el.wizardSummaryMeta.textContent = summary.meta;
-      if (el.wizardCompactSummary) el.wizardCompactSummary.textContent = `${summary.route} · ${summary.meta}`;
+      if (el.wizardCompactRoute) el.wizardCompactRoute.textContent = summary.route || '';
+      if (el.wizardCompactMeta) el.wizardCompactMeta.textContent = summary.meta || '';
+      if (el.wizardCompactSummary) {
+        const hasCompact = Boolean(summary.route || summary.meta);
+        syncCompactSummary(hasCompact);
+      }
       updateHeaderMeta();
     }
 
@@ -189,7 +296,7 @@ let draggedDraftNodeId = null;
       }
       state.wizardStep = target;
       renderWizardChrome();
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
     }
 
     function goNextFromStep1() {
@@ -215,8 +322,46 @@ let draggedDraftNodeId = null;
       return map;
     }
 
+    function syncMapControls() {
+      const item = activeItem();
+      const hasCoords = Boolean(item && Number(item.lat) && Number(item.lng));
+      const isPlaceView = mapViewMode === 'place' && hasCoords;
+      if (el.fitMapBtn) {
+        el.fitMapBtn.textContent = isPlaceView ? '查看全天路线' : hasCoords ? '聚焦当前地点' : '适配路线';
+        el.fitMapBtn.setAttribute('aria-pressed', String(isPlaceView));
+      }
+    }
+
+    function setMapViewMode(mode) {
+      const item = activeItem();
+      const hasCoords = Boolean(item && Number(item.lat) && Number(item.lng));
+      mapViewMode = mode === 'place' && hasCoords ? 'place' : 'route';
+      syncMapControls();
+      if (!map) return;
+      if (mapViewMode === 'place' && item) {
+        map.flyTo([Number(item.lat), Number(item.lng)], 14, {
+          duration: prefersReducedMotion() ? 0 : 0.45
+        });
+        return;
+      }
+      renderMap();
+    }
+
+    function toggleMapSheet() {
+      mapSheetState = mapSheetState === 'expanded' ? 'peek' : 'expanded';
+      if (!el.placeDetail) return;
+      el.placeDetail.dataset.sheet = mapSheetState;
+      const toggle = el.placeDetail.querySelector('[data-map-action="toggle-sheet"]');
+      if (toggle) {
+        toggle.textContent = mapSheetState === 'expanded' ? '收起详情' : '展开详情';
+        toggle.setAttribute('aria-expanded', String(mapSheetState === 'expanded'));
+      }
+    }
+
     function openMapDrawer(itemId) {
       state.mapDrawerOpen = true;
+      mapViewMode = itemId ? 'place' : 'route';
+      mapSheetState = 'peek';
       if (itemId) {
         state.activeItemId = itemId;
         state.mapFocusItemId = itemId;
@@ -233,6 +378,7 @@ let draggedDraftNodeId = null;
       }
       document.body.classList.add('map-drawer-open');
       ensureMap();
+      syncMapControls();
       renderMap();
       setTimeout(() => {
         if (map) {
@@ -248,6 +394,8 @@ let draggedDraftNodeId = null;
     function closeMapDrawer() {
       state.mapDrawerOpen = false;
       state.mapFocusItemId = null;
+      mapViewMode = 'route';
+      mapSheetState = 'peek';
       if (el.mapDrawer) {
         el.mapDrawer.hidden = true;
         el.mapDrawer.setAttribute('aria-hidden', 'true');
@@ -686,8 +834,12 @@ let draggedDraftNodeId = null;
     }
 
     function renderCities() {
-      el.cityList.innerHTML = '';
       state.cities = state.cities.map((city, index) => normalizeCityEntry(city, index));
+      const previousCityNames = hasRenderedCities ? renderedCityNames : [];
+      const addedCityNames = hasRenderedCities
+        ? Wizard.findAddedCityNames(previousCityNames, state.cities)
+        : [];
+      el.cityList.innerHTML = '';
       state.cities.forEach((city, index) => {
         const cityName = cleanMetaValue(city.name);
         const cityNameHtml = escapeHtml(cityName);
@@ -703,11 +855,21 @@ let draggedDraftNodeId = null;
           ? '<option value="0" selected>过境/出发</option>'
           : [1,2,3,4,5,6,7].map(d => `<option value="${d}" ${city.days === d ? 'selected' : ''}>${d} 天</option>`).join('');
         card.innerHTML = `
-          <div class="city-index">${String(index + 1).padStart(2, '0')}</div>
-          <div class="stack-tight">
-            <div>
-              <div class="city-name">${cityNameHtml}</div>
-              <div class="city-meta">${isOrigin ? (planStay ? '起点 · 安排游玩' : '起点 · 出发/过境') : (planStay ? '从上一站到达' : '过境/不游玩')}</div>
+          <div class="city-card-rail">
+            <span class="city-drag-handle" aria-hidden="true" title="拖拽排序">⋮⋮</span>
+            <div class="city-index">${String(index + 1).padStart(2, '0')}</div>
+          </div>
+          <div class="city-card-body">
+            <div class="city-card-head">
+              <div class="city-title-block">
+                <div class="city-name">${cityNameHtml}</div>
+                <div class="city-meta">${isOrigin ? (planStay ? '起点 · 安排游玩' : '起点 · 出发/过境') : (planStay ? '从上一站到达' : '过境/不游玩')}</div>
+              </div>
+              <div class="city-actions">
+                <button class="btn btn-icon" type="button" data-action="up" data-index="${index}" aria-label="上移 ${cityNameHtml}">↑</button>
+                <button class="btn btn-icon" type="button" data-action="down" data-index="${index}" aria-label="下移 ${cityNameHtml}">↓</button>
+                <button class="btn btn-icon city-remove" type="button" data-action="remove" data-index="${index}" aria-label="移除 ${cityNameHtml}">×</button>
+              </div>
             </div>
             <div class="city-controls">
               <label class="city-plan-stay">
@@ -721,26 +883,29 @@ let draggedDraftNodeId = null;
                 </select>
               </label>
               ${index > 0 ? `
-                <select class="select city-transport" data-index="${index}" aria-label="${cityNameHtml} 到达方式">
-                  <option value="auto">智能推荐</option>
-                  <option value="train">高铁优先</option>
-                  <option value="plane">飞机优先</option>
-                  <option value="driving">自驾优先</option>
-                </select>
+                <label class="city-transport-label">
+                  <span>到达</span>
+                  <select class="select city-transport" data-index="${index}" aria-label="${cityNameHtml} 到达方式">
+                    <option value="auto">智能推荐</option>
+                    <option value="train">高铁优先</option>
+                    <option value="plane">飞机优先</option>
+                    <option value="driving">自驾优先</option>
+                  </select>
+                </label>
               ` : ''}
             </div>
           </div>
-          <div class="city-actions">
-            <span class="city-drag-handle" aria-hidden="true">↕</span>
-            <button class="btn btn-icon" type="button" data-action="up" data-index="${index}" aria-label="上移 ${cityNameHtml}">↑</button>
-            <button class="btn btn-icon" type="button" data-action="down" data-index="${index}" aria-label="下移 ${cityNameHtml}">↓</button>
-            <button class="btn btn-icon" type="button" data-action="remove" data-index="${index}" aria-label="移除 ${cityNameHtml}">×</button>
-          </div>
         `;
         el.cityList.appendChild(card);
+        if (addedCityNames.includes(city.name) && !prefersReducedMotion()) {
+          card.classList.add('is-city-enter');
+          window.setTimeout(() => card.classList.remove('is-city-enter'), CITY_CARD_ENTER_MS + 40);
+        }
         const select = card.querySelector('.city-transport');
         if (select) select.value = city.transport || 'auto';
       });
+      renderedCityNames = state.cities.map(city => city.name);
+      hasRenderedCities = true;
       renderWizardChrome();
     }
 
@@ -2068,20 +2233,73 @@ let draggedDraftNodeId = null;
       return activeItems().find(item => item.id === state.activeItemId) || activeItems()[0];
     }
 
+    function markerMarkup(index, total, itemId) {
+      const classes = [
+        'marker-pin',
+        index === 0 ? 'is-origin' : '',
+        index === total - 1 ? 'is-destination' : '',
+        String(itemId) === String(state.activeItemId) ? 'is-focused' : ''
+      ].filter(Boolean).join(' ');
+      return `<div class="${classes}" data-marker-id="${escapeHtml(itemId)}">${index + 1}</div>`;
+    }
+
+    function syncMarkerFocus(itemId) {
+      markers.forEach(marker => {
+        const pin = marker.getElement?.()?.querySelector('.marker-pin');
+        if (!pin) return;
+        pin.classList.toggle('is-focused', String(marker.aeroTravelItemId) === String(itemId));
+      });
+    }
+
+    function renderMapStopRail() {
+      if (!el.mapStopRail) return;
+      const items = activeItems();
+      if (!items.length) {
+        el.mapStopRail.innerHTML = '<span class="map-stop-empty">当前日期暂无可浏览节点</span>';
+        return;
+      }
+      el.mapStopRail.innerHTML = items.map((item, index) => {
+        const hasCoords = Number(item.lat) && Number(item.lng);
+        const isActive = String(item.id) === String(state.activeItemId);
+        const locationLabel = hasCoords ? '地图位置' : '无地图位置';
+        return `
+          <button class="map-stop-chip ${isActive ? 'is-active' : ''}" type="button" data-map-item="${escapeHtml(item.id)}" aria-current="${isActive ? 'step' : 'false'}">
+            <span class="map-stop-index">${index + 1}</span>
+            <span class="map-stop-copy">
+              <span class="map-stop-title">${escapeHtml(item.title)}</span>
+              <span class="map-stop-meta ${hasCoords ? '' : 'is-unmapped'}">${escapeHtml(item.time)} · ${escapeHtml(locationLabel)}</span>
+            </span>
+          </button>
+        `;
+      }).join('');
+    }
+
     function renderPlaceDetail() {
+      if (!el.placeDetail) return;
       const item = activeItem();
+      el.placeDetail.dataset.sheet = mapSheetState;
       if (!item) {
-        el.placeDetail.innerHTML = '<h3>等待生成路线</h3><p>生成后点击任一日程卡片，地图会同步定位到对应地点。</p>';
+        el.placeDetail.innerHTML = '<div class="map-place-card-head"><div><div class="map-place-kicker">当前地点</div><h2>等待生成路线</h2></div></div><p>生成后点击任一日程卡片，地图会同步定位到对应地点。</p>';
+        renderMapStopRail();
+        syncMapControls();
         return;
       }
       const display = item.type === 'transport' ? transportDisplay(item) : { time: item.time, extra: '' };
       el.placeDetail.innerHTML = `
-        <h3>${escapeHtml(item.title)}</h3>
+        <div class="map-place-card-head">
+          <div>
+            <div class="map-place-kicker">当前地点</div>
+            <h2>${escapeHtml(item.title)}</h2>
+          </div>
+          <button class="map-place-toggle" type="button" data-map-action="toggle-sheet" aria-expanded="${mapSheetState === 'expanded'}">${mapSheetState === 'expanded' ? '收起详情' : '展开详情'}</button>
+        </div>
         <p>${escapeHtml(display.time)} · ${normalizeType(item.type)} · ${escapeHtml(item.duration)}</p>
         <p>${escapeHtml(item.desc)}</p>
         ${display.extra ? `<p><span class="badge badge-accent">${escapeHtml(display.extra)}</span></p>` : ''}
         ${renderPoiMetaList(item)}
       `;
+      renderMapStopRail();
+      syncMapControls();
     }
 
     function renderMap() {
@@ -2104,17 +2322,18 @@ let draggedDraftNodeId = null;
               const byId = new Map(state.workingDraft.nodes.map(n => [n.id, n]));
               return (day?.node_ids || []).map(id => byId.get(id)).filter(Boolean);
             })();
-        draftNodes.forEach((node, index) => {
-          if (!(Number(node.location?.lat) && Number(node.location?.lng))) return;
+        const drawableNodes = draftNodes.filter(node => Number(node.location?.lat) && Number(node.location?.lng));
+        drawableNodes.forEach((node, index) => {
           const point = [Number(node.location.lat), Number(node.location.lng)];
           points.push(point);
           const icon = L.divIcon({
             className: '',
-            html: `<div class="marker-pin">${index + 1}</div>`,
-            iconSize: [22, 22],
-            iconAnchor: [11, 11]
+            html: markerMarkup(index, drawableNodes.length, node.id),
+            iconSize: [24, 24],
+            iconAnchor: [12, 12]
           });
           const marker = L.marker(point, { icon }).addTo(map);
+          marker.aeroTravelItemId = node.id;
           marker.bindPopup(`<strong>${escapeHtml(node.name)}</strong>`);
           markers.push(marker);
         });
@@ -2131,39 +2350,49 @@ let draggedDraftNodeId = null;
           points.push(point);
           const icon = L.divIcon({
             className: '',
-            html: `<div class="marker-pin">${index + 1}</div>`,
-            iconSize: [22, 22],
-            iconAnchor: [11, 11]
+            html: markerMarkup(index, items.length, item.id),
+            iconSize: [24, 24],
+            iconAnchor: [12, 12]
           });
           const marker = L.marker(point, { icon }).addTo(map);
+          marker.aeroTravelItemId = item.id;
           marker.bindPopup(`<strong>${escapeHtml(item.title)}</strong><br>${escapeHtml(item.time)} · ${normalizeType(item.type)}${renderPopupMeta(item)}`);
-          marker.on('click', () => focusItem(item.id, false));
+          marker.on('click', () => focusItem(item.id, true));
           markers.push(marker);
         });
       }
 
-      if (!points.length) return;
-      if (!routeLine && points.length > 1) {
-        routeLine = L.polyline(points, {
-          color: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim(),
-          weight: 3,
-          opacity: 0.8,
-          dashArray: '6 8'
-        }).addTo(map);
+      if (el.mapEmpty) el.mapEmpty.style.display = points.length ? 'none' : 'grid';
+      if (!points.length) {
+        syncMapControls();
+        return;
       }
-      if (points.length > 1) {
+      if (!routeLine && points.length > 1 && window.AeroTravelMap?.replaceRoutePolyline) {
+        routeLine = window.AeroTravelMap.replaceRoutePolyline(map, null, points, { status: 'estimate' });
+      }
+      syncMarkerFocus(state.activeItemId);
+      const focused = activeItem();
+      if (mapViewMode === 'place' && focused && Number(focused.lat) && Number(focused.lng)) {
+        map.setView([Number(focused.lat), Number(focused.lng)], 14);
+      } else if (points.length > 1) {
         map.fitBounds(L.latLngBounds(points), { padding: [34, 34] });
       } else {
         map.setView(points[0], 13);
       }
+      syncMapControls();
     }
 
     function focusItem(itemId, updateMap = true) {
       state.activeItemId = itemId;
       renderPlan();
       const item = activeItem();
+      syncMarkerFocus(itemId);
       if (updateMap && map && item && Number(item.lat) && Number(item.lng)) {
-        map.flyTo([Number(item.lat), Number(item.lng)], 14, { duration: 0.8 });
+        mapViewMode = 'place';
+        syncMapControls();
+        map.flyTo([Number(item.lat), Number(item.lng)], 14, {
+          duration: prefersReducedMotion() ? 0 : 0.8
+        });
         const index = activeItems().filter(i => Number(i.lat) && Number(i.lng)).findIndex(i => i.id === item.id);
         if (markers[index]) markers[index].openPopup();
       }
@@ -2772,6 +3001,20 @@ let draggedDraftNodeId = null;
       }
       if (el.closeMapDrawerBtn) el.closeMapDrawerBtn.addEventListener('click', closeMapDrawer);
       if (el.mapDrawerBackdrop) el.mapDrawerBackdrop.addEventListener('click', closeMapDrawer);
+      if (el.placeDetail) {
+        el.placeDetail.addEventListener('click', event => {
+          if (event.target.closest('[data-map-action="toggle-sheet"]')) toggleMapSheet();
+        });
+      }
+      if (el.mapStopRail) {
+        el.mapStopRail.addEventListener('click', event => {
+          const button = event.target.closest('[data-map-item]');
+          if (!button) return;
+          const item = activeItems().find(entry => String(entry.id) === String(button.dataset.mapItem));
+          if (!item) return;
+          focusItem(item.id, Boolean(Number(item.lat) && Number(item.lng)));
+        });
+      }
       document.addEventListener('keydown', event => {
         if (event.key === 'Escape' && state.mapDrawerOpen) closeMapDrawer();
       });
@@ -2809,7 +3052,11 @@ let draggedDraftNodeId = null;
       bindTopbarMenu(el.mobileMoreBtn, el.mobileMorePanel, el.mobileMoreWrap);
 
       if (el.refreshTransportBtn) el.refreshTransportBtn.addEventListener('click', refreshTransport);
-      if (el.fitMapBtn) el.fitMapBtn.addEventListener('click', renderMap);
+      if (el.fitMapBtn) {
+        el.fitMapBtn.addEventListener('click', () => {
+          setMapViewMode(mapViewMode === 'place' ? 'route' : 'place');
+        });
+      }
 
       if (el.dayTabs) {
         el.dayTabs.addEventListener('click', event => {

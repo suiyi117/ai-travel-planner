@@ -40,6 +40,16 @@
     return false;
   }
 
+  function shouldAnimateStepTransition(previousStep, nextStep, reducedMotion) {
+    if (previousStep === null || previousStep === undefined) return false;
+    const previous = Number(previousStep);
+    const next = Number(nextStep);
+    return Number.isFinite(previous)
+      && Number.isFinite(next)
+      && previous !== next
+      && !reducedMotion;
+  }
+
   function routeLabel(cities, routeShape) {
     const names = (Array.isArray(cities) ? cities : [])
       .map(c => String(c?.name || '').trim())
@@ -72,6 +82,23 @@
       totalDays,
       meta: metaParts.join(' · ')
     };
+  }
+
+  function findAddedCityNames(previousNames, cities) {
+    const previous = new Set(
+      (Array.isArray(previousNames) ? previousNames : [])
+        .map(name => String(name || '').trim())
+        .filter(Boolean)
+    );
+    const added = [];
+    const seen = new Set();
+    (Array.isArray(cities) ? cities : []).forEach(city => {
+      const name = String(city?.name || '').trim();
+      if (!name || previous.has(name) || seen.has(name)) return;
+      seen.add(name);
+      added.push(name);
+    });
+    return added;
   }
 
   function isDrivingTransport(value) {
@@ -135,7 +162,9 @@
   global.AeroTravelWizard = Object.freeze({
     validateStep1,
     canEnterStep,
+    shouldAnimateStepTransition,
     buildSummary,
+    findAddedCityNames,
     routeLabel,
     isDrivingTransport,
     hasSelfDriveRouteData,
