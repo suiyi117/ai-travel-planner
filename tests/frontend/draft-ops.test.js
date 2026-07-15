@@ -256,6 +256,26 @@ test('structural validation reports one self-drive order-lock route error per da
   ]);
 });
 
+test('updateNode writes refs onto metadata.item for itinerary round-trip', () => {
+  const added = addNode(emptyDraft(), {
+    name: '西湖', city: '杭州', city_id: 'city-hz',
+    metadata: { item: { title: '西湖' } }
+  }, () => 'node-refs');
+  const scheduled = moveNode(added, 'node-refs', 'day-1', 0);
+  const next = updateNode(scheduled, 'node-refs', {
+    refs: [
+      { label: '攻略', url: 'https://example.com/a', kind: 'web' },
+      { label: '坏', url: 'not-a-url' }
+    ]
+  });
+  const node = next.nodes.find(n => n.id === 'node-refs');
+  assert.equal(node.metadata.item.refs.length, 1);
+  assert.equal(node.metadata.item.refs[0].url, 'https://example.com/a');
+  const plan = window.AeroTravelDraft.draftToItinerary(next, { days: [], transport_guide: [] });
+  const item = plan.days[0].items.find(i => i.title === '西湖' || i.id === 'node-refs');
+  assert.equal(item.refs[0].url, 'https://example.com/a');
+});
+
 test('node edits, deletion and city reordering keep canonical references consistent', () => {
   const draft = emptyDraft();
   draft.city_stops.push({

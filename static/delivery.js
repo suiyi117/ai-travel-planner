@@ -152,9 +152,45 @@
     `;
   }
 
+  function buildDeliveryDaySheetHtml(plan, day, options) {
+    const escapeHtml = options.escapeHtml;
+    const cast = options.weatherForDay(day);
+    const weather = cast
+      ? `${escapeHtml(cast.dayweather)} ${escapeHtml(cast.nighttemp)}~${escapeHtml(cast.daytemp)}℃`
+      : '';
+    const dateLabel = formatDeliveryDate(day, options).replace(/ · $/, '');
+    return `
+      <div class="delivery-sheet delivery-sheet-day">
+        <header class="delivery-cover delivery-cover-day">
+          <div class="delivery-brand">AeroTravel</div>
+          <h2>${escapeHtml(plan.title || '旅行规划方案')}</h2>
+          <div class="delivery-tags">
+            <span>Day ${escapeHtml(day.day)}</span>
+            <span>${escapeHtml(day.city || '')}</span>
+            ${dateLabel ? `<span>${escapeHtml(dateLabel)}</span>` : ''}
+            ${weather ? `<span>${weather}</span>` : ''}
+          </div>
+          ${day.route ? `<p>${escapeHtml(day.route)}</p>` : ''}
+        </header>
+        <section class="delivery-section">
+          <div class="delivery-day-head">
+            <span>Day ${escapeHtml(day.day)}</span>
+            <strong>${escapeHtml(day.city || '')}</strong>
+            ${weather ? `<em>${weather}</em>` : ''}
+          </div>
+          ${(day.items || []).map(item => deliveryItemHtml(item, options)).join('') || '<p class="delivery-meta">当日暂无安排</p>'}
+        </section>
+        <footer class="delivery-disclaimer">
+          本方案为参考旅行规划，不含机票、酒店、门票代订；开放时间、票价、班次以官方实时信息为准。
+        </footer>
+      </div>
+    `;
+  }
+
   root.AeroTravelDelivery = Object.freeze({
     buildDeliveryText,
     buildDeliverySheetHtml,
+    buildDeliveryDaySheetHtml,
     transportOptionText
   });
 })(typeof window !== 'undefined' ? window : globalThis);

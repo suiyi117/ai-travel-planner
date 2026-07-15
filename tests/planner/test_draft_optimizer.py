@@ -13,7 +13,7 @@ def make_draft(**overrides) -> TripDraft:
         "mode": "itinerary",
         "route_shape": "one_way",
         "strategy": "balanced",
-        "city_stops": [{"id": "city-hz", "name": "Hangzhou", "days": 1}],
+        "city_stops": [{"id": "city-hz", "name": "Hangzhou", "days": 1, "plan_stay": True}],
         "nodes": [
             {
                 "id": "n1", "source": "manual", "name": "West Lake",
@@ -101,6 +101,37 @@ class DraftOptimizerTests(unittest.TestCase):
         scope = OptimizeScope(type="trip")
         optimized, diff, _sources = run_optimize(draft, scope)
         self.assertEqual(len(optimized.days[0].node_ids), 3)
+
+    def test_accepts_transit_city_stop_with_plan_stay_false(self):
+        draft = make_draft(
+            city_stops=[
+                {"id": "city-hb", "name": "淮北", "days": 0, "plan_stay": False},
+                {"id": "city-hf", "name": "合肥", "days": 1, "plan_stay": True},
+            ],
+            nodes=[
+                {
+                    "id": "n1", "source": "manual", "name": "包公园",
+                    "city_id": "city-hf", "city": "合肥",
+                    "location": {"lat": 31.86, "lng": 117.28, "status": "resolved"},
+                    "status": "scheduled",
+                    "schedule": {"day_id": "day-1", "time_window": "09:00"},
+                    "constraints": {
+                        "required": False, "fixed_day": False,
+                        "fixed_time": False, "fixed_order": False,
+                    },
+                },
+            ],
+            days=[{
+                "id": "day-1", "day": 1,
+                "primary_city_id": "city-hf",
+                "node_ids": ["n1"],
+            }],
+        )
+        self.assertEqual(draft.city_stops[0].days, 0)
+        self.assertEqual(draft.city_stops[0].plan_stay, False)
+        scope = OptimizeScope(type="day", id="day-1")
+        optimized, _diff, _sources = run_optimize(draft, scope)
+        self.assertEqual(optimized.city_stops[0].days, 0)
 
 
 if __name__ == "__main__":

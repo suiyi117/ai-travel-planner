@@ -1,9 +1,45 @@
-﻿# IMPLEMENTATION — 可编辑行程与自驾规划实施记录
+﻿# IMPLEMENTATION — 自驾规划交互重构
+
+> 实施日期：2026-07-14
+> 依据：`docs/product/自驾规划交互重构-PRD.md`
+> 状态：**前端信息架构已落地；`.\scripts\check.ps1` 通过**
+
+## 变更摘要
+
+- Step 1 移除「规划模式 / 城市行程 vs 自驾路线」二选一；路线形态（单程/环线）对所有行程保留。
+- Step 2「默认城际交通」选自驾时渐进展开「自驾偏好」；段级自驾显示紧凑提示。
+- 生成始终产出按日行程；`/api/plan` 契约未改。
+- Step 3 编辑区新增任务入口：`调整每日安排` / 按需 `优化自驾路线`（`state.editTool`）。
+- 纯规则落在 `static/wizard.js`：`hasSelfDriveIntent`、`shouldShowSelfDrivePrefs`、`shouldShowSelfDriveEditEntry` 等。
+- 旧 `planningMode` / draft `mode=self_drive` 仅作内部兼容；旧自驾草稿可恢复并显示自驾入口。
+
+## 质量门
+
+- `.\scripts\check.ps1`：Python 87 tests + 前端 139 tests 通过（含新增 wizard 规则测试）。
+
+---
+
+# IMPLEMENTATION — 可编辑行程与自驾规划实施记录
 
 > 实施日期：2026-07-11
 > 分支：`codex/editable-itinerary-self-drive`
 > 方法：TDD + 里程碑交付
 > 状态：**里程碑 A/B/C 主闭环已完成；自动化质量门 + 浏览器冒烟已通过（2026-07-11）**
+
+## 专属行程交付（2026-07-12）
+
+分支：`feature/专属行程交付`
+
+依据 `docs/product/` 三份产品文档落地第一阶段交付闭环：
+
+- 结构化行程包 `static/trip-package.js`（单一数据源）
+- 客户专属只读页 `static/trip-share.html` + 渲染/导航/启动脚本
+- 自包含 HTML 发布打包 `static/trip-publish.js`（随机 token、`noindex`、人工上传）
+- 总览图 PNG / PDF 打印备份 / 高德 HTTPS 导航与下一站
+- 工作台导出菜单：预览、发布、总览图、PDF
+- 操作说明：`docs/product/专属行程交付-操作说明.md`
+
+不引入账号、数据库与在线支付；敏感信息不进入分享页。
 
 ## 仓库与界面收口（2026-07-11）
 

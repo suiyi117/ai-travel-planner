@@ -141,6 +141,63 @@ class NonTransportRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 500)
         self.assertEqual(response.json(), {"detail": "行程优化失败，请稍后重试"})
 
+    def test_static_map_requires_key(self):
+        app = FastAPI()
+        app.include_router(create_location_router(fake_settings(amap_key=""), logger=None))
+
+        response = TestClient(app).get(
+            "/api/static_map",
+            params={"markers": "116.4,39.9"},
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_static_map_ok_returns_base64(self):
+        app = FastAPI()
+        app.include_router(create_location_router(fake_settings(), logger=None))
+
+        async def fake_fetch_static_map(*_args, **_kwargs):
+            return {
+                "status": "ok",
+                "content_type": "image/png",
+                "content": b"\x89PNG\r\n\x1a\nfake",
+                "width": 640,
+                "height": 640,
+            }
+
+        with patch("routers.location.amap_fetch_static_map", fake_fetch_static_map):
+            response = TestClient(app).get(
+                "/api/static_map",
+                params={
+                    "width": 640,
+                    "height": 640,
+                    "markers": "116.4,39.9|116.41,39.91",
+                    "path": "116.4,39.9;116.41,39.91",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["status"], "ok")
+        self.assertTrue(body["image_base64"])
+        self.assertEqual(body["width"], 640)
+        self.assertEqual(body["height"], 640)
+
+    def test_static_map_upstream_failure_returns_502(self):
+        app = FastAPI()
+        app.include_router(create_location_router(fake_settings(), logger=None))
+
+        async def fake_fetch_static_map(*_args, **_kwargs):
+            return {"status": "error", "info": "amap_unavailable"}
+
+        with patch("routers.location.amap_fetch_static_map", fake_fetch_static_map):
+            response = TestClient(app).get(
+                "/api/static_map",
+                params={"markers": "116.4,39.9"},
+            )
+
+        self.assertEqual(response.status_code, 502)
+
 
 if __name__ == "__main__":
     unittest.main()

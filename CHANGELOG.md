@@ -10,23 +10,44 @@
 ## [Unreleased]
 
 ### Added 新增
+
+### Changed 变更
+
+### Fixed 修复
+
+## [1.3.0] - 2026-07-13
+
+### Added 新增
+- 起点过境：首城可设为仅出发（`plan_stay=false` / `days=0`），不排当地游玩日；向导校验与草稿/优化 schema 对齐。
+- 路线形态「单程 / 环线」常显于 Step 1；环线生成会补回程交通段，并在末日时间线展示「环线回程」。
+- 客户导出改为「导出每日行程图」（按天 PNG），避免整段长图难读；仍保留总览图与 PDF 备份。
+- 专属行程页：总览右侧模块卡片（费用/提示/天气/扫码）、每日卡片化时间轴、打印/PDF 日页结构对齐。
+- 总览静态图：跨日均衡锚点、景点摘要优先、路径抽稀与更高分辨率预渲染。
 - 新增 `planner/optimization.py`，集中处理草稿优化校验、已知错误映射、warning 与响应组装。
 - 新增 `static/delivery.js` 和 `static/delivery.css`，隔离客户版文字、长图 HTML 与固定导出样式。
 - 新增前端壳层、交付内容转义和优化接口错误脱敏回归测试。
+- Windows 一键启动：`start.bat` / `scripts/start.ps1`。
 
 ### Changed 变更
+- 草稿 `CityStop` 允许 `days=0` 与可选 `plan_stay`，优化接口可接收过境城草稿。
+- 发布下载文件统一为 `{token}.html`（路径 `/t/{token}.html`），与二维码建议 URL 对齐。
 - 顶栏复制、长图和日历操作合并为可访问的导出菜单；移动端使用紧凑省略号入口，toast 移至右下角。
 - 删除无调用的 `schemas/location.py`、`static/render.js` 和已完成的历史实施计划；`CLAUDE.md` 改为引用 `AGENTS.md` 的单一规则源。
 - Dependabot 按 GitHub Actions 和 Python 两个生态分组，减少重复更新 PR。
 
 ### Fixed 修复
+- 过境起点校验误报「停留 1–7 天」、保存草稿冲掉 `plan_stay`、环线回程在 draft 同步时丢失等问题。
+- 专属页侧栏溢出、总览图模糊（展示高度与静态图分辨率）、按天导出文件名非法字符。
 - 修复组件样式覆盖原生 `hidden` 后，隐藏的自驾设置、编辑器和草稿操作栏仍可能占据布局的问题。
 - 修复优化候选面板依赖已删除旧布局挂载点的问题。
 - 优化接口的未知异常改为通用 500 响应，避免把内部异常文本返回给浏览器。
 
-## [1.2.0] - 2026-07-11
+### Technical Notes
+- 质量门禁：`.\scripts\check.ps1` 与 GitHub CI quality 通过。
+- 安全门禁：`.\scripts\security.ps1` 与 GitHub Security workflow 通过。
+- 保持无数据库、无登录系统、无前端框架、无构建步骤；持久化仍为浏览器 localStorage。
 
-> 代码已合入 `master`，GitHub `v1.2.0` tag / Release 尚未创建。
+## [1.2.0] - 2026-07-11
 
 ### Added 新增
 - 页面信息架构重设计：三步向导（路线 → 偏好 → 行程）、桌面摘要轨、主区页面级滚动，以及按需打开的地图抽屉。
