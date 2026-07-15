@@ -152,7 +152,11 @@ const {
       parseTimeRange,
       parsePriceValue,
       normalizeSegKey,
-      optionMatchesDirection
+      optionMatchesDirection,
+      itemHasMapCoords,
+      pickFocusItemForDay,
+      shouldUpdateMapOnItemFocus,
+      shouldOpenMapOnCardAction
     } = window.AeroTravelUtils;
 
     function weatherForDay(day) {
@@ -720,9 +724,11 @@ let draggedDraftNodeId = null;
       state.editMode = true;
       // Keep route data; only change UI task. Do not strip self_drive mode if route exists —
       // PRD: switching tools must not delete route. Daily editor works on days/nodes regardless.
+      // Phase 2: preserve currentDay (do not reset).
       setActiveByValue(el.planModeGroup, 'edit');
       if (el.selfDriveBootNote) el.selfDriveBootNote.hidden = true;
       syncEditToolControls();
+      setStatus(`编辑模式 · 第 ${state.currentDay} 天`);
       renderAll();
     }
 
@@ -737,6 +743,7 @@ let draggedDraftNodeId = null;
       state.editTool = 'driving';
       state.editMode = true;
       state.planningMode = 'self_drive';
+      // Phase 2: preserve currentDay when entering driving edit.
       const current = state.workingDraft;
       const hadRoute = Array.isArray(current.route?.ordered_node_ids)
         && current.route.ordered_node_ids.length;
@@ -756,6 +763,7 @@ let draggedDraftNodeId = null;
       }
       setActiveByValue(el.planModeGroup, 'edit');
       syncEditToolControls();
+      setStatus(`编辑模式 · 自驾路线（第 ${state.currentDay} 天上下文）`);
       renderAll();
     }
 
@@ -2273,28 +2281,38 @@ let draggedDraftNodeId = null;
 
       const visibleItems = current.items.filter(item => state.currentFilter === 'all' || item.type === state.currentFilter);
       const conflicts = checkDayConflicts(current);
+      const hasCoordsFn = typeof itemHasMapCoords === 'function'
+        ? itemHasMapCoords
+        : (item) => Number(item?.lat) && Number(item?.lng);
       el.timelineList.innerHTML = visibleItems.length ? visibleItems.map(item => {
         const display = item.type === 'transport' ? transportDisplay(item) : { time: item.time, extra: '' };
+        const mappable = hasCoordsFn(item);
+        const mapBtn = mappable
+          ? `<button class="card-map-btn" type="button" data-open-map-item="${escapeHtml(item.id)}" aria-label="在地图查看${escapeHtml(item.title)}">看位置</button>`
+          : '';
         return `
         <article class="timeline-item ${item.id === state.activeItemId ? 'is-active' : ''}">
-          <button class="itinerary-card ${item.id === state.activeItemId ? 'is-active' : ''}" type="button" data-item="${item.id}">
-            <div class="card-top">
-              <div>
-                <div class="item-time">${escapeHtml(display.time)}</div>
-                <h3 class="item-title">${escapeHtml(item.title)}</h3>
+          <div class="itinerary-card-shell ${item.id === state.activeItemId ? 'is-active' : ''}">
+            <button class="itinerary-card ${item.id === state.activeItemId ? 'is-active' : ''}" type="button" data-item="${item.id}">
+              <div class="card-top">
+                <div>
+                  <div class="item-time">${escapeHtml(display.time)}</div>
+                  <h3 class="item-title">${escapeHtml(item.title)}</h3>
+                </div>
+                <span class="badge ${item.type === 'transport' ? 'badge-accent' : ''}">${normalizeType(item.type)}</span>
               </div>
-              <span class="badge ${item.type === 'transport' ? 'badge-accent' : ''}">${normalizeType(item.type)}</span>
-            </div>
-            <p class="item-desc">${escapeHtml(item.desc)}</p>
-            ${renderPoiAddressLine(item)}
-            <div class="badge-row">
-              <span class="badge">${escapeHtml(item.duration)}</span>
-              <span class="badge">${escapeHtml(item.city)}</span>
-              ${renderRatingBadge(item)}
-              ${display.extra ? `<span class="badge badge-accent">${escapeHtml(display.extra)}</span>` : ''}
-              ${conflicts.has(item.id) ? '<span class="badge badge-warn">时间冲突</span>' : ''}
-            </div>
-          </button>
+              <p class="item-desc">${escapeHtml(item.desc)}</p>
+              ${renderPoiAddressLine(item)}
+              <div class="badge-row">
+                <span class="badge">${escapeHtml(item.duration)}</span>
+                <span class="badge">${escapeHtml(item.city)}</span>
+                ${renderRatingBadge(item)}
+                ${display.extra ? `<span class="badge badge-accent">${escapeHtml(display.extra)}</span>` : ''}
+                ${conflicts.has(item.id) ? '<span class="badge badge-warn">时间冲突</span>' : ''}
+              </div>
+            </button>
+            ${mapBtn}
+          </div>
         </article>
       `;
       }).join('') : '<div class="empty-state">当前筛选下没有日程节点。</div>';
@@ -2500,6 +2518,7 @@ let draggedDraftNodeId = null;
           const marker = L.marker(point, { icon }).addTo(map);
           marker.aeroTravelItemId = node.id;
           marker.bindPopup(`<strong>${escapeHtml(node.name)}</strong>`);
+          marker.on('click', () => focusItem(node.id, true));
           markers.push(marker);
         });
         const polyline = state.workingDraft.route?.polyline;
@@ -2547,19 +2566,77 @@ let draggedDraftNodeId = null;
       syncMapControls();
     }
 
+    function resolveFocusCoords(itemId) {
+      const fromDay = activeItems().find(entry => String(entry.id) === String(itemId));
+      if (fromDay && (typeof itemHasMapCoords === 'function' ? itemHasMapCoords(fromDay) : (Number(fromDay.lat) && Number(fromDay.lng)))) {
+        return {
+          lat: Number(fromDay.lat),
+          lng: Number(fromDay.lng),
+          title: fromDay.title,
+          source: 'itinerary'
+        };
+      }
+      const node = state.workingDraft?.nodes?.find(entry => String(entry.id) === String(itemId));
+      if (node) {
+        const lat = Number(node.location?.lat);
+        const lng = Number(node.location?.lng);
+        if (Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0) {
+          return { lat, lng, title: node.name, source: 'draft' };
+        }
+      }
+      return null;
+    }
+
+    function scrollEntityIntoView(entityId) {
+      if (entityId == null || entityId === '') return;
+      const id = String(entityId);
+      const escaped = (typeof CSS !== 'undefined' && CSS.escape)
+        ? CSS.escape(id)
+        : id.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+      const candidates = [
+        `[data-item="${escaped}"]`,
+        `[data-node-id="${escaped}"]`,
+        `.map-stop-chip[data-map-item="${escaped}"]`
+      ];
+      let target = null;
+      for (let i = 0; i < candidates.length; i += 1) {
+        target = document.querySelector(candidates[i]);
+        if (target) break;
+      }
+      if (!target || typeof target.scrollIntoView !== 'function') return;
+      target.scrollIntoView({
+        block: 'nearest',
+        inline: 'nearest',
+        behavior: prefersReducedMotion() ? 'auto' : 'smooth'
+      });
+    }
+
     function focusItem(itemId, updateMap = true) {
       state.activeItemId = itemId;
-      renderPlan();
-      const item = activeItem();
+      state.mapFocusItemId = itemId;
+      if (state.editMode && state.workingDraft) {
+        renderEditor();
+        renderPlaceDetail();
+        if (state.mapDrawerOpen) {
+          try { renderMap(); } catch (_) { /* map not ready */ }
+        }
+      } else {
+        renderPlan();
+      }
+      scrollEntityIntoView(itemId);
       syncMarkerFocus(itemId);
-      if (updateMap && map && item && Number(item.lat) && Number(item.lng)) {
+      const coords = resolveFocusCoords(itemId);
+      const mapShouldMove = typeof shouldUpdateMapOnItemFocus === 'function'
+        ? shouldUpdateMapOnItemFocus(state.mapDrawerOpen)
+        : Boolean(state.mapDrawerOpen);
+      if (updateMap && mapShouldMove && map && coords) {
         mapViewMode = 'place';
         syncMapControls();
-        map.flyTo([Number(item.lat), Number(item.lng)], 14, {
-          duration: prefersReducedMotion() ? 0 : 0.8
+        map.flyTo([coords.lat, coords.lng], 14, {
+          duration: prefersReducedMotion() ? 0 : 0.45
         });
-        const index = activeItems().filter(i => Number(i.lat) && Number(i.lng)).findIndex(i => i.id === item.id);
-        if (markers[index]) markers[index].openPopup();
+        const marker = markers.find(entry => String(entry.aeroTravelItemId) === String(itemId));
+        if (marker?.openPopup) marker.openPopup();
       }
     }
 
@@ -3210,12 +3287,10 @@ let draggedDraftNodeId = null;
           if (Number.isFinite(dayNum) && dayNum > 0) {
             state.currentDay = dayNum;
             const day = (state.itinerary?.days || []).find(entry => entry.day === dayNum);
-            const firstMappable = (day?.items || []).find(item => {
-              const lat = Number(item?.lat);
-              const lng = Number(item?.lng);
-              return Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0;
-            });
-            if (firstMappable) state.activeItemId = firstMappable.id;
+            const pick = typeof pickFocusItemForDay === 'function'
+              ? pickFocusItemForDay(day?.items || [], state.activeItemId)
+              : (day?.items || []).find(item => Number(item?.lat) && Number(item?.lng));
+            if (pick) state.activeItemId = pick.id;
             renderPlan();
             openMapDrawer(state.activeItemId);
           }
@@ -3232,9 +3307,12 @@ let draggedDraftNodeId = null;
         el.mapStopRail.addEventListener('click', event => {
           const button = event.target.closest('[data-map-item]');
           if (!button) return;
-          const item = activeItems().find(entry => String(entry.id) === String(button.dataset.mapItem));
-          if (!item) return;
-          focusItem(item.id, Boolean(Number(item.lat) && Number(item.lng)));
+          const itemId = button.dataset.mapItem;
+          const item = activeItems().find(entry => String(entry.id) === String(itemId));
+          const hasCoords = item
+            ? (typeof itemHasMapCoords === 'function' ? itemHasMapCoords(item) : Boolean(Number(item.lat) && Number(item.lng)))
+            : Boolean(resolveFocusCoords(itemId));
+          focusItem(itemId, hasCoords);
         });
       }
       document.addEventListener('keydown', event => {
@@ -3286,12 +3364,17 @@ let draggedDraftNodeId = null;
           if (!button) return;
           state.currentDay = Number(button.dataset.day);
           state.currentFilter = 'all';
-          state.activeItemId = activeItems()[0]?.id || null;
+          const day = (state.itinerary?.days || []).find(entry => entry.day === state.currentDay);
+          const pick = typeof pickFocusItemForDay === 'function'
+            ? pickFocusItemForDay(day?.items || [], state.activeItemId)
+            : (day?.items || [])[0];
+          state.activeItemId = pick?.id || null;
           state.mapFocusItemId = state.mapDrawerOpen ? state.activeItemId : state.mapFocusItemId;
-          renderPlan();
-          if (state.mapDrawerOpen) {
-            try { renderMap(); } catch (_) { /* map not ready */ }
+          if (state.mapDrawerOpen && state.activeItemId) {
+            focusItem(state.activeItemId, true);
             setTimeout(() => { if (map) map.invalidateSize(); }, 60);
+          } else {
+            renderPlan();
           }
         });
       }
@@ -3307,14 +3390,28 @@ let draggedDraftNodeId = null;
 
       if (el.timelineList) {
         el.timelineList.addEventListener('click', event => {
+          const mapBtn = event.target.closest('[data-open-map-item]');
+          if (mapBtn) {
+            event.preventDefault();
+            const itemId = mapBtn.dataset.openMapItem;
+            if (typeof shouldOpenMapOnCardAction === 'function' && !shouldOpenMapOnCardAction('open-map')) {
+              return;
+            }
+            openMapDrawer(itemId);
+            return;
+          }
           const card = event.target.closest('[data-item]');
           if (!card) return;
           const itemId = card.dataset.item;
           const item = activeItems().find(entry => String(entry.id) === String(itemId));
-          const hasCoords = Boolean(item && Number(item.lat) && Number(item.lng));
-          // IA Phase 1: itinerary is primary; do not auto-pop map on card select.
-          // Explicit map entry: toolbar「看地图」、day map hint；map open 时仍联动定位。
-          focusItem(itemId, Boolean(state.mapDrawerOpen && hasCoords));
+          const hasCoords = typeof itemHasMapCoords === 'function'
+            ? itemHasMapCoords(item)
+            : Boolean(item && Number(item.lat) && Number(item.lng));
+          // Phase 1+2: card select never auto-opens map; fly only if drawer already open.
+          const updateMap = (typeof shouldUpdateMapOnItemFocus === 'function'
+            ? shouldUpdateMapOnItemFocus(state.mapDrawerOpen)
+            : Boolean(state.mapDrawerOpen)) && hasCoords;
+          focusItem(itemId, updateMap);
         });
       }
 
@@ -3337,6 +3434,7 @@ let draggedDraftNodeId = null;
           const mode = button.dataset.value;
           if (mode === 'edit') {
             // Default to daily edit; preserve driving tool if already selected and available.
+            // currentDay is intentionally preserved (Phase 2).
             const Wizard = wizardApi();
             const preferDriving = state.editTool === 'driving'
               && Wizard.shouldShowSelfDriveEditEntry?.(selfDriveStateSlice());
@@ -3346,6 +3444,7 @@ let draggedDraftNodeId = null;
           state.editMode = false;
           setActiveByValue(el.planModeGroup, 'browse');
           if (el.editToolBar) el.editToolBar.hidden = true;
+          setStatus(`浏览模式 · 第 ${state.currentDay} 天`);
           renderAll();
         });
       }
@@ -3506,8 +3605,24 @@ let draggedDraftNodeId = null;
         if (!button) return;
         state.currentDay = Number(button.dataset.draftDay);
         state.currentFilter = 'all';
+        if (state.workingDraft) {
+          const day = state.workingDraft.days.find(d => d.day === state.currentDay);
+          const nodeById = new Map(state.workingDraft.nodes.map(n => [n.id, n]));
+          const nodes = (day?.node_ids || []).map(id => nodeById.get(id)).filter(Boolean)
+            .map(n => ({ id: n.id, lat: n.location?.lat, lng: n.location?.lng }));
+          const pick = typeof pickFocusItemForDay === 'function'
+            ? pickFocusItemForDay(nodes, state.activeItemId)
+            : nodes[0];
+          if (pick) {
+            state.activeItemId = pick.id;
+            state.mapFocusItemId = pick.id;
+          }
+        }
         renderEditor();
-        renderMap();
+        if (state.mapDrawerOpen) {
+          try { renderMap(); } catch (_) { /* map not ready */ }
+          if (state.activeItemId) focusItem(state.activeItemId, true);
+        }
       });
 
       el.draftNodeList.addEventListener('dragstart', event => {

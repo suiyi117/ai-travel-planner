@@ -107,6 +107,38 @@
     return true;
   }
 
+  /** True when an itinerary item has usable map coordinates. */
+  function itemHasMapCoords(item) {
+    const lat = Number(item?.lat ?? item?.location?.lat);
+    const lng = Number(item?.lng ?? item?.location?.lng);
+    return Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0;
+  }
+
+  /**
+   * Pick which stop to focus when entering/switching a day.
+   * Prefer same id if still present, else first mappable, else first item.
+   */
+  function pickFocusItemForDay(items, preferredId) {
+    const list = Array.isArray(items) ? items : [];
+    if (!list.length) return null;
+    if (preferredId != null && preferredId !== '') {
+      const preferred = list.find(item => String(item?.id) === String(preferredId));
+      if (preferred) return preferred;
+    }
+    return list.find(itemHasMapCoords) || list[0];
+  }
+
+  /** Map fly/focus only when the drawer is already open (IA: no auto-pop). */
+  function shouldUpdateMapOnItemFocus(mapOpen) {
+    return Boolean(mapOpen);
+  }
+
+  /** Explicit card/tool actions that may open the map drawer. */
+  function shouldOpenMapOnCardAction(action) {
+    const value = String(action || '').trim();
+    return value === 'open-map' || value === 'view-location' || value === '看位置';
+  }
+
   global.AeroTravelUtils = Object.freeze({
     todayPlus,
     addDays,
@@ -120,6 +152,10 @@
     normalizeSegKey,
     cityToken,
     textHasCity,
-    optionMatchesDirection
+    optionMatchesDirection,
+    itemHasMapCoords,
+    pickFocusItemForDay,
+    shouldUpdateMapOnItemFocus,
+    shouldOpenMapOnCardAction
   });
 })(typeof window !== 'undefined' ? window : globalThis);
