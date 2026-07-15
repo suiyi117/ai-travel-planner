@@ -108,7 +108,7 @@
     .topbar-summary {
       position: relative;
       display: grid;
-      grid-template-columns: auto minmax(0, 1fr);
+      grid-template-columns: auto minmax(0, 1fr) auto;
       align-items: center;
       gap: var(--space-2) var(--space-3);
       flex: 1 1 420px;
@@ -1004,12 +1004,13 @@
           <p>多城市智能旅行规划工作台</p>
         </div>
       </div>
-      <div class="topbar-summary" id="topbarSummary" data-od-id="topbar-summary" aria-label="当前行程摘要">
+      <div class="topbar-summary is-collapsed" id="topbarSummary" data-od-id="topbar-summary" aria-label="当前行程摘要">
         <div class="topbar-summary-label">当前行程</div>
         <div class="topbar-summary-copy">
           <div class="topbar-summary-route" id="wizardSummaryRoute">北京 → 西安</div>
-          <div class="topbar-summary-meta" id="wizardSummaryMeta">3 天 · 舒适型 · 适中均衡 · 智能交通</div>
+          <div class="topbar-summary-meta" id="wizardSummaryMeta">3 天 · 舒适型</div>
         </div>
+        <button class="topbar-summary-toggle" id="summaryExpandBtn" type="button" aria-expanded="false" aria-controls="wizardSummaryMeta" title="展开摘要">展开</button>
         <p class="topbar-meta" id="routeMeta" hidden>北京 → 西安 · 3 天 · 舒适型</p>
       </div>
       <div class="topbar-actions">
@@ -1067,6 +1068,15 @@
             <span class="wizard-step-label">行程</span>
           </button>
         </nav>
+        <div class="workspace-status" id="workspaceStatus" hidden aria-label="行程设置状态">
+          <div class="workspace-status-label">已完成设置</div>
+          <div class="workspace-status-route" id="workspaceStatusRoute">北京 → 西安</div>
+          <div class="workspace-status-meta" id="workspaceStatusMeta">3 天 · 舒适型</div>
+          <div class="workspace-status-actions">
+            <button class="btn btn-ghost btn-sm" id="workspaceEditRouteBtn" type="button">编辑路线</button>
+            <button class="btn btn-ghost btn-sm" id="workspaceEditPrefsBtn" type="button">编辑偏好</button>
+          </div>
+        </div>
       </aside>
 
       <div class="wizard-main" id="wizardMain">
@@ -1119,7 +1129,11 @@
               </div>
             </div>
           </div>
+          <p class="field-help workspace-edit-hint" id="workspaceEditHintRoute" hidden>
+            返回不影响行程；修改路线后需重新生成才会替换当前结果。
+          </p>
           <div class="wizard-panel-actions">
+            <button class="btn btn-ghost" id="returnToWorkspaceFromRouteBtn" type="button" hidden>返回行程</button>
             <button class="btn btn-primary" id="wizardNextBtn" type="button">下一步：偏好 →</button>
           </div>
           <div class="status-note" id="stepRouteNote" hidden></div>
@@ -1178,15 +1192,19 @@
               </div>
             </div>
           </div>
+          <p class="field-help workspace-edit-hint" id="workspaceEditHint" hidden>
+            返回不影响行程；修改设置后需重新生成才会替换当前结果。
+          </p>
           <div class="wizard-panel-actions">
             <button class="btn btn-ghost" id="wizardBackBtn" type="button">← 上一步</button>
+            <button class="btn btn-ghost" id="returnToWorkspaceBtn" type="button" hidden>返回行程</button>
             <button class="btn btn-primary" id="generateBtn" type="button" data-od-id="generate-main">生成 AI 旅行规划</button>
           </div>
         </section>
 
         <section class="wizard-panel" id="stepResults" data-step-panel="3" hidden aria-label="规划结果">
           <div class="wizard-panel-header">
-            <div class="pane-kicker">Step 03 · 行程</div>
+            <div class="pane-kicker" id="resultsPaneKicker">我的行程</div>
             <h2 class="pane-title" id="planTitle">北京到西安的 3 天游览计划</h2>
             <p class="pane-subtitle" id="planSummary">上午留给城市核心景点，跨城交通单独成块，预算和贴士在结果区集中处理。</p>
           </div>
@@ -1292,6 +1310,7 @@
 
               <div class="results-layer results-layer-browse" id="resultsBrowseLayer" data-od-id="browse-layer">
                 <div class="day-tabs" id="dayTabs" data-od-id="day-tabs"></div>
+                <p class="day-map-hint" id="dayMapHint" hidden></p>
 
                 <div class="filter-tabs" id="filterTabs" data-od-id="filter-tabs">
                   <button class="filter-tab is-active" type="button" data-filter="all">全部</button>
@@ -1345,7 +1364,7 @@
             </div>
           </div>
           <div class="wizard-panel-actions">
-            <button class="btn btn-ghost" id="wizardEditPrefsBtn" type="button">← 修改偏好并重生成</button>
+            <button class="btn btn-ghost" id="wizardEditPrefsBtn" type="button">← 编辑偏好</button>
           </div>
         </section>
       </div>

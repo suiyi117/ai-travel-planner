@@ -1850,6 +1850,131 @@ p { text-wrap: pretty; }
   gap: var(--space-2);
 }
 
+/* Step 3 workspace: demote step list, promote status bar */
+body[data-chrome="workspace"] .wizard-steps {
+  display: none;
+}
+
+body[data-chrome="workspace"] .workspace-status {
+  display: grid;
+}
+
+body[data-chrome="wizard"] .workspace-status {
+  display: none !important;
+}
+
+.workspace-status {
+  display: none;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: color-mix(in oklab, var(--surface), var(--bg) 18%);
+}
+
+.workspace-status-label {
+  color: var(--meta);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.workspace-status-route {
+  color: var(--fg);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.workspace-status-meta {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
+.workspace-status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.btn-sm {
+  min-height: 36px;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+}
+
+.topbar-summary {
+  position: relative;
+}
+
+.topbar-summary-toggle {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
+.topbar-summary-toggle:hover,
+.topbar-summary-toggle:focus-visible {
+  color: var(--fg);
+  background: color-mix(in oklab, var(--surface), transparent 40%);
+  outline: none;
+}
+
+.topbar-summary.is-collapsed .topbar-summary-meta {
+  /* short meta already set by JS; keep single-line clamp */
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.day-map-hint {
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.day-map-hint[hidden] {
+  display: none !important;
+}
+
+.day-map-hint-btn {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.day-map-hint-btn:hover,
+.day-map-hint-btn:focus-visible {
+  color: var(--fg);
+  outline: none;
+}
+
+.workspace-edit-hint {
+  margin: 0 var(--space-4) var(--space-2);
+}
+
+body[data-editing-workspace="true"] .workspace-edit-hint {
+  display: block;
+}
+
 .wizard-step {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -2430,6 +2555,25 @@ p { text-wrap: pretty; }
   .wizard-rail {
     position: static;
     gap: var(--space-3);
+  }
+
+  body[data-chrome="workspace"] .workspace-status {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: start;
+    gap: var(--space-2) var(--space-3);
+  }
+
+  body[data-chrome="workspace"] .workspace-status-label {
+    grid-column: 1 / -1;
+  }
+
+  body[data-chrome="workspace"] .workspace-status-actions {
+    grid-row: 2 / span 2;
+    grid-column: 2;
+    flex-direction: column;
+    align-items: stretch;
+    margin-top: 0;
   }
 
   .wizard-steps {
