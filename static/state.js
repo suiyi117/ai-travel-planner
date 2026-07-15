@@ -35,6 +35,11 @@
       selectedOptions: {},
       wizardStep: 1,
       step1Done: false,
+      /** Snapshot taken when entering settings from Step 3 workspace; null when not editing-from-workspace. */
+      settingsSnapshot: null,
+      editingFromWorkspace: false,
+      /** Topbar/workspace summary: false = default "收一点". */
+      summaryExpanded: false,
       mapDrawerOpen: false,
       mapFocusItemId: null,
       editMode: false,

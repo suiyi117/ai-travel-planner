@@ -108,7 +108,20 @@ const {
     mapDrawerBackdrop: document.getElementById('mapDrawerBackdrop'),
     mobileMoreBtn: document.getElementById('mobileMoreBtn'),
     mobileMorePanel: document.getElementById('mobileMorePanel'),
-    mobileMoreWrap: document.getElementById('mobileMoreWrap')
+    mobileMoreWrap: document.getElementById('mobileMoreWrap'),
+    workspaceStatus: document.getElementById('workspaceStatus'),
+    workspaceStatusRoute: document.getElementById('workspaceStatusRoute'),
+    workspaceStatusMeta: document.getElementById('workspaceStatusMeta'),
+    workspaceEditRouteBtn: document.getElementById('workspaceEditRouteBtn'),
+    workspaceEditPrefsBtn: document.getElementById('workspaceEditPrefsBtn'),
+    summaryExpandBtn: document.getElementById('summaryExpandBtn'),
+    topbarSummary: document.getElementById('topbarSummary'),
+    returnToWorkspaceBtn: document.getElementById('returnToWorkspaceBtn'),
+    returnToWorkspaceFromRouteBtn: document.getElementById('returnToWorkspaceFromRouteBtn'),
+    workspaceEditHint: document.getElementById('workspaceEditHint'),
+    workspaceEditHintRoute: document.getElementById('workspaceEditHintRoute'),
+    dayMapHint: document.getElementById('dayMapHint'),
+    resultsPaneKicker: document.getElementById('resultsPaneKicker')
     };
 
     let map = null;
@@ -265,9 +278,121 @@ let draggedDraftNodeId = null;
       });
     }
 
+    function syncSettingsFromDom() {
+      if (el.paceGroup) state.pace = getActive(el.paceGroup) || state.pace;
+      if (el.transportGroup) state.globalTransport = getActive(el.transportGroup) || state.globalTransport;
+      if (el.budgetGroup) state.budget = getActive(el.budgetGroup) || state.budget;
+      if (el.interestsInput) state.interests = el.interestsInput.value.trim();
+      state.cities = (state.cities || []).map((city, index) => normalizeCityEntry(city, index));
+    }
+
+    function currentSettingsLike() {
+      syncSettingsFromDom();
+      return {
+        cities: state.cities,
+        routeShape: state.routeShape || 'one_way',
+        budget: state.budget,
+        pace: state.pace,
+        globalTransport: state.globalTransport
+      };
+    }
+
+    function restoreSettingsSnapshot(snap) {
+      if (!snap || typeof snap !== 'object') return;
+      const normalized = Wizard.settingsSnapshot(snap);
+      state.cities = normalized.cities.map((city, index) => normalizeCityEntry(city, index));
+      state.routeShape = normalized.routeShape || 'one_way';
+      state.budget = normalized.budget;
+      state.pace = normalized.pace;
+      state.globalTransport = normalized.globalTransport;
+      setActiveByValue(el.paceGroup, state.pace);
+      setActiveByValue(el.transportGroup, state.globalTransport);
+      setActiveByValue(el.budgetGroup, state.budget);
+      setActiveByValue(el.routeShapeGroup, state.routeShape);
+      renderCities();
+      syncSelfDrivePreferenceControls();
+    }
+
+    function clearWorkspaceEditSession() {
+      state.editingFromWorkspace = false;
+      state.settingsSnapshot = null;
+      document.body.dataset.editingWorkspace = 'false';
+    }
+
+    function enterSettingsFromWorkspace(step) {
+      const flags = wizardFlags();
+      if (flags.hasPlan) {
+        state.editingFromWorkspace = true;
+        state.settingsSnapshot = Wizard.settingsSnapshot(currentSettingsLike());
+        document.body.dataset.editingWorkspace = 'true';
+      }
+      setWizardStep(step);
+    }
+
+    function settingsDirtyFromWorkspace() {
+      if (!state.editingFromWorkspace || !state.settingsSnapshot) return false;
+      return Wizard.settingsChanged(state.settingsSnapshot, currentSettingsLike());
+    }
+
+    function tryReturnToWorkspace() {
+      if (!wizardFlags().hasPlan) {
+        clearWorkspaceEditSession();
+        return;
+      }
+      if (!settingsDirtyFromWorkspace()) {
+        clearWorkspaceEditSession();
+        setWizardStep(3);
+        setStatus('设置未变更，已返回行程。');
+        return;
+      }
+      const abandon = window.confirm('设置已修改。放弃修改并返回行程？');
+      if (!abandon) return;
+      restoreSettingsSnapshot(state.settingsSnapshot);
+      clearWorkspaceEditSession();
+      setWizardStep(3);
+      setStatus('已放弃修改，行程保持不变。');
+    }
+
+    function updateGenerateCta() {
+      if (!el.generateBtn) return;
+      const fromWorkspace = Boolean(state.editingFromWorkspace && wizardFlags().hasPlan);
+      if (el.returnToWorkspaceBtn) el.returnToWorkspaceBtn.hidden = !fromWorkspace;
+      if (el.returnToWorkspaceFromRouteBtn) el.returnToWorkspaceFromRouteBtn.hidden = !fromWorkspace;
+      if (el.workspaceEditHint) el.workspaceEditHint.hidden = !fromWorkspace;
+      if (el.workspaceEditHintRoute) el.workspaceEditHintRoute.hidden = !fromWorkspace;
+      if (!fromWorkspace) {
+        el.generateBtn.textContent = '生成 AI 旅行规划';
+        return;
+      }
+      el.generateBtn.textContent = settingsDirtyFromWorkspace()
+        ? '重新生成行程'
+        : '返回行程（未修改）';
+    }
+
+    async function handleGenerateClick() {
+      const fromWorkspace = Boolean(state.editingFromWorkspace && wizardFlags().hasPlan);
+      if (fromWorkspace) {
+        if (!settingsDirtyFromWorkspace()) {
+          clearWorkspaceEditSession();
+          setWizardStep(3);
+          setStatus('设置未变更，已返回行程。');
+          return;
+        }
+        const ok = window.confirm('将按新设置重新生成行程并替换当前结果，是否继续？');
+        if (!ok) return;
+      }
+      await generatePlan();
+      clearWorkspaceEditSession();
+    }
+
     function renderWizardChrome() {
       const flags = wizardFlags();
+      const chrome = Wizard.step3ChromeMode
+        ? Wizard.step3ChromeMode(state.wizardStep, flags.hasPlan)
+        : (state.wizardStep === 3 && flags.hasPlan ? 'workspace' : 'wizard');
       document.body.dataset.wizardStep = String(state.wizardStep);
+      document.body.dataset.chrome = chrome;
+      document.body.dataset.editingWorkspace = state.editingFromWorkspace ? 'true' : 'false';
       swapWizardPanel(state.wizardStep);
       document.querySelectorAll('.wizard-step').forEach(btn => {
         const step = Number(btn.dataset.step);
@@ -276,15 +401,40 @@ let draggedDraftNodeId = null;
         btn.classList.toggle('is-locked', !allowed);
         btn.disabled = !allowed;
       });
-      const summary = Wizard.buildSummary(state);
+
+      const summary = Wizard.buildSummaryDisplay
+        ? Wizard.buildSummaryDisplay(state, Boolean(state.summaryExpanded))
+        : Wizard.buildSummary(state);
       if (el.wizardSummaryRoute) el.wizardSummaryRoute.textContent = summary.route;
       if (el.wizardSummaryMeta) el.wizardSummaryMeta.textContent = summary.meta;
       if (el.wizardCompactRoute) el.wizardCompactRoute.textContent = summary.route || '';
       if (el.wizardCompactMeta) el.wizardCompactMeta.textContent = summary.meta || '';
+      if (el.topbarSummary) {
+        el.topbarSummary.classList.toggle('is-collapsed', !state.summaryExpanded);
+        el.topbarSummary.classList.toggle('is-expanded', Boolean(state.summaryExpanded));
+      }
+      if (el.summaryExpandBtn) {
+        el.summaryExpandBtn.setAttribute('aria-expanded', state.summaryExpanded ? 'true' : 'false');
+        el.summaryExpandBtn.textContent = state.summaryExpanded ? '收起' : '展开';
+        el.summaryExpandBtn.title = state.summaryExpanded ? '收起摘要' : '展开摘要';
+      }
+      if (el.workspaceStatus) {
+        const showStatus = chrome === 'workspace';
+        el.workspaceStatus.hidden = !showStatus;
+        if (el.workspaceStatusRoute) el.workspaceStatusRoute.textContent = summary.route || '';
+        if (el.workspaceStatusMeta) {
+          const full = Wizard.buildSummary ? Wizard.buildSummary(state) : summary;
+          el.workspaceStatusMeta.textContent = state.summaryExpanded ? (full.meta || '') : (summary.meta || '');
+        }
+      }
       if (el.wizardCompactSummary) {
-        const hasCompact = Boolean(summary.route || summary.meta);
+        const hasCompact = Boolean(summary.route || summary.meta) && chrome !== 'workspace';
         syncCompactSummary(hasCompact);
       }
+      if (el.resultsPaneKicker) {
+        el.resultsPaneKicker.textContent = chrome === 'workspace' ? '我的行程' : 'Step 03 · 行程';
+      }
+      updateGenerateCta();
       updateHeaderMeta();
     }
 
@@ -293,6 +443,10 @@ let draggedDraftNodeId = null;
       if (!Wizard.canEnterStep(target, wizardFlags())) {
         showToast('请先完成前面的步骤。', 'error');
         return;
+      }
+      // Leaving workspace edit without going through return/generate: keep snapshot until cleared.
+      if (target === 3 && state.editingFromWorkspace && !settingsDirtyFromWorkspace()) {
+        clearWorkspaceEditSession();
       }
       state.wizardStep = target;
       renderWizardChrome();
@@ -2102,6 +2256,17 @@ let draggedDraftNodeId = null;
       `;
       }).join('');
 
+      if (el.dayMapHint) {
+        const hint = Wizard.dayMapHintLabel ? Wizard.dayMapHintLabel(current) : '';
+        if (hint) {
+          el.dayMapHint.hidden = false;
+          el.dayMapHint.innerHTML = `<button class="day-map-hint-btn" type="button" data-open-map-day="${current.day}">${escapeHtml(hint)}</button>`;
+        } else {
+          el.dayMapHint.hidden = true;
+          el.dayMapHint.innerHTML = '';
+        }
+      }
+
       el.filterTabs.querySelectorAll('button').forEach(button => {
         button.classList.toggle('is-active', button.dataset.filter === state.currentFilter);
       });
@@ -2984,20 +3149,77 @@ let draggedDraftNodeId = null;
         });
       });
 
-      if (el.generateBtn) el.generateBtn.addEventListener('click', generatePlan);
-      if (el.regenerateBtn) el.regenerateBtn.addEventListener('click', generatePlan);
+      if (el.generateBtn) el.generateBtn.addEventListener('click', handleGenerateClick);
+      if (el.regenerateBtn) {
+        el.regenerateBtn.addEventListener('click', () => {
+          if (wizardFlags().hasPlan) {
+            const ok = window.confirm('将重新生成行程并替换当前结果，是否继续？');
+            if (!ok) return;
+          }
+          clearWorkspaceEditSession();
+          generatePlan();
+        });
+      }
       if (el.wizardNextBtn) el.wizardNextBtn.addEventListener('click', goNextFromStep1);
       if (el.wizardBackBtn) el.wizardBackBtn.addEventListener('click', () => setWizardStep(1));
-      if (el.wizardEditPrefsBtn) el.wizardEditPrefsBtn.addEventListener('click', () => setWizardStep(2));
+      if (el.wizardEditPrefsBtn) {
+        el.wizardEditPrefsBtn.addEventListener('click', () => enterSettingsFromWorkspace(2));
+      }
+      if (el.workspaceEditRouteBtn) {
+        el.workspaceEditRouteBtn.addEventListener('click', () => enterSettingsFromWorkspace(1));
+      }
+      if (el.workspaceEditPrefsBtn) {
+        el.workspaceEditPrefsBtn.addEventListener('click', () => enterSettingsFromWorkspace(2));
+      }
+      if (el.returnToWorkspaceBtn) {
+        el.returnToWorkspaceBtn.addEventListener('click', tryReturnToWorkspace);
+      }
+      if (el.returnToWorkspaceFromRouteBtn) {
+        el.returnToWorkspaceFromRouteBtn.addEventListener('click', tryReturnToWorkspace);
+      }
+      if (el.summaryExpandBtn) {
+        el.summaryExpandBtn.addEventListener('click', () => {
+          state.summaryExpanded = !state.summaryExpanded;
+          renderWizardChrome();
+        });
+      }
       if (el.wizardSteps) {
         el.wizardSteps.addEventListener('click', event => {
           const button = event.target.closest('[data-step]');
           if (!button) return;
-          setWizardStep(button.dataset.step);
+          const step = Number(button.dataset.step);
+          if (step === 3) {
+            setWizardStep(3);
+            return;
+          }
+          if (wizardFlags().hasPlan && (step === 1 || step === 2)) {
+            enterSettingsFromWorkspace(step);
+            return;
+          }
+          setWizardStep(step);
         });
       }
       if (el.openMapDrawerBtn) {
         el.openMapDrawerBtn.addEventListener('click', () => openMapDrawer(state.activeItemId));
+      }
+      if (el.dayMapHint) {
+        el.dayMapHint.addEventListener('click', event => {
+          const button = event.target.closest('[data-open-map-day]');
+          if (!button) return;
+          const dayNum = Number(button.dataset.openMapDay);
+          if (Number.isFinite(dayNum) && dayNum > 0) {
+            state.currentDay = dayNum;
+            const day = (state.itinerary?.days || []).find(entry => entry.day === dayNum);
+            const firstMappable = (day?.items || []).find(item => {
+              const lat = Number(item?.lat);
+              const lng = Number(item?.lng);
+              return Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0;
+            });
+            if (firstMappable) state.activeItemId = firstMappable.id;
+            renderPlan();
+            openMapDrawer(state.activeItemId);
+          }
+        });
       }
       if (el.closeMapDrawerBtn) el.closeMapDrawerBtn.addEventListener('click', closeMapDrawer);
       if (el.mapDrawerBackdrop) el.mapDrawerBackdrop.addEventListener('click', closeMapDrawer);
@@ -3089,14 +3311,10 @@ let draggedDraftNodeId = null;
           if (!card) return;
           const itemId = card.dataset.item;
           const item = activeItems().find(entry => String(entry.id) === String(itemId));
-          const hasCoords = item && Number(item.lat) && Number(item.lng);
-          const isPlaceable = item && (hasCoords || item.type === 'experience' || item.type === 'food' || item.type === 'hotel');
-          // Placeable POIs open the map drawer with focus; transport/other can open optionally.
-          if (isPlaceable || (item && item.type === 'transport')) {
-            openMapDrawer(itemId);
-          } else {
-            focusItem(itemId, false);
-          }
+          const hasCoords = Boolean(item && Number(item.lat) && Number(item.lng));
+          // IA Phase 1: itinerary is primary; do not auto-pop map on card select.
+          // Explicit map entry: toolbar「看地图」、day map hint；map open 时仍联动定位。
+          focusItem(itemId, Boolean(state.mapDrawerOpen && hasCoords));
         });
       }
 
@@ -3142,7 +3360,8 @@ let draggedDraftNodeId = null;
 
       if (el.needSelfDriveLink) {
         el.needSelfDriveLink.addEventListener('click', () => {
-          setWizardStep(2);
+          if (wizardFlags().hasPlan) enterSettingsFromWorkspace(2);
+          else setWizardStep(2);
           showToast('将默认交通或某一城际段设为自驾后，即可优化自驾路线');
         });
       }

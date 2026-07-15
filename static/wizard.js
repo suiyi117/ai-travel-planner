@@ -159,11 +159,94 @@
     };
   }
 
+  /**
+   * Stable settings snapshot for workspace edit → regenerate flow.
+   * Accepts either live app state or a previous snapshot.
+   */
+  function settingsSnapshot(stateLike) {
+    const cities = Array.isArray(stateLike?.cities) ? stateLike.cities : [];
+    return {
+      cities: cities.map(city => {
+        const days = Number(city?.days);
+        const normalizedDays = Number.isFinite(days) ? days : 0;
+        let planStay;
+        if (city?.plan_stay === false) planStay = false;
+        else if (city?.plan_stay === true) planStay = true;
+        else planStay = normalizedDays > 0;
+        return {
+          name: String(city?.name || '').trim(),
+          days: normalizedDays,
+          plan_stay: planStay,
+          transport: String(city?.transport || 'auto').trim() || 'auto'
+        };
+      }),
+      routeShape: String(
+        stateLike?.routeShape || stateLike?.route_shape || 'one_way'
+      ).trim() || 'one_way',
+      budget: String(stateLike?.budget || '').trim(),
+      pace: String(stateLike?.pace || '').trim(),
+      globalTransport: String(stateLike?.globalTransport || 'auto').trim() || 'auto'
+    };
+  }
+
+  function settingsChanged(a, b) {
+    return JSON.stringify(settingsSnapshot(a)) !== JSON.stringify(settingsSnapshot(b));
+  }
+
+  /**
+   * Step 3 with a plan uses workspace chrome (status bar), not wizard steps.
+   */
+  function step3ChromeMode(wizardStep, hasPlan) {
+    if (Number(wizardStep) === 3 && Boolean(hasPlan)) return 'workspace';
+    return 'wizard';
+  }
+
+  /**
+   * Summary display: default collapsed shows route + short meta (days · budget).
+   */
+  function buildSummaryDisplay(stateLike, expanded) {
+    const full = buildSummary(stateLike);
+    if (expanded) {
+      return {
+        route: full.route,
+        totalDays: full.totalDays,
+        meta: full.meta,
+        expanded: true
+      };
+    }
+    const cities = Array.isArray(stateLike?.cities) ? stateLike.cities : [];
+    const totalDays = cities.reduce((sum, c) => sum + (Number(c?.days) || 0), 0);
+    const budget = String(stateLike?.budget || '').trim();
+    const shortMeta = [totalDays ? `${totalDays} 天` : '', budget].filter(Boolean).join(' · ');
+    return {
+      route: full.route,
+      totalDays: full.totalDays,
+      meta: shortMeta || full.meta,
+      expanded: false
+    };
+  }
+
+  function countMappableStops(day) {
+    const items = Array.isArray(day?.items) ? day.items : [];
+    return items.filter(item => {
+      const lat = Number(item?.lat);
+      const lng = Number(item?.lng);
+      return Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0;
+    }).length;
+  }
+
+  function dayMapHintLabel(day) {
+    const count = countMappableStops(day);
+    if (count <= 0) return '';
+    return `${count} 个点 · 可看地图`;
+  }
+
   global.AeroTravelWizard = Object.freeze({
     validateStep1,
     canEnterStep,
     shouldAnimateStepTransition,
     buildSummary,
+    buildSummaryDisplay,
     findAddedCityNames,
     routeLabel,
     isDrivingTransport,
@@ -174,6 +257,11 @@
     canSwitchEditTool,
     normalizeEditTool,
     isEditToolChange,
-    buildEditToolOptimizationRequest
+    buildEditToolOptimizationRequest,
+    settingsSnapshot,
+    settingsChanged,
+    step3ChromeMode,
+    countMappableStops,
+    dayMapHintLabel
   });
 })(typeof window !== 'undefined' ? window : global);

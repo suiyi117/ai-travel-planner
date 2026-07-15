@@ -287,3 +287,109 @@ test('isEditToolChange treats clicking the selected tool as a no-op', () => {
   assert.equal(W.isEditToolChange('daily', 'driving'), true);
   assert.equal(W.isEditToolChange('driving', 'daily'), true);
 });
+
+const sampleSettings = {
+  cities: [
+    { name: '北京', days: 2, plan_stay: true, transport: 'auto' },
+    { name: '西安', days: 1, plan_stay: true, transport: 'train' }
+  ],
+  routeShape: 'one_way',
+  budget: '舒适型',
+  pace: '适中均衡',
+  globalTransport: 'auto'
+};
+
+test('settingsSnapshot normalizes cities and prefs', () => {
+  const snap = W.settingsSnapshot(sampleSettings);
+  assert.deepEqual(snap.cities, [
+    { name: '北京', days: 2, plan_stay: true, transport: 'auto' },
+    { name: '西安', days: 1, plan_stay: true, transport: 'train' }
+  ]);
+  assert.equal(snap.routeShape, 'one_way');
+  assert.equal(snap.budget, '舒适型');
+  assert.equal(snap.pace, '适中均衡');
+  assert.equal(snap.globalTransport, 'auto');
+});
+
+test('settingsSnapshot is stable when re-snapshotted', () => {
+  const once = W.settingsSnapshot(sampleSettings);
+  const twice = W.settingsSnapshot(once);
+  assert.deepEqual(once, twice);
+});
+
+test('settingsChanged is false for identical settings', () => {
+  assert.equal(W.settingsChanged(sampleSettings, { ...sampleSettings }), false);
+  assert.equal(
+    W.settingsChanged(W.settingsSnapshot(sampleSettings), W.settingsSnapshot(sampleSettings)),
+    false
+  );
+});
+
+test('settingsChanged detects day changes', () => {
+  const next = {
+    ...sampleSettings,
+    cities: [
+      { name: '北京', days: 3, plan_stay: true, transport: 'auto' },
+      { name: '西安', days: 1, plan_stay: true, transport: 'train' }
+    ]
+  };
+  assert.equal(W.settingsChanged(sampleSettings, next), true);
+});
+
+test('settingsChanged detects budget changes', () => {
+  assert.equal(
+    W.settingsChanged(sampleSettings, { ...sampleSettings, budget: '经济型' }),
+    true
+  );
+});
+
+test('settingsChanged detects city order changes', () => {
+  const reordered = {
+    ...sampleSettings,
+    cities: [
+      { name: '西安', days: 1, plan_stay: true, transport: 'train' },
+      { name: '北京', days: 2, plan_stay: true, transport: 'auto' }
+    ]
+  };
+  assert.equal(W.settingsChanged(sampleSettings, reordered), true);
+});
+
+test('settingsChanged detects routeShape changes', () => {
+  assert.equal(
+    W.settingsChanged(sampleSettings, { ...sampleSettings, routeShape: 'round_trip' }),
+    true
+  );
+});
+
+test('step3ChromeMode is workspace only on step 3 with a plan', () => {
+  assert.equal(W.step3ChromeMode(3, true), 'workspace');
+  assert.equal(W.step3ChromeMode(3, false), 'wizard');
+  assert.equal(W.step3ChromeMode(1, true), 'wizard');
+  assert.equal(W.step3ChromeMode(2, true), 'wizard');
+});
+
+test('buildSummaryDisplay collapses meta by default', () => {
+  const collapsed = W.buildSummaryDisplay(sampleSettings, false);
+  assert.equal(collapsed.route, '北京 → 西安');
+  assert.equal(collapsed.meta, '3 天 · 舒适型');
+  assert.equal(collapsed.expanded, false);
+
+  const expanded = W.buildSummaryDisplay(sampleSettings, true);
+  assert.match(expanded.meta, /适中均衡/);
+  assert.match(expanded.meta, /智能交通/);
+  assert.equal(expanded.expanded, true);
+});
+
+test('dayMapHintLabel counts mappable stops only', () => {
+  const day = {
+    items: [
+      { lat: 39.9, lng: 116.4 },
+      { lat: 0, lng: 0 },
+      { lat: 34.2, lng: 108.9 },
+      { title: '无坐标' }
+    ]
+  };
+  assert.equal(W.countMappableStops(day), 2);
+  assert.equal(W.dayMapHintLabel(day), '2 个点 · 可看地图');
+  assert.equal(W.dayMapHintLabel({ items: [] }), '');
+});
