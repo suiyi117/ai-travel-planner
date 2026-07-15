@@ -126,9 +126,9 @@ p { text-wrap: pretty; }
 }
 
 .pane-title {
-  font-family: var(--font-body);
+  font-family: var(--font-display);
   font-size: clamp(1.35rem, 1.15rem + 0.8vw, 1.65rem);
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.25;
   letter-spacing: -0.025em;
   margin-bottom: var(--space-1);
