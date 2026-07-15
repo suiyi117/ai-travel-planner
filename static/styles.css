@@ -12,10 +12,12 @@ body {
   min-height: 100vh;
   overflow-x: hidden;
   overflow-y: auto;
+  /* Flat product canvas — soft wash only, no decorative glow blobs */
   background: var(--bg);
   color: var(--fg);
   font-family: var(--font-body);
   font-size: var(--text-base);
+  font-weight: 400;
   line-height: var(--leading-body);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -44,17 +46,21 @@ p { text-wrap: pretty; }
   flex-direction: column;
 }
 
+/* Topbar — parchment surface, hard bottom rule, no glass */
 .topbar {
-  height: 84px;
+  height: 56px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-6);
-  padding: 0 var(--space-8);
+  gap: var(--space-5);
+  padding: 0 var(--space-6);
   background: var(--surface);
   border-bottom: 1px solid var(--border);
-  box-shadow: 0 1px 0 0 var(--border-soft);
-  position: relative;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  position: sticky;
+  top: 0;
   z-index: 10;
 }
 
@@ -66,19 +72,32 @@ p { text-wrap: pretty; }
 }
 
 .brand-mark {
-  width: 42px;
-  height: 42px;
+  width: 32px;
+  height: 32px;
   display: grid;
   place-items: center;
-  border-radius: var(--radius-md);
-  background: var(--fg);
+  border-radius: 8px;
+  background: var(--fg); /* ink mark on parchment */
   color: var(--accent-on);
-  box-shadow: 0 0 0 1px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.08);
+  box-shadow: none;
+}
+
+.brand-mark svg {
+  width: 16px;
+  height: 16px;
 }
 
 .brand h1 {
-  font-size: var(--text-2xl);
-  line-height: 1;
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.brand p {
+  font-size: 12px;
+  color: var(--meta);
 }
 
 .brand p,
@@ -107,9 +126,13 @@ p { text-wrap: pretty; }
 }
 
 .pane-title {
-  font-size: var(--text-2xl);
-  line-height: 1.15;
+  font-family: var(--font-body);
+  font-size: clamp(1.35rem, 1.15rem + 0.8vw, 1.65rem);
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
   margin-bottom: var(--space-1);
+  color: var(--fg);
   transition:
     font-size var(--motion-base) var(--ease-standard),
     margin-bottom var(--motion-base) var(--ease-standard);
@@ -128,8 +151,63 @@ p { text-wrap: pretty; }
     opacity var(--motion-base) var(--ease-standard);
 }
 
-.stack { display: grid; gap: var(--space-6); }
-.stack-tight { display: grid; gap: var(--space-4); }
+.stack { display: grid; gap: var(--space-5); }
+.stack-tight { display: grid; gap: var(--space-3); }
+
+/* Step 1/2 product form density */
+#stepRoute .stack,
+#stepPrefs .stack {
+  gap: 16px;
+  max-width: none;
+  width: 100%;
+}
+
+/* City list fills the left column width */
+#cityList.city-list {
+  width: 100%;
+}
+
+#stepRoute .field-help,
+#stepPrefs .field-help {
+  max-width: 42ch;
+}
+
+#stepRoute .pane-kicker,
+#stepPrefs .pane-kicker {
+  margin-bottom: 6px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+#stepRoute .pane-subtitle,
+#stepPrefs .pane-subtitle {
+  margin-top: 8px;
+  font-size: 13px;
+  max-width: 46ch;
+}
+
+.days-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 12px;
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-warm);
+}
+
+.days-summary strong {
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--fg);
+}
+
+.days-summary .field-help {
+  margin: 0;
+}
 .row { display: flex; align-items: center; gap: var(--space-4); }
 .row-between {
   display: flex;
@@ -146,32 +224,35 @@ p { text-wrap: pretty; }
 
 .field {
   display: grid;
-  gap: var(--space-3);
+  gap: 8px;
 }
 
 .field label {
-  color: var(--fg-2);
-  font-size: var(--text-sm);
+  color: var(--fg);
+  font-size: 13px;
   font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .field-help {
   color: var(--meta);
-  font-size: var(--text-sm);
-  line-height: 1.5;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
+/* Fields — ivory surface, soft warm border, warm focus ring */
 .input,
 .select,
 .textarea {
   width: 100%;
-  min-height: 46px;
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-md);
-  background: color-mix(in oklab, var(--surface), var(--bg) 34%);
+  min-height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
   color: var(--fg);
-  padding: 0 var(--space-4);
+  padding: 0 12px;
   outline: none;
+  font-size: 13px;
   transition:
     border-color var(--motion-fast) var(--ease-standard),
     box-shadow var(--motion-fast) var(--ease-standard),
@@ -179,8 +260,8 @@ p { text-wrap: pretty; }
 }
 
 .textarea {
-  min-height: 96px;
-  padding-block: var(--space-3);
+  min-height: 88px;
+  padding-block: 10px;
   resize: vertical;
   line-height: 1.5;
 }
@@ -188,58 +269,93 @@ p { text-wrap: pretty; }
 .input:focus,
 .select:focus,
 .textarea:focus {
-  border-color: color-mix(in oklab, var(--accent), var(--border-soft) 40%);
+  border-color: color-mix(in oklab, var(--fg), var(--border) 45%);
   box-shadow: var(--focus-ring);
   background: var(--surface);
 }
 
+/* Buttons — secondary (.btn): surface + border; primary: terracotta; ghost: transparent + border */
 .btn {
-  min-height: 46px;
+  min-height: 34px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
   border: 0;
-  border-radius: var(--radius-md);
-  padding: 0 var(--space-5);
+  border-radius: 8px;
+  padding: 0 14px;
   color: var(--fg-2);
-  background: var(--surface-warm);
-  box-shadow: 0 0 0 1px var(--border-soft);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border);
   font-weight: 600;
-  font-size: var(--text-sm);
+  font-size: 13px;
+  letter-spacing: 0;
   transition:
-    transform var(--motion-fast) var(--ease-standard),
     background var(--motion-fast) var(--ease-standard),
     color var(--motion-fast) var(--ease-standard),
     box-shadow var(--motion-fast) var(--ease-standard);
 }
 
 .btn:hover {
-  background: color-mix(in oklab, var(--surface-warm), var(--surface) 36%);
-  box-shadow: 0 0 0 1px var(--border), 0 2px 8px rgba(0,0,0,0.04);
+  background: var(--surface-warm);
+  color: var(--fg);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--border), var(--fg) 14%);
 }
-.btn:active { transform: translateY(1px); }
-.btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+.btn:active {
+  background: color-mix(in oklab, var(--surface-warm), var(--border) 25%);
+}
+
+.btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.btn:disabled,
+.btn[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+  pointer-events: none;
+}
 
 .btn-primary {
   background: var(--accent);
   color: var(--accent-on);
-  box-shadow: 0 0 0 1px var(--accent), 0 2px 12px color-mix(in oklab, var(--accent), transparent 72%);
+  box-shadow: none;
 }
 
 .btn-primary:hover {
   background: var(--accent-hover);
-  box-shadow: 0 0 0 1px var(--accent), 0 4px 18px color-mix(in oklab, var(--accent), transparent 64%);
+  color: var(--accent-on);
+  box-shadow: none;
+}
+
+.btn-primary:active {
+  background: var(--accent-active);
+  color: var(--accent-on);
+  box-shadow: none;
+}
+
+.btn-primary:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .btn-ghost {
   background: transparent;
-  box-shadow: inset 0 0 0 1px var(--border-soft);
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--fg-2);
 }
 
 .btn-ghost:hover {
-  background: color-mix(in oklab, transparent, var(--surface-warm) 28%);
-  box-shadow: inset 0 0 0 1px var(--border);
+  background: var(--surface-warm);
+  color: var(--fg);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--border), var(--fg) 12%);
+}
+
+.btn-ghost:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .btn-icon {
@@ -252,51 +368,58 @@ p { text-wrap: pretty; }
 .segmented {
   display: grid;
   grid-template-columns: repeat(var(--segments, 3), minmax(0, 1fr));
-  gap: var(--space-1);
-  padding: var(--space-1);
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-md);
-  background: color-mix(in oklab, var(--surface-warm), var(--surface) 30%);
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-warm);
 }
 
 .segmented button {
-  min-height: 40px;
+  min-height: 34px;
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: 6px;
   background: transparent;
   color: var(--muted);
   font-weight: 600;
-  font-size: var(--text-sm);
-  transition: all var(--motion-fast) var(--ease-standard);
+  font-size: 13px;
+  transition:
+    background var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard);
+}
+
+.segmented button:hover {
+  color: var(--fg);
 }
 
 .segmented button.is-active {
   background: var(--surface);
   color: var(--fg);
-  box-shadow: 0 0 0 1px rgba(0,0,0,0.04), 0 1px 4px rgba(0,0,0,0.06);
+  box-shadow: 0 0 0 1px var(--border), 0 1px 2px rgba(17, 17, 16, 0.06);
 }
 
 .city-input-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: var(--space-4);
+  gap: var(--space-2);
 }
 
 .city-list {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-2);
 }
 
 .city-card {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: var(--space-4);
-  align-items: stretch;
-  padding: var(--space-5) var(--space-5) var(--space-5) var(--space-4);
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 10px 12px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: 8px;
   background: var(--surface);
-  box-shadow: var(--elev-ring);
+  box-shadow: none;
   transition:
     border-color var(--motion-fast) var(--ease-standard),
     box-shadow var(--motion-fast) var(--ease-standard),
@@ -306,10 +429,8 @@ p { text-wrap: pretty; }
 }
 
 .city-card:hover {
-  border-color: var(--border-soft);
-  box-shadow:
-    var(--elev-ring),
-    var(--elev-raised);
+  border-color: color-mix(in oklab, var(--border), var(--fg) 18%);
+  box-shadow: none;
 }
 
 .city-card:hover .city-actions {
@@ -339,40 +460,40 @@ p { text-wrap: pretty; }
 }
 
 .city-card-rail {
-  display: grid;
-  grid-template-rows: auto 1fr;
-  justify-items: center;
-  gap: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
   padding-top: 2px;
-  min-width: 36px;
+  min-width: 28px;
 }
 
 .city-index {
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
   display: grid;
   place-items: center;
-  border-radius: var(--radius-sm);
-  background: color-mix(in oklab, var(--surface-warm), var(--surface) 28%);
-  color: var(--fg-2);
+  border-radius: 6px;
+  background: var(--fg);
+  color: #fff;
   font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  box-shadow: 0 0 0 1px var(--border-soft);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+  box-shadow: none;
 }
 
 .city-card-body {
   display: grid;
-  gap: var(--space-4);
+  gap: 8px;
   min-width: 0;
 }
 
 .city-card-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: var(--space-3);
+  gap: 8px;
   min-width: 0;
 }
 
@@ -382,43 +503,44 @@ p { text-wrap: pretty; }
 
 .city-name {
   color: var(--fg);
-  font-family: var(--font-display);
-  font-weight: 500;
-  font-size: var(--text-xl);
-  line-height: var(--leading-tight);
-  letter-spacing: var(--tracking-display);
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
 }
 
 .city-meta {
   color: var(--meta);
-  font-size: var(--text-sm);
-  margin-top: var(--space-1);
-  line-height: 1.4;
+  font-size: 11px;
+  margin-top: 1px;
+  line-height: 1.3;
 }
 
 .city-actions {
   display: flex;
-  gap: 2px;
+  gap: 0;
   align-items: center;
   flex-shrink: 0;
-  opacity: 0.72;
+  opacity: 1;
   transition: opacity var(--motion-fast) var(--ease-standard);
 }
 
 .city-drag-handle {
-  width: 28px;
-  height: 22px;
+  width: 20px;
+  height: 16px;
   display: grid;
   place-items: center;
-  border-radius: 6px;
+  border-radius: 4px;
   color: var(--meta);
   background: transparent;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: -0.08em;
   line-height: 1;
   cursor: grab;
   user-select: none;
+  opacity: 0.65;
 }
 
 .city-card:hover .city-drag-handle {
@@ -436,11 +558,13 @@ p { text-wrap: pretty; }
 }
 
 .city-actions .btn-icon {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
   color: var(--muted);
   background: transparent;
   box-shadow: none;
+  border-radius: 6px;
 }
 
 .city-actions .btn-icon:hover {
@@ -455,33 +579,33 @@ p { text-wrap: pretty; }
 
 .city-controls {
   display: flex;
-  gap: var(--space-2);
+  gap: 6px;
   align-items: center;
   flex-wrap: wrap;
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--border);
+  padding-top: 0;
+  border-top: 0;
 }
 
 .city-days-label,
 .city-transport-label {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  min-height: 36px;
-  padding: 0 var(--space-3) 0 var(--space-3);
-  border-radius: var(--radius-sm);
-  background: color-mix(in oklab, var(--bg), var(--surface) 40%);
-  box-shadow: 0 0 0 1px var(--border);
-  font-size: var(--text-sm);
+  gap: 4px;
+  min-height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--surface-warm);
+  box-shadow: inset 0 0 0 1px var(--border);
+  font-size: 12px;
   color: var(--muted);
 }
 
 .city-days-label span,
 .city-transport-label span {
   white-space: nowrap;
-  font-size: var(--text-xs);
+  font-size: 11px;
   color: var(--meta);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
 }
 
 .city-days-label .select,
@@ -500,13 +624,13 @@ p { text-wrap: pretty; }
 .city-plan-stay {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  min-height: 36px;
-  padding: 0 var(--space-3);
-  border-radius: var(--radius-sm);
-  background: color-mix(in oklab, var(--bg), var(--surface) 40%);
-  box-shadow: 0 0 0 1px var(--border);
-  font-size: var(--text-sm);
+  gap: 5px;
+  min-height: 28px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--surface-warm);
+  box-shadow: inset 0 0 0 1px var(--border);
+  font-size: 12px;
   color: var(--fg-2);
   white-space: nowrap;
   cursor: pointer;
@@ -557,39 +681,48 @@ p { text-wrap: pretty; }
 .stats-strip {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
 .metric-card {
-  padding: var(--space-5) var(--space-6);
-  border: 1px solid var(--border);
+  padding: var(--space-5) var(--space-5);
+  border: 1px solid var(--border-soft);
   border-radius: var(--radius-md);
-  background: color-mix(in oklab, var(--surface), var(--bg) 30%);
-  box-shadow: 0 0 0 1px rgba(0,0,0,0.015);
+  background: linear-gradient(180deg, var(--surface) 0%, color-mix(in oklab, var(--surface), var(--bg) 40%) 100%);
+  box-shadow: var(--elev-ring);
 }
 
 .metric-value {
   font-family: var(--font-display);
-  font-size: var(--text-2xl);
+  font-size: clamp(1.6rem, 1.3rem + 1vw, 2rem);
+  font-weight: 600;
   line-height: 1;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
+  color: var(--fg);
 }
 
 .metric-label {
-  margin-top: var(--space-3);
-  color: var(--muted);
+  margin-top: var(--space-2);
+  color: var(--meta);
   font-size: var(--text-xs);
-  letter-spacing: 0.12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }
 
 .status-note {
-  padding: var(--space-5);
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-md);
-  background: color-mix(in oklab, var(--surface-warm), var(--surface) 44%);
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-warm);
   color: var(--muted);
-  font-size: var(--text-sm);
-  line-height: 1.55;
+  font-size: 12px;
+  line-height: 1.5;
+  box-shadow: none;
+}
+
+body[data-wizard-step="1"] #statusNote,
+body[data-wizard-step="2"] #statusNote {
+  margin-bottom: 12px;
 }
 
 .quality-panel {
@@ -674,47 +807,53 @@ p { text-wrap: pretty; }
 
 .day-tab,
 .filter-tab {
-  border: 1px solid var(--border-soft);
-  border-radius: 999px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
   background: var(--surface);
   color: var(--muted);
   white-space: nowrap;
   font-weight: 600;
-  font-size: var(--text-sm);
-  transition: all var(--motion-fast) var(--ease-standard);
+  font-size: 13px;
+  transition:
+    background var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard);
   cursor: pointer;
 }
 
 .day-tab {
-  min-width: 96px;
-  min-height: 52px;
-  padding: 10px 14px;
+  min-width: 88px;
+  min-height: 48px;
+  padding: 8px 12px;
   text-align: left;
   display: inline-flex;
   flex-direction: column;
   justify-content: center;
-  gap: 2px;
-  box-shadow: 0 1px 0 rgba(20, 20, 19, 0.02);
+  gap: 1px;
+  box-shadow: none;
 }
 
 .day-tab:hover,
 .filter-tab:hover {
-  border-color: var(--border);
-  color: var(--fg-2);
-  background: #fff;
+  border-color: color-mix(in oklab, var(--border), var(--fg) 16%);
+  color: var(--fg);
+  background: var(--surface-warm);
 }
 
 .filter-tab {
-  min-height: 38px;
-  padding: 0 var(--space-4);
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
 }
 
+/* Product selection: solid ink, no soft glow */
 .day-tab.is-active,
 .filter-tab.is-active {
-  background: var(--accent, #c96442);
-  border-color: var(--accent, #c96442);
-  color: var(--accent-on, #faf9f5);
-  box-shadow: 0 6px 16px rgba(201, 100, 66, 0.22);
+  background: var(--fg);
+  border-color: var(--fg);
+  color: #fff;
+  box-shadow: none;
 }
 
 .day-tab small {
@@ -734,45 +873,17 @@ p { text-wrap: pretty; }
   font-weight: 500;
 }
 
+/* Timeline base — detailed layout lives in index.html Phase 3 block */
 .timeline {
   position: relative;
   display: grid;
-  gap: var(--space-5);
-  padding-left: var(--space-6);
-}
-
-.timeline::before {
-  content: "";
-  position: absolute;
-  left: 7px;
-  top: var(--space-3);
-  bottom: var(--space-3);
-  width: 1.5px;
-  background: color-mix(in oklab, var(--border-soft), var(--border) 40%);
-  border-radius: 2px;
+  gap: 0;
+  padding-left: 0;
 }
 
 .timeline-item {
   position: relative;
-}
-
-.timeline-item::before {
-  content: "";
-  position: absolute;
-  left: -24px;
-  top: 24px;
-  width: 14px;
-  height: 14px;
-  border-radius: var(--radius-pill);
-  background: var(--surface);
-  border: 2px solid var(--border-soft);
-  box-shadow: 0 0 0 3px var(--bg);
-}
-
-.timeline-item.is-active::before {
-  border-color: var(--accent);
-  background: var(--accent);
-  box-shadow: 0 0 0 6px color-mix(in oklab, var(--accent), transparent 84%);
+  min-width: 0;
 }
 
 .itinerary-card,
@@ -781,16 +892,17 @@ p { text-wrap: pretty; }
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-lg);
   background: var(--surface);
-  box-shadow: 0 0 0 1px rgba(0,0,0,0.02), 0 2px 12px rgba(0,0,0,0.03);
+  box-shadow: var(--elev-card);
 }
 
 .itinerary-card {
   width: 100%;
   display: grid;
-  gap: var(--space-4);
-  padding: var(--space-6);
+  gap: var(--space-3);
+  padding: var(--space-5);
   text-align: left;
   color: inherit;
+  cursor: pointer;
   transition:
     border-color var(--motion-fast) var(--ease-standard),
     background var(--motion-fast) var(--ease-standard),
@@ -798,13 +910,16 @@ p { text-wrap: pretty; }
     transform var(--motion-fast) var(--ease-standard);
 }
 
-.itinerary-card:hover,
+.itinerary-card:hover {
+  border-color: color-mix(in oklab, var(--border), var(--fg) 18%);
+  box-shadow: var(--elev-card);
+  background: var(--surface);
+}
+
 .itinerary-card.is-active {
-  border-color: color-mix(in oklab, var(--accent), var(--border-soft) 40%);
-  background: color-mix(in oklab, var(--surface), var(--surface-warm) 18%);
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent), transparent 88%),
-              0 4px 20px rgba(0,0,0,0.05);
-  transform: translateY(-1px);
+  border-color: var(--fg);
+  background: var(--surface);
+  box-shadow: 0 0 0 1px var(--fg), 0 8px 24px rgba(17, 17, 16, 0.08);
 }
 
 .card-top {
@@ -822,16 +937,23 @@ p { text-wrap: pretty; }
 }
 
 .item-title {
-  margin-top: var(--space-2);
-  font-family: var(--font-display);
-  font-size: var(--text-xl);
-  line-height: 1.16;
+  margin-top: 0;
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -0.015em;
+  color: var(--fg);
 }
 
 .item-desc {
   color: var(--muted);
   font-size: var(--text-sm);
-  line-height: 1.6;
+  line-height: 1.65;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .poi-meta-line {
@@ -848,28 +970,32 @@ p { text-wrap: pretty; }
   gap: var(--space-3);
 }
 
+/* Soft warm-sand pills — not loud chips */
 .badge {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  min-height: 28px;
-  padding: 0 var(--space-4);
+  min-height: 26px;
+  padding: 0 10px;
   border-radius: var(--radius-pill);
-  background: color-mix(in oklab, var(--surface-warm), var(--surface) 40%);
+  background: var(--surface-warm);
   color: var(--fg-2);
-  font-size: var(--text-xs);
-  font-weight: 700;
-  letter-spacing: 0.12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: 1px solid var(--border-soft);
 }
 
 .badge-accent {
-  background: color-mix(in oklab, var(--accent), transparent 86%);
-  color: var(--accent);
+  background: color-mix(in oklab, var(--accent), var(--surface) 90%);
+  border-color: color-mix(in oklab, var(--accent), transparent 78%);
+  color: color-mix(in oklab, var(--accent), black 10%);
 }
 
 .badge-warn {
-  background: color-mix(in oklab, var(--warn), transparent 78%);
-  color: color-mix(in oklab, var(--warn), var(--fg) 55%);
+  background: color-mix(in oklab, var(--warn), var(--surface) 88%);
+  border-color: color-mix(in oklab, var(--warn), transparent 78%);
+  color: color-mix(in oklab, var(--warn), var(--fg) 50%);
 }
 
 .transport-list {
@@ -1824,17 +1950,83 @@ p { text-wrap: pretty; }
 .wizard-shell {
   flex: 1 0 auto;
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-columns: 200px minmax(0, 1fr);
   align-items: start;
-  gap: var(--space-6);
+  gap: var(--space-5);
   width: 100%;
-  max-width: 1200px;
+  max-width: 1120px;
   margin: 0 auto;
-  padding: var(--space-6) var(--space-8) var(--space-12);
-  background:
-    radial-gradient(ellipse 900px 600px at 18% 12%, color-mix(in oklab, var(--surface-warm), transparent 82%) 0%, transparent 70%),
-    radial-gradient(ellipse 700px 500px at 82% 28%, color-mix(in oklab, var(--border), transparent 88%) 0%, transparent 65%),
-    var(--bg);
+  padding: var(--space-5) var(--space-6) var(--space-12);
+  background: transparent;
+}
+
+/* Step 1/2: single clean column, moderately wide — no CSS grid reordering */
+body[data-wizard-step="1"] .wizard-shell,
+body[data-wizard-step="2"] .wizard-shell {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: min(800px, 100%);
+  width: 100%;
+  gap: 12px;
+  padding: 16px clamp(16px, 3vw, 28px) 48px;
+}
+
+body[data-wizard-step="1"] .wizard-rail,
+body[data-wizard-step="2"] .wizard-rail {
+  position: static;
+}
+
+body[data-wizard-step="1"] .wizard-steps,
+body[data-wizard-step="2"] .wizard-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+body[data-wizard-step="1"] .wizard-step,
+body[data-wizard-step="2"] .wizard-step {
+  min-height: 40px;
+  padding: 8px 12px;
+  gap: 8px;
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+body[data-wizard-step="1"] .wizard-step.is-active,
+body[data-wizard-step="2"] .wizard-step.is-active {
+  background: var(--fg);
+  border-color: var(--fg);
+  color: #fff;
+}
+
+body[data-wizard-step="1"] .wizard-step.is-active .wizard-step-index,
+body[data-wizard-step="2"] .wizard-step.is-active .wizard-step-index {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
+body[data-wizard-step="1"] .wizard-step.is-locked,
+body[data-wizard-step="2"] .wizard-step.is-locked {
+  background: var(--surface-warm);
+}
+
+body[data-wizard-step="1"] .wizard-panel,
+body[data-wizard-step="2"] .wizard-panel {
+  max-width: none;
+  width: 100%;
+}
+
+body[data-wizard-step="1"] #statusNote,
+body[data-wizard-step="2"] #statusNote {
+  margin: 0;
+}
+
+#routeShapeGroup {
+  max-width: 240px;
+}
+
+#stepRoute .field-help,
+#stepPrefs .field-help {
+  margin: 0;
 }
 
 .wizard-rail {
@@ -1869,7 +2061,8 @@ body[data-chrome="wizard"] .workspace-status {
   padding: var(--space-4);
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-md);
-  background: color-mix(in oklab, var(--surface), var(--bg) 18%);
+  background: linear-gradient(180deg, var(--surface) 0%, color-mix(in oklab, var(--surface), var(--bg) 35%) 100%);
+  box-shadow: var(--elev-ring);
 }
 
 .workspace-status-label {
@@ -1908,6 +2101,10 @@ body[data-chrome="wizard"] .workspace-status {
 
 .topbar-summary {
   position: relative;
+  /* Layout/chrome for the chip lives in index.html Phase-3 block;
+     keep summary free of glass here as a hard contract. */
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .topbar-summary-toggle {
@@ -1922,11 +2119,16 @@ body[data-chrome="wizard"] .workspace-status {
   white-space: nowrap;
 }
 
-.topbar-summary-toggle:hover,
+.topbar-summary-toggle:hover {
+  color: var(--fg);
+  background: color-mix(in oklab, var(--surface-warm), var(--surface) 40%);
+}
+
 .topbar-summary-toggle:focus-visible {
   color: var(--fg);
-  background: color-mix(in oklab, var(--surface), transparent 40%);
+  background: color-mix(in oklab, var(--surface-warm), var(--surface) 40%);
   outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .topbar-summary.is-collapsed .topbar-summary-meta {
@@ -1970,39 +2172,18 @@ body[data-chrome="wizard"] .workspace-status {
 .itinerary-card-shell {
   display: grid;
   gap: var(--space-2);
+  min-width: 0;
 }
 
-.itinerary-card-shell.is-active .itinerary-card {
-  /* keep existing card active styles via .itinerary-card.is-active */
-}
-
+/* card-map-btn visual system lives in index.html Phase 3 block; keep base layout here */
 .card-map-btn {
   justify-self: start;
-  min-height: 40px;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-sm);
-  background: color-mix(in oklab, var(--surface), var(--bg) 12%);
-  color: var(--fg-2);
-  font-size: var(--text-xs);
-  font-weight: 600;
   cursor: pointer;
   transition:
     background-color var(--motion-fast) var(--ease-standard),
     border-color var(--motion-fast) var(--ease-standard),
-    color var(--motion-fast) var(--ease-standard);
-}
-
-.card-map-btn:hover,
-.card-map-btn:focus-visible {
-  color: var(--fg);
-  border-color: var(--border);
-  background: var(--surface);
-  outline: none;
-}
-
-.timeline-item.is-active .card-map-btn {
-  border-color: color-mix(in oklab, var(--fg), var(--border) 55%);
+    color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard);
 }
 
 .workspace-edit-hint {
@@ -2017,16 +2198,16 @@ body[data-editing-workspace="true"] .workspace-edit-hint {
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
-  gap: var(--space-3);
-  min-height: 48px;
-  padding: var(--space-3) var(--space-4);
+  gap: 10px;
+  min-height: 40px;
+  padding: 8px 10px;
   border: 1px solid transparent;
-  border-radius: var(--radius-md);
+  border-radius: 8px;
   background: transparent;
   color: var(--muted);
   text-align: left;
   font-weight: 600;
-  font-size: var(--text-sm);
+  font-size: 13px;
   transition:
     background-color var(--motion-fast) var(--ease-standard),
     border-color var(--motion-fast) var(--ease-standard),
@@ -2035,44 +2216,42 @@ body[data-editing-workspace="true"] .workspace-edit-hint {
 }
 
 .wizard-step:hover:not(.is-locked):not(:disabled) {
-  color: var(--fg-2);
-  background: color-mix(in oklab, var(--surface), transparent 45%);
+  color: var(--fg);
+  background: var(--surface-warm);
 }
 
 .wizard-step.is-active {
   color: var(--fg);
   background: var(--surface);
   border-color: var(--border);
-  box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.03),
-    0 2px 10px rgba(0, 0, 0, 0.05);
+  box-shadow: none;
 }
 
 .wizard-step.is-locked,
 .wizard-step:disabled {
-  opacity: 0.55;
+  opacity: 0.45;
   cursor: not-allowed;
   color: var(--meta);
 }
 
 .wizard-step-index {
-  width: 28px;
-  height: 28px;
+  width: 22px;
+  height: 22px;
   display: grid;
   place-items: center;
-  border-radius: var(--radius-pill);
-  background: color-mix(in oklab, var(--surface-warm), var(--surface) 20%);
-  color: inherit;
+  border-radius: 6px;
+  background: var(--surface-warm);
+  color: var(--muted);
   font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  font-weight: 800;
-  transition: transform var(--motion-fast) var(--ease-standard);
+  font-size: 11px;
+  font-weight: 700;
+  transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
 }
 
 .wizard-step.is-active .wizard-step-index {
   background: var(--fg);
-  color: var(--accent-on);
-  transform: scale(1.06);
+  color: #fff;
+  transform: none;
 }
 
 .wizard-step-label {
@@ -2168,11 +2347,8 @@ body[data-editing-workspace="true"] .workspace-edit-hint {
   gap: 0;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.03),
-    0 2px 16px rgba(0, 0, 0, 0.04),
-    0 8px 32px rgba(0, 0, 0, 0.03);
+  border-radius: 12px;
+  box-shadow: var(--elev-card);
   overflow: hidden;
   opacity: 1;
   transform: translateY(0);
@@ -2201,9 +2377,9 @@ body[data-editing-workspace="true"] .workspace-edit-hint {
 }
 
 .wizard-panel-header {
-  padding: var(--space-8) var(--space-8) var(--space-5);
+  padding: var(--space-6) var(--space-6) var(--space-5);
   border-bottom: 1px solid var(--border);
-  background: color-mix(in oklab, var(--surface), var(--bg) 28%);
+  background: var(--surface);
 }
 
 .wizard-panel-header .pane-title {
@@ -2218,14 +2394,14 @@ body[data-editing-workspace="true"] .workspace-edit-hint {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-4) var(--space-8);
-  border-bottom: 1px solid var(--border-soft);
-  background: color-mix(in oklab, var(--surface-warm), var(--surface) 55%);
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-6);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-warm);
 }
 
 .wizard-panel-body {
-  padding: var(--space-8);
+  padding: var(--space-6);
 }
 
 .wizard-panel-actions {
@@ -2233,18 +2409,57 @@ body[data-editing-workspace="true"] .workspace-edit-hint {
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  gap: var(--space-3);
-  padding: var(--space-5) var(--space-8) var(--space-8);
-  border-top: 1px solid var(--border-soft);
-  background: color-mix(in oklab, var(--surface), var(--bg) 12%);
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-6);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .wizard-panel-actions .btn {
-  min-height: 44px;
+  min-height: 36px;
 }
 
 .wizard-panel .status-note {
-  margin: 0 var(--space-8) var(--space-6);
+  margin: 0 var(--space-6) var(--space-4);
+}
+
+/* Step 1/2: keep form panel product-width; rail stays for step nav */
+body[data-wizard-step="1"] .wizard-main,
+body[data-wizard-step="2"] .wizard-main {
+  min-width: 0;
+}
+
+body[data-wizard-step="1"] .wizard-panel,
+body[data-wizard-step="2"] .wizard-panel {
+  max-width: 720px;
+}
+
+body[data-wizard-step="1"] .wizard-panel-header,
+body[data-wizard-step="2"] .wizard-panel-header {
+  padding: 20px 24px 16px;
+}
+
+body[data-wizard-step="1"] .wizard-panel-body,
+body[data-wizard-step="2"] .wizard-panel-body {
+  padding: 20px 24px;
+  background: transparent;
+}
+
+body[data-wizard-step="1"] .wizard-panel-actions,
+body[data-wizard-step="2"] .wizard-panel-actions {
+  padding: 14px 24px 18px;
+}
+
+/* Keep edit hint inside panel actions area, not floating under the card */
+#stepRoute .workspace-edit-hint,
+#stepPrefs .workspace-edit-hint {
+  margin: 0 24px 8px;
+  font-size: 12px;
+  color: var(--meta);
+}
+
+#addCityBtn {
+  min-width: 72px;
 }
 
 @media (prefers-reduced-motion: reduce) {
