@@ -227,6 +227,24 @@
     if (Object.hasOwn(patch, 'duration_minutes')) {
       node.duration_minutes = durationMinutes(patch.duration_minutes);
     }
+    if (Object.hasOwn(patch, 'refs')) {
+      const raw = Array.isArray(patch.refs) ? patch.refs : [];
+      const refs = [];
+      for (const ref of raw) {
+        if (!ref) continue;
+        const url = String(ref.url || '').trim();
+        if (!/^https?:\/\//i.test(url)) continue;
+        refs.push({
+          label: String(ref.label || '参考').trim() || '参考',
+          url,
+          kind: ['web', 'xhs', 'dianping', 'official'].includes(ref.kind) ? ref.kind : 'web'
+        });
+        if (refs.length >= 3) break;
+      }
+      if (!node.metadata || typeof node.metadata !== 'object') node.metadata = {};
+      if (!node.metadata.item || typeof node.metadata.item !== 'object') node.metadata.item = {};
+      node.metadata.item.refs = refs;
+    }
     return finish(draft, result);
   }
 

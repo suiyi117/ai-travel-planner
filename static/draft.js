@@ -29,8 +29,9 @@
     return `node-${hashText(identity)}`;
   }
 
-  function cityStopId(name) {
-    return `city-${hashText(String(name).trim())}`;
+  function cityStopId(name, index) {
+    const base = `city-${hashText(String(name).trim())}`;
+    return Number.isInteger(index) ? `${base}-${index}` : base;
   }
 
   function normalizeCityKey(value) {
@@ -49,6 +50,8 @@
   function consumeAvailableCityStop(candidates, assignedCounts) {
     for (const stop of candidates) {
       const assigned = assignedCounts.get(stop) || 0;
+      // Transit / zero-day stops never absorb itinerary days.
+      if (!Number.isFinite(stop.days) || stop.days <= 0) continue;
       if (assigned < stop.days) {
         assignedCounts.set(stop, assigned + 1);
         return stop;
@@ -63,23 +66,34 @@
     itineraryDays.forEach((day, index) => {
       const exactCandidates = stopByName.get(String(day.city ?? '').trim()) || [];
       if (exactCandidates.length === 0) return;
-      const exactMatch = consumeAvailableCityStop(exactCandidates, assignedCounts);
-      if (!exactMatch) throw new Error('draft_city_unresolved');
-      assignments[index] = exactMatch;
+      // Prefer stay cities; if only transit matches, fall through to other strategies.
+      const stayCandidates = exactCandidates.filter(stop => Number(stop.days) > 0);
+      const exactMatch = consumeAvailableCityStop(
+        stayCandidates.length ? stayCandidates : exactCandidates,
+        assignedCounts
+      );
+      if (exactMatch) assignments[index] = exactMatch;
     });
 
     itineraryDays.forEach((day, index) => {
       if (assignments[index]) return;
       const normalizedCandidates = stopByKey.get(normalizeCityKey(day.city)) || [];
       if (normalizedCandidates.length === 0) return;
-      const normalizedMatch = consumeAvailableCityStop(normalizedCandidates, assignedCounts);
-      if (!normalizedMatch) throw new Error('draft_city_unresolved');
-      assignments[index] = normalizedMatch;
+      const stayCandidates = normalizedCandidates.filter(stop => Number(stop.days) > 0);
+      const normalizedMatch = consumeAvailableCityStop(
+        stayCandidates.length ? stayCandidates : normalizedCandidates,
+        assignedCounts
+      );
+      if (normalizedMatch) assignments[index] = normalizedMatch;
     });
 
     assignments.forEach((assignment, index) => {
       if (assignment) return;
-      const fallbackMatch = consumeAvailableCityStop(cityStops, assignedCounts);
+      const stayStops = cityStops.filter(stop => Number(stop.days) > 0);
+      const fallbackMatch = consumeAvailableCityStop(
+        stayStops.length ? stayStops : cityStops,
+        assignedCounts
+      );
       if (!fallbackMatch) throw new Error('draft_city_unresolved');
       assignments[index] = fallbackMatch;
     });
@@ -129,13 +143,21 @@
 
   function itineraryToDraft(itinerary, cities, options = {}) {
     const seed = options.seed || itinerary.title || 'generated-trip';
-    const cityStops = (cities || []).map(city => ({
-      id: cityStopId(city.name),
-      name: String(city.name || '').trim(),
-      days: Number.isInteger(Number(city.days)) && Number(city.days) > 0 ? Number(city.days) : 1,
-      transport: city.transport || 'auto',
-      fixed_order: false
-    }));
+    const cityStops = (cities || []).map((city, index) => {
+      const rawDays = Number(city.days);
+      const isTransit = city.plan_stay === false || rawDays === 0;
+      const days = isTransit
+        ? 0
+        : (Number.isInteger(rawDays) && rawDays > 0 ? rawDays : 1);
+      return {
+        id: cityStopId(city.name, index),
+        name: String(city.name || '').trim(),
+        days,
+        transport: city.transport || 'auto',
+        fixed_order: false,
+        plan_stay: !isTransit
+      };
+    });
     const stopByName = new Map();
     const stopByKey = new Map();
     cityStops.forEach(stop => {
@@ -148,9 +170,27 @@
     const nodes = [];
     const days = itineraryDays.map((day, dayIndex) => {
       const dayId = `day-${day.day}`;
-      const cityId = cityAssignments[dayIndex].id;
+      const assignedStop = cityAssignments[dayIndex];
+      const cityId = assignedStop.id;
+      const resolvedCityName = assignedStop.name;
       const dayKey = day.date || day.day;
-      const dayNodes = (day.items || []).map((item, index) => itemToNode(item, dayId, cityId, seed, dayKey, index));
+      const dayNodes = (day.items || []).map((item, index) => {
+        const node = itemToNode(item, dayId, cityId, seed, dayKey, index);
+        // Only rewrite city when assignment remapped away from the AI label
+        // (e.g. transit overflow). Preserve original item.city for fuzzy matches
+        // like 北京市 → stop 北京 so stable IDs / labels stay intact.
+        const originalCity = String(item.city || day.city || '').trim();
+        const sameCity =
+          originalCity === resolvedCityName
+          || normalizeCityKey(originalCity) === normalizeCityKey(resolvedCityName);
+        if (!sameCity) {
+          node.city = resolvedCityName;
+          if (node.metadata?.item && typeof node.metadata.item === 'object') {
+            node.metadata.item = { ...node.metadata.item, city: resolvedCityName };
+          }
+        }
+        return node;
+      });
       nodes.push(...dayNodes);
       return {
         id: dayId,
@@ -165,9 +205,9 @@
       schema_version: SCHEMA_VERSION,
       id: `trip-${hashText(seed)}`,
       revision: 0,
-      mode: 'itinerary',
-      route_shape: 'one_way',
-      strategy: 'balanced',
+      mode: options.mode || 'itinerary',
+      route_shape: options.routeShape || options.route_shape || 'one_way',
+      strategy: options.strategy || 'balanced',
       start_date: options.startDate || '',
       city_stops: cityStops,
       nodes,
@@ -197,7 +237,7 @@
     const existing = new Map((Array.isArray(guide) ? guide : [])
       .filter(segment => segment && typeof segment === 'object')
       .map(segment => [normalizeSegment(segment.segment), segment]));
-    return draft.city_stops.slice(0, -1).map((city, index) => {
+    const segments = draft.city_stops.slice(0, -1).map((city, index) => {
       const nextCity = draft.city_stops[index + 1];
       const segment = `${city.name} → ${nextCity.name}`;
       const retained = existing.get(normalizeSegment(segment));
@@ -214,6 +254,28 @@
         note: '城市顺序已修改，需要重新确认该段交通'
       };
     });
+    if (draft.route_shape === 'round_trip' && draft.city_stops.length >= 2) {
+      const origin = draft.city_stops[0];
+      const last = draft.city_stops[draft.city_stops.length - 1];
+      if (origin.name !== last.name) {
+        const segment = `${last.name} → ${origin.name}`;
+        const retained = existing.get(normalizeSegment(segment));
+        if (retained) {
+          segments.push({ ...retained, segment, from_city: last.name, to_city: origin.name });
+        } else {
+          segments.push({
+            segment,
+            from_city: last.name,
+            to_city: origin.name,
+            tool: origin.transport || last.transport || 'auto',
+            options: [],
+            data_source: 'unavailable',
+            note: '环线回程，需要重新确认该段交通'
+          });
+        }
+      }
+    }
+    return segments;
   }
 
   function draftToItinerary(draft, baseItinerary) {
@@ -224,12 +286,16 @@
     const cityById = new Map(draft.city_stops.map(city => [city.id, city]));
     result.days = draft.days.map(day => {
       const baseDay = baseDayById.get(day.id) || baseDayByNumber.get(Number(day.day)) || {};
+      const cityName = cityById.get(day.primary_city_id)?.name || '';
       return {
         ...baseDay,
         day: Number(day.day),
         date: day.date ?? baseDay.date ?? null,
-        city: cityById.get(day.primary_city_id)?.name || '',
-        items: day.node_ids.map(id => nodeById.get(id)).filter(Boolean).map(nodeToItem)
+        city: cityName,
+        items: day.node_ids.map(id => nodeById.get(id)).filter(Boolean).map(node => {
+          const item = nodeToItem(node);
+          return { ...item, city: cityName || item.city };
+        })
       };
     });
     result.route = draft.route == null ? null : clone(draft.route);
@@ -238,7 +304,12 @@
   }
 
   function draftToCities(draft) {
-    return draft.city_stops.map(city => ({ name: city.name, days: city.days, transport: city.transport || 'auto' }));
+    return draft.city_stops.map(city => ({
+      name: city.name,
+      days: city.days,
+      transport: city.transport || 'auto',
+      plan_stay: city.plan_stay === false ? false : city.plan_stay === true ? true : (Number(city.days) > 0)
+    }));
   }
 
   function isObject(value) {
@@ -274,7 +345,7 @@
     if (value.city_stops.length > 20 || value.nodes.length > 200 || value.days.length > 60) return false;
     const validCities = value.city_stops.every(city =>
       isObject(city) && isBoundedString(city.id) && isBoundedString(city.name)
-      && Number.isInteger(city.days) && city.days > 0 && city.days <= 15
+      && Number.isInteger(city.days) && city.days >= 0 && city.days <= 15
       && ['auto', 'train', 'plane', 'driving', 'bus'].includes(city.transport)
       && typeof city.fixed_order === 'boolean'
     );

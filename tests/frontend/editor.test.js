@@ -62,11 +62,22 @@ test("fixed-order and fixed-time nodes are non-draggable", () => {
 
 test("city ordering exposes keyboard-operable ordering controls", () => {
   const html = window.AeroTravelEditor.renderCityStops(
-    [{ id: "hz", name: "杭州" }, { id: "sh", name: "上海" }],
+    [{ id: "hz", name: "杭州", days: 2, transport: "train" }, { id: "sh", name: "上海", days: 1, transport: "auto" }],
     escapeHtml
   );
   assert.match(html, /data-action="city-up"/);
   assert.match(html, /data-action="city-down"/);
+  assert.match(html, /draggable="true"/);
+  assert.match(html, /city-order-handle/);
+});
+
+test("day nodes surface drag affordance text for unlocked nodes", () => {
+  const nodes = [
+    { id: "n1", name: "西湖", schedule: { time_window: "09:00" }, source: "manual", constraints: { fixed_order: false, fixed_time: false } }
+  ];
+  const html = window.AeroTravelEditor.renderDayNodes(nodes, escapeHtml);
+  assert.match(html, /draggable="true"/);
+  assert.match(html, /可拖拽/);
 });
 
 test("constraint panel renders four constraint toggles", () => {

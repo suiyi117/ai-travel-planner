@@ -33,6 +33,20 @@ class TransportSegmentBuilderTests(unittest.TestCase):
         self.assertEqual(segments[1]["tool"], "plane")
         self.assertEqual(segments[1]["options"], [{"id": "G1"}])
 
+    def test_round_trip_appends_return_segment(self):
+        destinations = [
+            CityInfo(name="淮北", days=0, plan_stay=False),
+            CityInfo(name="合肥", days=2, plan_stay=True),
+            CityInfo(name="武汉", days=2, plan_stay=True),
+        ]
+        segments = build_segments_from_destinations(
+            destinations, "train", [], route_shape="round_trip"
+        )
+        self.assertEqual(
+            [s["segment"] for s in segments],
+            ["淮北 → 合肥", "合肥 → 武汉", "武汉 → 淮北"],
+        )
+
     def test_defaults_to_ai_tool_when_global_is_auto(self):
         destinations = [CityInfo(name="北京"), CityInfo(name="西安")]
         ai_guide = [{"tool": "plane", "options": []}]

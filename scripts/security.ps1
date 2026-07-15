@@ -16,6 +16,9 @@ function Invoke-Checked {
 
 Write-Host "== Secret scan =="
 if (Get-Command detect-secrets -ErrorAction SilentlyContinue) {
+    # SRI integrity=sha256-* hashes are public CDN fingerprints, not secrets.
+    # Exclude via comment allowlist on those lines, and also skip integrity=
+    # attribute lines so template strings without HTML comments still pass.
     $secretReport = detect-secrets scan --exclude-files '(^|/)(docs/assets/.*)$' --exclude-lines 'integrity="sha256-' | ConvertFrom-Json
     $findings = @($secretReport.results.PSObject.Properties)
     if ($findings.Count -gt 0) {

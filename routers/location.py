@@ -1,8 +1,10 @@
-﻿import logging
+﻿import base64
+import logging
 
 from fastapi import APIRouter, HTTPException
 
 from clients.amap import (
+    fetch_static_map as amap_fetch_static_map,
     get_city_center as amap_get_city_center,
     query_weather as amap_query_weather,
     reverse_geocode as amap_reverse_geocode,
@@ -60,6 +62,63 @@ def create_location_router(settings, logger) -> APIRouter:
             raise
         except Exception as exc:
             raise HTTPException(status_code=500, detail=f"后端反向地理编码出错: {str(exc)}") from exc
+
+    @router.get("/api/static_map")
+    async def static_map(
+        width: int = 640,
+        height: int = 640,
+        markers: str = "",
+        path: str = "",
+    ):
+        """Proxy Amap static map and return base64 PNG for workbench prerender."""
+        if not settings.amap_key:
+            raise HTTPException(status_code=400, detail="未配置高德地图 Key (AMAP_KEY)")
+
+        marker_list = []
+        for index, part in enumerate((markers or "").split("|")):
+            if index >= 10:
+                break
+            part = part.strip()
+            if not part:
+                continue
+            try:
+                lng_s, lat_s = part.split(",", 1)
+                marker_list.append({
+                    "lng": float(lng_s),
+                    "lat": float(lat_s),
+                    "label": str((index + 1) % 10),
+                })
+            except ValueError:
+                continue
+
+        path_points = []
+        if path:
+            for part in path.split(";"):
+                part = part.strip()
+                if not part:
+                    continue
+                try:
+                    lng_s, lat_s = part.split(",", 1)
+                    # Client helper expects [lat, lng] lists.
+                    path_points.append([float(lat_s), float(lng_s)])
+                except ValueError:
+                    continue
+
+        result = await amap_fetch_static_map(
+            settings.amap_key,
+            width=width,
+            height=height,
+            markers=marker_list,
+            path=path_points or None,
+        )
+        if result.get("status") != "ok":
+            raise HTTPException(status_code=502, detail=result.get("info", "static_map_failed"))
+        return {
+            "status": "ok",
+            "image_base64": base64.b64encode(result["content"]).decode("ascii"),
+            "width": result["width"],
+            "height": result["height"],
+        }
 
     return router
 

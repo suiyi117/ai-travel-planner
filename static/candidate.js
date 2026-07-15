@@ -1,4 +1,20 @@
 ﻿(function (root) {
+  function formatPosition(position) {
+    if (!position || typeof position !== 'object') return '';
+    if (position.day_id) {
+      const match = String(position.day_id).match(/(\d+)$/);
+      const dayLabel = match ? match[1] : String(position.day_id);
+      const stopLabel = Number.isInteger(position.index)
+        ? ` 第 ${position.index + 1} 站`
+        : '';
+      return `Day ${dayLabel}${stopLabel}`;
+    }
+    if (Number.isInteger(position.route_index)) {
+      return `路线第 ${position.route_index + 1} 站`;
+    }
+    return '';
+  }
+
   function renderCandidatePanel(candidate, diff, escapeHtml) {
     if (!candidate || !diff || !diff.length) {
       return '<div class="candidate-empty">暂无优化建议</div>';
@@ -28,11 +44,10 @@
             else if (d.type === 'move') icon = '\u2192';
             else icon = '\u270e';
             var detail = d.reason || '';
-            if (d.from_position && d.from_position.day_id) {
-              detail += ' (Day ' + d.from_position.index + ')';
-            }
-            if (d.to_position && d.to_position.day_id) {
-              detail += ' \u2192 Day ' + d.to_position.index;
+            var fromLabel = formatPosition(d.from_position);
+            var toLabel = formatPosition(d.to_position);
+            if (fromLabel || toLabel) {
+              detail += ' (' + (fromLabel || '未安排') + ' \u2192 ' + (toLabel || '未安排') + ')';
             }
             return '<article class="candidate-diff-item">' +
               '<span class="diff-icon">' + icon + '</span>' +

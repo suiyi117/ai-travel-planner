@@ -153,6 +153,85 @@ async def query_weather(
         return []
 
 AMAP_REGEO_URL = "https://restapi.amap.com/v3/geocode/regeo"
+AMAP_STATIC_MAP_URL = "https://restapi.amap.com/v3/staticmap"
+
+
+def build_static_map_params(
+    amap_key: str,
+    *,
+    width: int = 640,
+    height: int = 640,
+    markers: list[dict] | None = None,
+    path: list[list[float]] | None = None,
+) -> dict:
+    """Build query params for Amap static map API.
+
+    Coordinate convention: input markers use lat/lng keys; path points are
+    [lat, lng] lists (package convention). Amap expects lng,lat order.
+    """
+    w = max(1, min(1024, int(width or 640)))
+    h = max(1, min(1024, int(height or 640)))
+    params: dict = {
+        "key": amap_key,
+        "size": f"{w}*{h}",
+        "scale": 2,
+    }
+    marker_list = list(markers or [])[:10]
+    if marker_list:
+        # style: mid,0xCOLOR,label:lng,lat  (label is single digit/letter)
+        parts = []
+        for marker in marker_list:
+            label = str(marker.get("label") or "")[:1] or "1"
+            lng = float(marker["lng"])
+            lat = float(marker["lat"])
+            parts.append(f"mid,0xC96442,{label}:{lng},{lat}")
+        params["markers"] = "|".join(parts)
+    if path and len(path) >= 2:
+        # style: weight,color,transparency,fillcolor,filltransparency:lng1,lat1;...
+        # path points are [lat, lng]; Amap wants lng,lat
+        # Slightly thicker brand stroke reads better on multi-city overview zoom.
+        coords = ";".join(f"{float(p[1])},{float(p[0])}" for p in path[:200])
+        params["paths"] = f"6,0xC96442,0.9,,:{coords}"
+    return params
+
+
+async def fetch_static_map(
+    amap_key: str,
+    *,
+    width: int = 640,
+    height: int = 640,
+    markers: list[dict] | None = None,
+    path: list[list[float]] | None = None,
+) -> dict:
+    """Fetch a static map PNG from Amap.
+
+    Returns ``{"status": "ok", "content_type": "image/png", "content": bytes,
+    "width": int, "height": int}`` on success, or
+    ``{"status": "error", "info": str}`` on failure.
+    """
+    if not amap_key:
+        return {"status": "error", "info": "missing_api_key"}
+    params = build_static_map_params(
+        amap_key, width=width, height=height, markers=markers, path=path
+    )
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            response = await client.get(AMAP_STATIC_MAP_URL, params=params)
+        if response.status_code != 200:
+            return {"status": "error", "info": f"amap_http_{response.status_code}"}
+        content_type = response.headers.get("content-type", "")
+        if "image" not in content_type and not response.content.startswith(b"\x89PNG"):
+            # Amap often returns a JSON error body instead of an image
+            return {"status": "error", "info": "not_an_image"}
+        return {
+            "status": "ok",
+            "content_type": "image/png",
+            "content": response.content,
+            "width": max(1, min(1024, int(width or 640))),
+            "height": max(1, min(1024, int(height or 640))),
+        }
+    except Exception:
+        return {"status": "error", "info": "amap_unavailable"}
 
 
 async def reverse_geocode(amap_key: str, lat: float, lng: float) -> dict:

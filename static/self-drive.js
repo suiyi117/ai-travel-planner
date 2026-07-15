@@ -73,6 +73,23 @@
         .filter(item => item && item.city_id === city.id && item.source !== 'system' && item.source !== 'city_stop');
       routeIds.push(...cityExperiences.map(item => item.id));
     }
+    // Round-trip: lock first city_stop as both ends of the ordered route.
+    if (result.route_shape === 'round_trip' && result.city_stops?.length) {
+      const originStop = result.city_stops[0];
+      const originNode = (result.nodes || []).find(
+        item => item.source === 'city_stop' && item.city_id === originStop.id
+      );
+      if (originNode) {
+        originNode.constraints = {
+          ...(originNode.constraints || {}),
+          fixed_order: true,
+          required: true
+        };
+        if (routeIds[0] !== originNode.id) {
+          routeIds.unshift(originNode.id);
+        }
+      }
+    }
     result.route = {
       ...(result.route || {}),
       ordered_node_ids: [...new Set(routeIds)]

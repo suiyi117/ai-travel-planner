@@ -18,10 +18,10 @@
   function createInitialState() {
     return {
       cities: [
-        { name: '北京', transport: 'auto', days: 2 },
-        { name: '西安', transport: 'train', days: 1 }
+        { name: '北京', transport: 'auto', days: 0, plan_stay: false },
+        { name: '西安', transport: 'train', days: 2, plan_stay: true }
       ],
-      totalDays: 3,
+      totalDays: 2,
       pace: '适中均衡',
       globalTransport: 'auto',
       budget: '舒适型',
@@ -38,6 +38,7 @@
       mapDrawerOpen: false,
       mapFocusItemId: null,
       editMode: false,
+      editTool: 'daily',
       workingDraft: null,
       candidatePlan: null,
       draftHistory: null,
