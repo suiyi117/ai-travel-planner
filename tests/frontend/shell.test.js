@@ -25,6 +25,17 @@ test("fold triggers and timeline phase-3 visual hooks are present", () => {
   assert.match(appJs, /role="button"[^>]*data-item=/);
 });
 
+test("timeline cards use marker time and card-meta footer", () => {
+  assert.match(appJs, /class="timeline-marker"/);
+  assert.match(appJs, /class="item-time"/);
+  assert.match(appJs, /class="card-meta"/);
+  // Time lives in the marker column only — not inside the itinerary-card body.
+  assert.doesNotMatch(
+    appJs,
+    /itinerary-card[\s\S]{0,200}class="item-time"/
+  );
+});
+
 test("workspace chrome keeps a single trip status bar with edit actions", () => {
   assert.match(appJs, /topbarSummary\.hidden\s*=\s*true/);
   assert.match(appJs, /workspaceStatusRoute/);

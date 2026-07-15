@@ -179,9 +179,12 @@ let editingConstraintNodeId = null;
 let draggedDraftNodeId = null;
     function setStatus(message, tone = 'neutral') {
       if (!el.statusNote) return;
-      el.statusNote.hidden = false;
       el.statusNote.textContent = message;
-      el.statusNote.dataset.tone = tone;
+      el.statusNote.dataset.tone = tone || 'neutral';
+      // Quiet chrome on setup steps: hide neutral/demo banners; keep errors & in-progress.
+      const quietStep = state.wizardStep === 1 || state.wizardStep === 2;
+      const loud = tone === 'error' || tone === 'active' || tone === 'success';
+      el.statusNote.hidden = quietStep && !loud;
     }
 
     function wizardFlags() {
@@ -414,10 +417,13 @@ let draggedDraftNodeId = null;
       if (el.wizardCompactRoute) el.wizardCompactRoute.textContent = summary.route || '';
       if (el.wizardCompactMeta) el.wizardCompactMeta.textContent = summary.meta || '';
       if (el.topbarSummary) {
+        // Setup steps: no topbar trip chip (reduces chrome). Step 3 uses workspace-status only.
+        el.topbarSummary.hidden = true;
         el.topbarSummary.classList.toggle('is-collapsed', !state.summaryExpanded);
         el.topbarSummary.classList.toggle('is-expanded', Boolean(state.summaryExpanded));
       }
       if (el.summaryExpandBtn) {
+        el.summaryExpandBtn.hidden = true;
         el.summaryExpandBtn.setAttribute('aria-expanded', state.summaryExpanded ? 'true' : 'false');
         el.summaryExpandBtn.textContent = state.summaryExpanded ? '收起' : '展开';
         el.summaryExpandBtn.title = state.summaryExpanded ? '收起摘要' : '展开摘要';
@@ -425,15 +431,24 @@ let draggedDraftNodeId = null;
       if (el.workspaceStatus) {
         const showStatus = chrome === 'workspace';
         el.workspaceStatus.hidden = !showStatus;
-        if (el.workspaceStatusRoute) el.workspaceStatusRoute.textContent = summary.route || '';
-        if (el.workspaceStatusMeta) {
-          const full = Wizard.buildSummary ? Wizard.buildSummary(state) : summary;
-          el.workspaceStatusMeta.textContent = state.summaryExpanded ? (full.meta || '') : (summary.meta || '');
-        }
+        // Single source of truth: full route + meta + edit actions (no second topbar copy).
+        const full = Wizard.buildSummary ? Wizard.buildSummary(state) : summary;
+        if (el.workspaceStatusRoute) el.workspaceStatusRoute.textContent = full.route || summary.route || '';
+        if (el.workspaceStatusMeta) el.workspaceStatusMeta.textContent = full.meta || summary.meta || '';
       }
       if (el.wizardCompactSummary) {
-        const hasCompact = Boolean(summary.route || summary.meta) && chrome !== 'workspace';
-        syncCompactSummary(hasCompact);
+        // Compact duplicate of trip summary — hide on all steps (workspace has its own bar).
+        syncCompactSummary(false);
+      }
+      // Re-apply status visibility when step changes (neutral banners stay quiet on 1/2).
+      if (el.statusNote && !el.statusNote.dataset.tone) {
+        el.statusNote.dataset.tone = 'neutral';
+      }
+      if (el.statusNote) {
+        const tone = el.statusNote.dataset.tone || 'neutral';
+        const quietStep = state.wizardStep === 1 || state.wizardStep === 2;
+        const loud = tone === 'error' || tone === 'active' || tone === 'success';
+        if (quietStep && !loud) el.statusNote.hidden = true;
       }
       if (el.resultsPaneKicker) {
         el.resultsPaneKicker.textContent = chrome === 'workspace' ? '我的行程' : 'Step 03 · 行程';
@@ -1036,7 +1051,7 @@ let draggedDraftNodeId = null;
             <div class="city-controls">
               <label class="city-plan-stay">
                 <input type="checkbox" class="city-plan-stay-input" data-index="${index}" ${planStay ? 'checked' : ''}>
-                <span>${isOrigin ? '安排当地游玩' : '在此城游玩'}</span>
+                <span>${isOrigin ? '当地游玩' : '在此游玩'}</span>
               </label>
               <label class="city-days-label">
                 <span>停留</span>
@@ -2290,28 +2305,41 @@ let draggedDraftNodeId = null;
         const mapBtn = mappable
           ? `<button class="card-map-btn" type="button" data-open-map-item="${escapeHtml(item.id)}" aria-label="在地图查看${escapeHtml(item.title)}">看位置</button>`
           : '';
+        const timeLabel = escapeHtml(display.time || '—');
+        const metaParts = [
+          item.city ? `<span>${escapeHtml(item.city)}</span>` : '',
+          item.duration ? `<span>${escapeHtml(item.duration)}</span>` : '',
+          item.rating ? `<span>评分 ${escapeHtml(item.rating)}</span>` : '',
+          display.extra ? `<span class="card-meta-extra">${escapeHtml(display.extra)}</span>` : ''
+        ].filter(Boolean);
+        const metaHtml = metaParts.length
+          ? `<div class="card-meta" aria-label="行程信息">${metaParts.join(
+              '<span class="card-meta-sep" aria-hidden="true">·</span>'
+            )}</div>`
+          : '';
+        // Layout: [marker+time | card]. Card is a div so map button can nest safely.
         return `
         <article class="timeline-item ${item.id === state.activeItemId ? 'is-active' : ''}">
+          <div class="timeline-marker" aria-hidden="true">
+            <span class="timeline-dot"></span>
+            <span class="item-time">${timeLabel}</span>
+          </div>
           <div class="itinerary-card-shell ${item.id === state.activeItemId ? 'is-active' : ''}">
-            <button class="itinerary-card ${item.id === state.activeItemId ? 'is-active' : ''}" type="button" data-item="${item.id}">
+            <div class="itinerary-card ${item.id === state.activeItemId ? 'is-active' : ''}" role="button" tabindex="0" data-item="${item.id}" aria-label="${timeLabel} ${escapeHtml(item.title)}">
               <div class="card-top">
-                <div>
-                  <div class="item-time">${escapeHtml(display.time)}</div>
+                <div class="card-heading">
+                  <div class="card-kicker">
+                    <span class="badge ${item.type === 'transport' ? 'badge-accent' : ''}">${normalizeType(item.type)}</span>
+                    ${conflicts.has(item.id) ? '<span class="badge badge-warn">时间冲突</span>' : ''}
+                  </div>
                   <h3 class="item-title">${escapeHtml(item.title)}</h3>
                 </div>
-                <span class="badge ${item.type === 'transport' ? 'badge-accent' : ''}">${normalizeType(item.type)}</span>
+                ${mapBtn}
               </div>
               <p class="item-desc">${escapeHtml(item.desc)}</p>
               ${renderPoiAddressLine(item)}
-              <div class="badge-row">
-                <span class="badge">${escapeHtml(item.duration)}</span>
-                <span class="badge">${escapeHtml(item.city)}</span>
-                ${renderRatingBadge(item)}
-                ${display.extra ? `<span class="badge badge-accent">${escapeHtml(display.extra)}</span>` : ''}
-                ${conflicts.has(item.id) ? '<span class="badge badge-warn">时间冲突</span>' : ''}
-              </div>
-            </button>
-            ${mapBtn}
+              ${metaHtml}
+            </div>
           </div>
         </article>
       `;
@@ -3389,10 +3417,21 @@ let draggedDraftNodeId = null;
       }
 
       if (el.timelineList) {
+        const activateTimelineCard = (itemId) => {
+          const item = activeItems().find(entry => String(entry.id) === String(itemId));
+          const hasCoords = typeof itemHasMapCoords === 'function'
+            ? itemHasMapCoords(item)
+            : Boolean(item && Number(item.lat) && Number(item.lng));
+          const updateMap = (typeof shouldUpdateMapOnItemFocus === 'function'
+            ? shouldUpdateMapOnItemFocus(state.mapDrawerOpen)
+            : Boolean(state.mapDrawerOpen)) && hasCoords;
+          focusItem(itemId, updateMap);
+        };
         el.timelineList.addEventListener('click', event => {
           const mapBtn = event.target.closest('[data-open-map-item]');
           if (mapBtn) {
             event.preventDefault();
+            event.stopPropagation();
             const itemId = mapBtn.dataset.openMapItem;
             if (typeof shouldOpenMapOnCardAction === 'function' && !shouldOpenMapOnCardAction('open-map')) {
               return;
@@ -3402,16 +3441,16 @@ let draggedDraftNodeId = null;
           }
           const card = event.target.closest('[data-item]');
           if (!card) return;
-          const itemId = card.dataset.item;
-          const item = activeItems().find(entry => String(entry.id) === String(itemId));
-          const hasCoords = typeof itemHasMapCoords === 'function'
-            ? itemHasMapCoords(item)
-            : Boolean(item && Number(item.lat) && Number(item.lng));
-          // Phase 1+2: card select never auto-opens map; fly only if drawer already open.
-          const updateMap = (typeof shouldUpdateMapOnItemFocus === 'function'
-            ? shouldUpdateMapOnItemFocus(state.mapDrawerOpen)
-            : Boolean(state.mapDrawerOpen)) && hasCoords;
-          focusItem(itemId, updateMap);
+          activateTimelineCard(card.dataset.item);
+        });
+        el.timelineList.addEventListener('keydown', event => {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          const mapBtn = event.target.closest('[data-open-map-item]');
+          if (mapBtn) return;
+          const card = event.target.closest('[data-item]');
+          if (!card || event.target !== card) return;
+          event.preventDefault();
+          activateTimelineCard(card.dataset.item);
         });
       }
 

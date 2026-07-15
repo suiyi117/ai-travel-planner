@@ -515,6 +515,10 @@
 
     .itinerary-card .item-title {
       margin: 0;
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: 16px;
+      color: var(--fg);
     }
 
     .itinerary-card .item-desc {
@@ -526,16 +530,30 @@
       margin: 0;
     }
 
-    .itinerary-card .badge-row {
+    .card-meta {
       display: flex;
       flex-wrap: wrap;
-      gap: 6px;
-      padding-top: 2px;
-      border: 0;
+      align-items: center;
+      gap: 6px 8px;
+      padding-top: 8px;
+      margin-top: 2px;
+      border-top: 1px solid var(--border-soft);
+      color: var(--meta);
+      font-size: var(--text-xs);
+      line-height: 1.4;
     }
 
-    .itinerary-card .badge-row::before {
-      content: none;
+    .card-meta-sep {
+      color: var(--border);
+    }
+
+    .card-meta-extra {
+      color: var(--fg-2);
+    }
+
+    .itinerary-card.is-active {
+      border-color: var(--fg);
+      box-shadow: 0 0 0 1px var(--fg), 0 8px 24px rgba(26, 25, 22, 0.08);
     }
 
     .card-map-btn {

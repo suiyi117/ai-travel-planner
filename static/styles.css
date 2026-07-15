@@ -974,12 +974,33 @@ body[data-wizard-step="2"] #statusNote {
 
 .item-title {
   margin-top: 0;
-  font-family: var(--font-body);
-  font-size: 15px;
+  font-family: var(--font-display);
+  font-size: 16px;
   font-weight: 600;
   line-height: 1.35;
   letter-spacing: -0.015em;
   color: var(--fg);
+}
+
+.card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  padding-top: 8px;
+  margin-top: 2px;
+  border-top: 1px solid var(--border-soft);
+  color: var(--meta);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
+.card-meta-sep {
+  color: var(--border);
+}
+
+.card-meta-extra {
+  color: var(--fg-2);
 }
 
 .item-desc {
