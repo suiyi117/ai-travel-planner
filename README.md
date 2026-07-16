@@ -90,7 +90,7 @@ AI_MODEL=gpt-5.5
 
 ### 3. 启动
 
-**推荐（Windows）：** 双击仓库根目录的 [`start.bat`](start.bat)。  
+**推荐（Windows）：** 双击仓库根目录的 [`start.bat`](start.bat)。
 会自动选用项目 `.conda` 或系统 Python、按需启动后端，并打开 [http://localhost:8000](http://localhost:8000)。服务已在跑时只会打开浏览器。
 
 手动启动：
@@ -222,6 +222,9 @@ Dependabot 分支名由 GitHub 自动生成，实时状态以对应 PR 为准。
 
 | 主题 | 文档 |
 |---|---|
+| 当前产品定位、用户与 MVP 边界 | [产品总纲](docs/product/产品总纲.md) |
+| 首轮商业验证执行计划 | [30 天验证路线图](docs/product/30天验证路线图.md) |
+| 唯一产品优先级与现有 PRD 状态 | [统一需求池](docs/product/需求池.md) |
 | 部署、观察与回滚 | [部署清单](docs/deployment-checklist.md) |
 | 浏览器和 API 验收 | [人工冒烟清单](docs/smoke-checklist.md) |
 | 工程变更与文档触发条件 | [变更管理](docs/engineering/change-management.md) |

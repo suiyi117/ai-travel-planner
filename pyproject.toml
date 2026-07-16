@@ -8,7 +8,7 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E9", "F821"]
+select = ["E4", "E7", "E9", "F"]
 ignore = [
   "E501",
   "B008",

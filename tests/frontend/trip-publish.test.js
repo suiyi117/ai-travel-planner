@@ -28,6 +28,7 @@ test("self-contained html embeds package, noindex and inlined runtime", () => {
     scripts: {
       nav: "window.AeroTravelTripNav = {};",
       render: "window.AeroTravelTripShareRender = window.AeroTravelTripShareRender || {};",
+      map: "window.AeroTravelMap = {};",
       boot: "window.AeroTravelTripShareBoot = {};"
     }
   });
@@ -38,5 +39,7 @@ test("self-contained html embeds package, noindex and inlined runtime", () => {
   assert.match(html, /\\u003cscript\\u003e|测试行程&lt;script&gt;/);
   assert.match(html, /\.trip-share-app\{color:red\}/);
   assert.match(html, /AeroTravelTripNav/);
+  assert.match(html, /maplibre-gl@5\.24\.0/);
+  assert.match(html, /AeroTravelMap/);
   assert.doesNotMatch(html, /window\.__TRIP_PACKAGE__ = .*<script>/);
 });

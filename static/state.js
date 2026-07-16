@@ -54,7 +54,13 @@
       activeOptimizationController: null,
       activeRouteController: null,
       routeRequestTimer: null,
-      cancelPointPicker: null
+      cancelPointPicker: null,
+      /** Pure UI route-editor state (not sent to /api/plan). */
+      routeDirty: false,
+      routeValidation: { ok: false, field: null, message: '' },
+      recentlyRemovedCity: null,
+      highlightedCityIndex: null,
+      routeTip: ''
     };
   }
 

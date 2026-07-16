@@ -421,6 +421,21 @@ p { text-wrap: pretty; }
   gap: var(--space-2);
 }
 
+.field-error {
+  margin: 6px 0 0;
+  color: var(--danger);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
+.field-error[hidden] {
+  display: none !important;
+}
+
+.route-tip {
+  margin: 0;
+}
+
 .city-card {
   position: relative;
   display: grid;
@@ -437,7 +452,15 @@ p { text-wrap: pretty; }
     box-shadow var(--motion-fast) var(--ease-standard),
     opacity var(--motion-fast) var(--ease-standard),
     transform var(--motion-fast) var(--ease-standard);
-  cursor: grab;
+  cursor: default;
+}
+
+.city-card.is-highlighted {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 1px var(--accent),
+    var(--elev-raised);
+  background: color-mix(in oklab, var(--surface), var(--accent) 6%);
 }
 
 /* Left accent rail — order cue without admin density */
@@ -552,11 +575,15 @@ p { text-wrap: pretty; }
 }
 
 .city-drag-handle {
-  width: 20px;
-  height: 16px;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
   display: grid;
   place-items: center;
-  border-radius: 4px;
+  border-radius: 6px;
+  border: 0;
+  padding: 0;
   color: var(--meta);
   background: transparent;
   font-size: 10px;
@@ -565,7 +592,8 @@ p { text-wrap: pretty; }
   line-height: 1;
   cursor: grab;
   user-select: none;
-  opacity: 0.28;
+  touch-action: none;
+  opacity: 0.45;
   transition:
     opacity var(--motion-fast) var(--ease-standard),
     color var(--motion-fast) var(--ease-standard),
@@ -578,9 +606,43 @@ p { text-wrap: pretty; }
   background: color-mix(in oklab, var(--surface-warm), transparent 40%);
 }
 
+.city-drag-handle:focus-visible {
+  opacity: 1;
+  color: var(--fg);
+  outline: none;
+  box-shadow: var(--focus-ring);
+  background: color-mix(in oklab, var(--surface-warm), transparent 30%);
+}
+
+.city-actions .btn-icon:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  color: var(--fg);
+}
+
 .city-card.is-dragging .city-drag-handle {
   cursor: grabbing;
   opacity: 1;
+}
+
+/* Narrow screens: keep city actions always visible (do not rely on hover) */
+@media (max-width: 900px) {
+  .city-actions {
+    opacity: 1;
+  }
+
+  .city-drag-handle {
+    opacity: 0.7;
+  }
+
+  /* Prefer up/down over HTML5 drag on touch widths */
+  .city-drag-handle {
+    display: none;
+  }
+
+  .city-card-rail {
+    min-width: 24px;
+  }
 }
 
 .city-actions .btn,
@@ -589,23 +651,50 @@ p { text-wrap: pretty; }
 }
 
 .city-actions .btn-icon {
-  width: 28px;
-  height: 28px;
-  min-height: 28px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   color: var(--muted);
   background: transparent;
   box-shadow: none;
-  border-radius: 6px;
+  border-radius: 8px;
 }
 
-.city-actions .btn-icon:hover {
+.city-actions .btn-icon:hover:not(:disabled) {
   color: var(--fg);
   background: color-mix(in oklab, var(--surface-warm), transparent 30%);
 }
 
-.city-actions .city-remove:hover {
+.city-actions .btn-icon:disabled {
+  opacity: 0.32;
+  cursor: not-allowed;
+}
+
+.city-actions .city-remove:hover:not(:disabled) {
   color: var(--danger);
   background: color-mix(in oklab, var(--danger), transparent 92%);
+}
+
+.toast-undo-btn {
+  margin-left: 8px;
+  border: 0;
+  border-radius: 6px;
+  padding: 4px 10px;
+  min-height: 28px;
+  background: color-mix(in oklab, var(--fg), transparent 90%);
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.toast-undo-btn:hover,
+.toast-undo-btn:focus-visible {
+  background: color-mix(in oklab, var(--fg), transparent 84%);
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 /* Secondary row: days / transport / plan-stay — product density under name */
@@ -2532,6 +2621,73 @@ body[data-editing-workspace="true"] .workspace-edit-hint {
   min-height: 36px;
 }
 
+.wizard-sticky-actions {
+  display: grid;
+  gap: 8px;
+  justify-content: stretch;
+}
+
+.wizard-sticky-summary {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.wizard-sticky-route {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--fg);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.wizard-sticky-meta {
+  font-size: 12px;
+  color: var(--meta);
+  line-height: 1.35;
+}
+
+.wizard-next-reason {
+  margin: 0;
+  font-size: 12px;
+  color: var(--danger);
+  line-height: 1.4;
+}
+
+.wizard-next-reason[hidden] {
+  display: none !important;
+}
+
+.wizard-sticky-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* Step 1 long list: sticky primary actions stay reachable */
+body[data-wizard-step="1"] #stepRoute .wizard-sticky-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 25;
+  margin-top: 4px;
+  padding: 12px 24px calc(14px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--border);
+  background: color-mix(in oklab, var(--surface) 94%, transparent);
+  box-shadow: 0 -10px 28px rgba(26, 25, 22, 0.08);
+  backdrop-filter: blur(10px);
+}
+
+body[data-wizard-step="1"] #stepRoute {
+  padding-bottom: 8px;
+}
+
+.segmented button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
 .wizard-panel .status-note {
   margin: 0 var(--space-6) var(--space-4);
 }
@@ -2582,6 +2738,15 @@ body[data-wizard-step="2"] .wizard-panel-actions {
   margin: 0 24px 8px;
   font-size: 12px;
   color: var(--meta);
+}
+
+body[data-route-dirty="true"] #stepRoute .workspace-edit-hint,
+body[data-route-dirty="true"] #stepPrefs .workspace-edit-hint {
+  color: var(--fg);
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in oklab, var(--accent), var(--border) 45%);
+  background: color-mix(in oklab, var(--accent), transparent 92%);
 }
 
 /* Secondary CTA next to city input — not terracotta */
@@ -2992,6 +3157,18 @@ body[data-wizard-step="2"] .wizard-panel-actions {
   }
 
   .wizard-panel-actions .btn {
+    flex: 1 1 auto;
+  }
+
+  body[data-wizard-step="1"] #stepRoute .wizard-sticky-actions {
+    padding: 10px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .wizard-sticky-buttons {
+    justify-content: stretch;
+  }
+
+  .wizard-sticky-buttons .btn {
     flex: 1 1 auto;
   }
 

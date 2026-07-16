@@ -671,10 +671,10 @@ Do **not** commit `.superpowers/` brainstorm sessions (gitignored) or `.env`.
 
 ## Placeholder / consistency self-review
 
-- No TBD steps; token hex values match design spec exactly  
-- Markup classes: `timeline-marker`, `item-time`, `card-meta`, `card-map-btn`, `data-item`, `data-open-map-item` consistent across tasks  
-- WIP SaaS white explicitly overridden in Task 1  
-- Behavior preservation called out for fold JS and map focus helpers  
+- No TBD steps; token hex values match design spec exactly
+- Markup classes: `timeline-marker`, `item-time`, `card-meta`, `card-map-btn`, `data-item`, `data-open-map-item` consistent across tasks
+- WIP SaaS white explicitly overridden in Task 1
+- Behavior preservation called out for fold JS and map focus helpers
 
 ---
 
@@ -684,7 +684,7 @@ Plan complete and saved to `docs/superpowers/plans/2026-07-15-ui-visual-polish.m
 
 **Two execution options:**
 
-1. **Subagent-Driven (recommended)** — fresh subagent per task, review between tasks  
-2. **Inline Execution** — same session with executing-plans, batch with checkpoints  
+1. **Subagent-Driven (recommended)** — fresh subagent per task, review between tasks
+2. **Inline Execution** — same session with executing-plans, batch with checkpoints
 
 Which approach?

@@ -8,6 +8,8 @@ const indexHtml = fs.readFileSync(path.join(repoRoot, "static/index.html"), "utf
 const stylesCss = fs.readFileSync(path.join(repoRoot, "static/styles.css"), "utf8");
 const appJs = fs.readFileSync(path.join(repoRoot, "static/app.js"), "utf8");
 const mapJs = fs.readFileSync(path.join(repoRoot, "static/map.js"), "utf8");
+const tripShareBootJs = fs.readFileSync(path.join(repoRoot, "static/trip-share-boot.js"), "utf8");
+const tripShareHtml = fs.readFileSync(path.join(repoRoot, "static/trip-share.html"), "utf8");
 
 test("map overlay keeps the map as the primary canvas", () => {
   assert.match(indexHtml, /class="map-workspace"/);
@@ -37,9 +39,25 @@ test("route geometry keeps a visible hierarchy over the base map", () => {
 });
 
 test("zoom control follows the app surface language and touch contract", () => {
-  assert.match(mapJs, /L\.control\.zoom\(\{ position: 'bottomleft' \}\)/);
+  assert.match(mapJs, /zoomControlPosition \|\| 'bottomleft'/);
   assert.match(stylesCss, /\.leaflet-control-zoom\s*\{[^}]*border:\s*1px solid var\(--border\)/s);
   assert.match(stylesCss, /\.map-drawer-panel \.leaflet-control-zoom a\s*\{[^}]*min-width:\s*44px/s);
   assert.match(stylesCss, /\.map-drawer-panel \.leaflet-control-zoom a\s*\{[^}]*min-height:\s*44px/s);
   assert.match(stylesCss, /\.leaflet-control-zoom a:focus-visible/);
+});
+
+test("interactive maps prefer a high-DPI vector basemap with a raster fallback", () => {
+  assert.match(indexHtml, /maplibre-gl@5\.24\.0/);
+  assert.match(indexHtml, /maplibre-gl-leaflet@0\.1\.3/);
+  assert.match(mapJs, /tiles\.openfreemap\.org\/styles\/bright/);
+  assert.match(mapJs, /L\.maplibreGL\(/);
+  assert.match(mapJs, /function applyChineseLabels\(/);
+  assert.match(mapJs, /name:zh-Hans/);
+  assert.match(mapJs, /name:nonlatin/);
+  assert.match(mapJs, /detectRetina:\s*false/);
+  assert.match(tripShareBootJs, /function createShareMap\(/);
+  assert.match(tripShareBootJs, /webrd0\{s\}\.is\.autonavi\.com/);
+  assert.match(indexHtml, /trip-publish\.js\?v=vector-map-zh-20260715/);
+  assert.match(tripShareHtml, /map\.js\?v=vector-map-zh-20260715/);
+  assert.doesNotMatch(stylesCss, /\.leaflet-tile-pane\s*\{[^}]*contrast\(/s);
 });

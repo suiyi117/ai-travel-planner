@@ -216,7 +216,6 @@ async def enrich_one_segment(segment: dict, travel_date: str, budget: str = "") 
         return seg
 
 
-from datetime import datetime, timedelta
 
 
 async def enrich_transport_guide(

@@ -49,6 +49,7 @@
   <title>${root.AeroTravelTripShareRender.escapeHtml(title)} · AeroTravel</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""><!-- pragma: allowlist secret -->
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" integrity="sha384-uTttxo/aOKbdE5RlD/SPzSDoDmNvGlUYPjONi2MN/b7c9HPSvW07OIuyP7uL6jxK" crossorigin=""><!-- pragma: allowlist secret -->
   <style>
 ${css}
   </style>
@@ -56,12 +57,17 @@ ${css}
 <body class="trip-share-body">
   <script>window.__TRIP_PACKAGE__ = ${safeJsonForScript(pkg)};</script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script><!-- pragma: allowlist secret -->
+  <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js" integrity="sha384-5+cfbwT0iiub6VsQAdn6yz16nr6sDiQoHx6tm4O8OVYXHYOxcffFmCJBL0dgdvGp" crossorigin=""></script><!-- pragma: allowlist secret -->
+  <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.3/leaflet-maplibre-gl.js" integrity="sha384-LIxE/QjpJKC2A91yD40ZisdYtFbgAjl58jqpo9/MUZNgwhqsTfzwrTlqv6nDdzzB" crossorigin=""></script><!-- pragma: allowlist secret -->
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script>
 ${scripts.nav || ''}
   </script>
   <script>
 ${scripts.render || ''}
+  </script>
+  <script>
+${scripts.map || ''}
   </script>
   <script>
 ${scripts.boot || ''}
@@ -72,15 +78,16 @@ ${scripts.boot || ''}
 
   async function loadPublishAssets(baseUrl) {
     const base = baseUrl || '';
-    const [css, nav, render, boot] = await Promise.all([
+    const [css, nav, render, map, boot] = await Promise.all([
       fetchText(`${base}trip-share.css`),
       fetchText(`${base}trip-nav.js`),
       fetchText(`${base}trip-share-render.js`),
+      fetchText(`${base}map.js`),
       fetchText(`${base}trip-share-boot.js`)
     ]);
     return {
       css,
-      scripts: { nav, render, boot }
+      scripts: { nav, render, map, boot }
     };
   }
 

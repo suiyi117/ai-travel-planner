@@ -26,8 +26,8 @@
       /* ignore */
     }
     const params = new URLSearchParams(location.search);
-    const embedded = params.get('embedded');
-    if (embedded === '1') {
+    const canUseLocalPreview = params.get('embedded') === '1' || params.get('preview') === '1';
+    if (canUseLocalPreview) {
       try {
         const raw = localStorage.getItem(PREVIEW_KEY);
         if (raw) return JSON.parse(raw);
@@ -71,6 +71,27 @@
     return dayLines;
   }
 
+  function createShareMap(container, center, zoom) {
+    if (root.AeroTravelMap?.createMap) {
+      return root.AeroTravelMap.createMap(container, center, zoom, {
+        zoomControlPosition: 'bottomright'
+      });
+    }
+    const map = root.L.map(container, { zoomControl: false }).setView(center, zoom);
+    root.L.control.zoom({ position: 'bottomright' }).addTo(map);
+    root.L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
+      subdomains: '1234',
+      detectRetina: false,
+      attribution: '高德地图'
+    }).addTo(map);
+    container.dataset.basemap = 'raster';
+    return map;
+  }
+
+  function toShareLatLng(point) {
+    return root.AeroTravelMap?.toMapLatLng ? root.AeroTravelMap.toMapLatLng(point) : point;
+  }
+
   function paintMap(container, pkg, dayFilter) {
     if (!container || !root.L) return null;
     if (container._tripMap) {
@@ -85,16 +106,11 @@
     const center = anchors[0]
       ? [anchors[0].lat, anchors[0].lng]
       : [34.2, 108.9];
-    const map = root.L.map(container, { zoomControl: false }).setView(center, anchors.length ? 11 : 5);
-    root.L.control.zoom({ position: 'bottomright' }).addTo(map);
-    root.L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
-      subdomains: '1234',
-      attribution: '高德地图'
-    }).addTo(map);
+    const map = createShareMap(container, center, anchors.length ? 11 : 5);
 
     const latlngs = [];
     anchors.forEach((anchor, index) => {
-      const latlng = [Number(anchor.lat), Number(anchor.lng)];
+      const latlng = toShareLatLng([Number(anchor.lat), Number(anchor.lng)]);
       latlngs.push(latlng);
       const html = `<div class="trip-marker${anchor.kind === 'hotel' ? ' is-hotel' : ''}" style="background:${anchor.color || '#c96442'}">${anchor.order || index + 1}</div>`;
       const icon = root.L.divIcon({
@@ -111,7 +127,7 @@
     let paintedRoute = false;
     routeLines.forEach(line => {
       const points = (line.points || [])
-        .map(point => [Number(point[0]), Number(point[1])])
+        .map(point => toShareLatLng([Number(point[0]), Number(point[1])]))
         .filter(point => Number.isFinite(point[0]) && Number.isFinite(point[1]));
       if (points.length < 2) return;
       root.L.polyline(points, lineStyleForStatus(line.status)).addTo(map);

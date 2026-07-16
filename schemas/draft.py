@@ -1,6 +1,5 @@
 ﻿"""Pydantic v2 models for trip drafts, constraints, optimization, and driving routes."""
 
-from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
