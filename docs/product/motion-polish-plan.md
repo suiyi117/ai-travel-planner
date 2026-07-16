@@ -28,9 +28,9 @@
 
 **结论（已锁定 3 条线）：**
 
-1. **动效 A** — Wizard 面板切换过场（P0）  
-2. **动效 B** — 主面板 / compact-summary 轻量入场（P1，与 A 共用语言）  
-3. **动效 C** — 城市卡插入入场（P1，单卡；拖拽态仍用现有 class）  
+1. **动效 A** — Wizard 面板切换过场（P0）
+2. **动效 B** — 主面板 / compact-summary 轻量入场（P1，与 A 共用语言）
+3. **动效 C** — 城市卡插入入场（P1，单卡；拖拽态仍用现有 class）
 4. **从属 A** — 步骤指示器 active 圆点适度 scale（不算独立大动效）
 
 明确不做：滚动 reveal 长列表、Lottie/Rive、GSAP、全页/多卡 stagger、装饰循环、重写 drawer/toast。
@@ -43,7 +43,7 @@
 
 **触发**：`setWizardStep` / `renderWizardChrome` 切换 `data-step-panel` 可见性时。
 
-**观感**：当前面板淡出并略下沉 → 目标面板自 6–8px 上移淡入。  
+**观感**：当前面板淡出并略下沉 → 目标面板自 6–8px 上移淡入。
 **目的**：把「步骤切换」做成空间确认，而不是 DOM 闪切。
 
 | 项 | 规格 |
@@ -86,7 +86,7 @@
 
 **触发**：
 
-- 步骤面板进入可见时（与 A 的 incoming 可合并为同一 enter class）；  
+- 步骤面板进入可见时（与 A 的 incoming 可合并为同一 enter class）；
 - 移动端 `#wizardCompactSummary` 从 `hidden` → 显示时。
 
 **观感**：单块 `opacity 0→1` + `translateY(6px→0)`，**无子元素 stagger**。
@@ -105,7 +105,7 @@
 
 **触发**：用户添加城市后，`renderCities`（或等价路径）把新卡插入列表时。
 
-**观感**：仅**新插入的那一张** `opacity 0→1` + `translateY(6px→0)`；已有卡不动。  
+**观感**：仅**新插入的那一张** `opacity 0→1` + `translateY(6px→0)`；已有卡不动。
 **不做**：整表 re-render 全员 stagger、拖拽过程额外动画（`is-dragging` / `is-drag-over` 保持现状）。
 
 | 项 | 规格 |
@@ -118,8 +118,8 @@
 
 **触点代码：**
 
-- `static/app.js` → `renderCities` / 添加城市 handler  
-- `static/styles.css` → `.city-card.is-city-enter`（类名以现有 city 根类为准）  
+- `static/app.js` → `renderCities` / 添加城市 handler
+- `static/styles.css` → `.city-card.is-city-enter`（类名以现有 city 根类为准）
 - `static/editor.js` 若生成 city 卡片 HTML，只加 class 钩子、不改交互逻辑
 
 ---
@@ -192,12 +192,12 @@ JS：`matchMedia('(prefers-reduced-motion: reduce)').matches` 时走即时切换
 
 ## 实现顺序（Design 模式执行清单）
 
-1. `styles.css`：统一 motion token 类 — panel enter/exit、compact-summary enter、step-index scale、city-enter + reduced-motion 块  
-2. `app.js`：`swapWizardPanel` / 改 `renderWizardChrome`（token 防连点；reduce 即时）  
-3. `app.js`：compact-summary `hidden`→显示时 enter class  
-4. `app.js`：`renderCities` diff 新增 city → 只给新卡 `is-city-enter`，结束后清理  
-5. 步骤指示器：确认现有 active 样式上叠 150ms scale（适度 1.06）  
-6. 手动走查 + 更新 `critique.json` 的 `motion` 轴目标 ≥4.5  
+1. `styles.css`：统一 motion token 类 — panel enter/exit、compact-summary enter、step-index scale、city-enter + reduced-motion 块
+2. `app.js`：`swapWizardPanel` / 改 `renderWizardChrome`（token 防连点；reduce 即时）
+3. `app.js`：compact-summary `hidden`→显示时 enter class
+4. `app.js`：`renderCities` diff 新增 city → 只给新卡 `is-city-enter`，结束后清理
+5. 步骤指示器：确认现有 active 样式上叠 150ms scale（适度 1.06）
+6. 手动走查 + 更新 `critique.json` 的 `motion` 轴目标 ≥4.5
 
 ---
 
@@ -215,6 +215,6 @@ JS：`matchMedia('(prefers-reduced-motion: reduce)').matches` 时走即时切换
 
 ## Next step
 
-1. 计划已按你的三项选择锁定；可再扫一眼本文件。  
-2. 切换到 **Design 模式**，严格按「实现顺序」改 `static/*`，**不要**全站动效扫荡。  
+1. 计划已按你的三项选择锁定；可再扫一眼本文件。
+2. 切换到 **Design 模式**，严格按「实现顺序」改 `static/*`，**不要**全站动效扫荡。
 3. 完成定义：A 切步 + B 入场 + C 新城市卡 + A′ 步骤圆点；reduce 用户零位移干扰。

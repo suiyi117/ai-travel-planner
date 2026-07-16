@@ -1,11 +1,11 @@
 # AeroTravel UI 信息架构 Phase 1 计划
 
-> 版本：v1 · 2026-07-15  
-> 分支：`feature/ui-major-optimization`  
-> 状态：**Phase 1 S 代码已落地**（`.\scripts\check.ps1` 通过；请本地浏览器冒烟）  
+> 版本：v1 · 2026-07-15
+> 分支：`feature/ui-major-optimization`
+> 状态：**Phase 1 S 代码已落地**（`.\scripts\check.ps1` 通过；请本地浏览器冒烟）
 > 来源：产品决策 grilling 共识（主轴 B，Phase 1 = S 最小切片）
 
-本文是本分支 **第一批可合入改动** 的唯一实施范围。  
+本文是本分支 **第一批可合入改动** 的唯一实施范围。
 与 `docs/product/ui-interaction-redesign-plan.md`（视觉/阅读节奏 v3）相关但不替代：v3 偏视觉与卡片编排；**本文件偏信息架构与流程层级**。两者冲突时，以本文件的 Phase 1 边界为准，避免在错误主次上堆样式。
 
 ---
@@ -52,11 +52,11 @@
 
 ### 2.3 设置回跳与变更检测
 
-1. 从工作区进入改路线 / 改偏好：**不立刻清除**当前 plan。  
-2. 进入编辑时对关键字段拍快照。  
-3. **无实质变更**返回：安静回工作区，无弹窗、无请求。  
-4. **有实质变更**：主 CTA 变为「重新生成行程」，确认后整单调用现有生成流程。  
-5. 生成中 / 失败：避免空白死局（保留上次结果作参考或明确「上次结果」状态，实现时选成本最低且可测的一种）。  
+1. 从工作区进入改路线 / 改偏好：**不立刻清除**当前 plan。
+2. 进入编辑时对关键字段拍快照。
+3. **无实质变更**返回：安静回工作区，无弹窗、无请求。
+4. **有实质变更**：主 CTA 变为「重新生成行程」，确认后整单调用现有生成流程。
+5. 生成中 / 失败：避免空白死局（保留上次结果作参考或明确「上次结果」状态，实现时选成本最低且可测的一种）。
 
 **实质变更口径（简单 diff）** — 任一不同即算变更：
 
@@ -69,21 +69,21 @@
 
 ## 3. 工程约束（必须遵守）
 
-- 栈不变：FastAPI + 无构建静态前端；不引入 React/Vue/bundler。  
-- 不改后端 API 契约，除非实现中发现前端无法完成 diff/重生成（若必须改 API，先停并确认）。  
-- 保持：可滚动三步壳、地图 **按需抽屉**、POI 元数据转义、`state` + `applyPlan()` 主路径。  
-- 纯逻辑优先进 `static/wizard.js`（`window.AeroTravelWizard`），并用 `tests/frontend/wizard.test.js` 覆盖。  
-- 编排仍在 `static/app.js`；样式在现有 `static/styles.css` / `index.html` 内联策略中与现状一致地改，**不为 Phase 1 新开设计体系**。  
+- 栈不变：FastAPI + 无构建静态前端；不引入 React/Vue/bundler。
+- 不改后端 API 契约，除非实现中发现前端无法完成 diff/重生成（若必须改 API，先停并确认）。
+- 保持：可滚动三步壳、地图 **按需抽屉**、POI 元数据转义、`state` + `applyPlan()` 主路径。
+- 纯逻辑优先进 `static/wizard.js`（`window.AeroTravelWizard`），并用 `tests/frontend/wizard.test.js` 覆盖。
+- 编排仍在 `static/app.js`；样式在现有 `static/styles.css` / `index.html` 内联策略中与现状一致地改，**不为 Phase 1 新开设计体系**。
 - 合入前：`.\scripts\check.ps1`；浏览器冒烟见第 6 节。
 
 **允许修改的主要文件（预期）**
 
-- `static/wizard.js` — diff、摘要折叠相关纯函数、状态条文案辅助等  
-- `static/app.js` — 步骤/状态条切换、编辑快照、确认重生成、弱提示绑定  
-- `static/index.html` — 状态条 / 折叠摘要 / 弱提示 DOM  
-- `static/styles.css` 与/或 `index.html` 内样式 — Step 3 降级与折叠的最小样式  
-- `tests/frontend/wizard.test.js` — 新纯逻辑测试  
-- 本计划与（可选）`tasks/todo.md` 勾选  
+- `static/wizard.js` — diff、摘要折叠相关纯函数、状态条文案辅助等
+- `static/app.js` — 步骤/状态条切换、编辑快照、确认重生成、弱提示绑定
+- `static/index.html` — 状态条 / 折叠摘要 / 弱提示 DOM
+- `static/styles.css` 与/或 `index.html` 内样式 — Step 3 降级与折叠的最小样式
+- `tests/frontend/wizard.test.js` — 新纯逻辑测试
+- 本计划与（可选）`tasks/todo.md` 勾选
 
 **默认不修改**：`planner/`、`routers/`、`clients/`、交付模块大改、地图引擎逻辑大改。
 
@@ -95,46 +95,46 @@
 
 ### Slice 0 — 基线与挂钩
 
-- 确认分支 `feature/ui-major-optimization`。  
-- 在 `wizard.js` 增加可测纯函数骨架（可先 red-green）：  
-  - `settingsSnapshot(stateLike)`  
-  - `settingsChanged(a, b)`（按第 2.3 口径）  
-  - （可选）`step3ChromeMode(wizardStep, hasPlan)` → `'wizard' | 'workspace'`  
+- 确认分支 `feature/ui-major-optimization`。
+- 在 `wizard.js` 增加可测纯函数骨架（可先 red-green）：
+  - `settingsSnapshot(stateLike)`
+  - `settingsChanged(a, b)`（按第 2.3 口径）
+  - （可选）`step3ChromeMode(wizardStep, hasPlan)` → `'wizard' | 'workspace'`
 - 测试覆盖 snapshot / changed 的典型同异用例。
 
 ### Slice 1 — Step 3 工作区壳 + 状态条
 
-- `body[data-wizard-step="3"]`（或等价 class）下：  
-  - 完整 `.wizard-steps` **视觉降级**（弱化或隐藏三大步主导航）。  
-  - 展示 **状态条**：路线一行 + meta +「编辑路线」「编辑偏好」（或统一「编辑」菜单，优先两个明确入口以贴合现有 back/edit 按钮）。  
-- 生成前 Step 1/2：保持现有步骤条心智，不降级。  
+- `body[data-wizard-step="3"]`（或等价 class）下：
+  - 完整 `.wizard-steps` **视觉降级**（弱化或隐藏三大步主导航）。
+  - 展示 **状态条**：路线一行 + meta +「编辑路线」「编辑偏好」（或统一「编辑」菜单，优先两个明确入口以贴合现有 back/edit 按钮）。
+- 生成前 Step 1/2：保持现有步骤条心智，不降级。
 - 状态条编辑 → 现有 `setWizardStep(1|2)`，并记录「从工作区进入」以便返回。
 
 ### Slice 2 — 摘要默认收一点
 
-- 默认折叠：一行路线 + 关键 meta + 展开控件。  
-- 展开：现有更完整摘要（若已有 compact/full 结构则复用 `wizardCompactSummary` / topbar summary）。  
+- 默认折叠：一行路线 + 关键 meta + 展开控件。
+- 展开：现有更完整摘要（若已有 compact/full 结构则复用 `wizardCompactSummary` / topbar summary）。
 - 折叠状态可进 `sessionStorage` 或仅会话内 `state`（Phase 1 不强制持久化到 localStorage 行程快照）。
 
 ### Slice 3 — 编辑流 + 确认重生成
 
-- 进入 Step 1/2 时：`state.settingsSnapshot = settingsSnapshot(state)`（命名以代码风格为准）。  
-- 返回 / 主按钮逻辑：  
-  - `!settingsChanged` → `setWizardStep(3)`，不生成。  
-  - `settingsChanged` → 确认文案明确「将按新设置重新生成并替换当前行程」→ 走现有 generate。  
-- 无 plan 时（首次）：保持现有「下一步 / 生成」路径，不被工作区逻辑干扰。  
+- 进入 Step 1/2 时：`state.settingsSnapshot = settingsSnapshot(state)`（命名以代码风格为准）。
+- 返回 / 主按钮逻辑：
+  - `!settingsChanged` → `setWizardStep(3)`，不生成。
+  - `settingsChanged` → 确认文案明确「将按新设置重新生成并替换当前行程」→ 走现有 generate。
+- 无 plan 时（首次）：保持现有「下一步 / 生成」路径，不被工作区逻辑干扰。
 - 不实现局部重算。
 
 ### Slice 4 — 地图弱提示
 
-- 保持地图抽屉默认关、现有 open/close。  
-- 在行程某天或列表级增加弱提示芯片/文案（「N 个点 · 可看地图」），点击打开地图并尽量定位到该天（若现有 map API 已支持 day focus 则接上；否则先打开抽屉 + 选中当天列表，不做新地图引擎）。  
+- 保持地图抽屉默认关、现有 open/close。
+- 在行程某天或列表级增加弱提示芯片/文案（「N 个点 · 可看地图」），点击打开地图并尽量定位到该天（若现有 map API 已支持 day focus 则接上；否则先打开抽屉 + 选中当天列表，不做新地图引擎）。
 - **禁止**：点任意 POI 默认强制弹地图（POI「看位置」显式入口可保留/加强）。
 
 ### Slice 5 — 文案、a11y、冒烟
 
-- 状态条、确认框、弱提示文案中文一致。  
-- 折叠按钮 `aria-expanded`；状态条 `aria-label`。  
+- 状态条、确认框、弱提示文案中文一致。
+- 折叠按钮 `aria-expanded`；状态条 `aria-label`。
 - 跑第 6 节检查清单。
 
 ---
@@ -143,33 +143,33 @@
 
 ### 5.1 自动化
 
-- `tests/frontend/wizard.test.js`：  
-  - snapshot 稳定性  
-  - 无变更 / 改天数 / 改预算 / 改城序 等  
-  - （若有）chrome mode 辅助函数  
+- `tests/frontend/wizard.test.js`：
+  - snapshot 稳定性
+  - 无变更 / 改天数 / 改预算 / 改城序 等
+  - （若有）chrome mode 辅助函数
 - `.\scripts\check.ps1` 全绿。
 
 ### 5.2 浏览器冒烟（Phase 1 必做）
 
-1. 打开 `http://localhost:8000`，Step 1 无控制台报错。  
-2. 走完生成进入 Step 3：主视觉是行程；步骤条已降级为状态条。  
-3. 摘要默认偏收，可展开/收起。  
-4. 地图默认关；弱提示或地图按钮可开可关。  
-5. 编辑偏好 → 不改 → 返回：行程仍在，无生成请求。  
-6. 编辑偏好 → 改预算 → 确认 → 重生成成功并回到工作区。  
-7. 取消确认：不生成，行为可预期（留在设置页或回工作区且恢复设置 — 实现时选一种并在 PR 说明）。  
+1. 打开 `http://localhost:8000`，Step 1 无控制台报错。
+2. 走完生成进入 Step 3：主视觉是行程；步骤条已降级为状态条。
+3. 摘要默认偏收，可展开/收起。
+4. 地图默认关；弱提示或地图按钮可开可关。
+5. 编辑偏好 → 不改 → 返回：行程仍在，无生成请求。
+6. 编辑偏好 → 改预算 → 确认 → 重生成成功并回到工作区。
+7. 取消确认：不生成，行为可预期（留在设置页或回工作区且恢复设置 — 实现时选一种并在 PR 说明）。
 8. 窄屏：主路径可用，无严重重叠（不做 D 级抛光）。
 
 ---
 
 ## 6. 完成定义（DoD）
 
-- [x] 第 2 节决策均在 UI 上可感知  
-- [x] 第 3 节工程约束未破  
-- [x] Slice 0–5 完成或明确砍掉的子项有记录  
-- [x] `.\scripts\check.ps1` 通过  
-- [ ] 第 5.2 冒烟通过并在 PR/提交说明中简记（**待你本地浏览器确认**）  
-- [x] 未把 A/C/D/E 大项混入本 Phase  
+- [x] 第 2 节决策均在 UI 上可感知
+- [x] 第 3 节工程约束未破
+- [x] Slice 0–5 完成或明确砍掉的子项有记录
+- [x] `.\scripts\check.ps1` 通过
+- [ ] 第 5.2 冒烟通过并在 PR/提交说明中简记（**待你本地浏览器确认**）
+- [x] 未把 A/C/D/E 大项混入本 Phase
 
 ---
 
@@ -190,8 +190,8 @@
 
 请确认：
 
-1. 同意本文为 `feature/ui-major-optimization` 上 **Phase 1 唯一范围**。  
-2. 同意优先改 `wizard.js` + 测试，再改 `app.js` / HTML / CSS。  
+1. 同意本文为 `feature/ui-major-optimization` 上 **Phase 1 唯一范围**。
+2. 同意优先改 `wizard.js` + 测试，再改 `app.js` / HTML / CSS。
 3. 确认后开始 Slice 0；若某 Slice 发现必须动后端，先暂停同步。
 
 **确认方式**：回复「按此计划实施」或指出要改的章节编号。

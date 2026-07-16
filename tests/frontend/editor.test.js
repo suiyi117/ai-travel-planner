@@ -109,4 +109,3 @@ test("constraint panel shows time input when fixed_time is true", () => {
   assert.match(html, /14:00-16:00/);
   assert.match(html, /data-action="save-constraints"/);
 });
-

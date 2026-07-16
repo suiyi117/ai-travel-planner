@@ -29,6 +29,15 @@ Run these before requesting review:
 
 Browser-facing changes also need a smoke check: page loads, console is clean, map renders, and the initial itinerary appears.
 
+## Code Style
+
+- Use UTF-8. Repository text files use LF line endings; Windows batch files use CRLF.
+- Let `.editorconfig` control indentation, final newlines, and trailing whitespace.
+- Run `pre-commit run --all-files` before the first commit and after changing tooling configuration.
+- Keep Python lines within 120 characters where practical. Use four spaces for Python and two spaces for JavaScript, JSON, and YAML.
+- Keep frontend modules dependency-free and expose focused browser APIs through the existing `window.AeroTravel*` namespaces.
+- Add or update offline tests with behavior changes. Do not make the default test suite depend on live third-party services.
+
 ## Review Rules
 
 - Public API response changes require explicit review notes and updated tests.

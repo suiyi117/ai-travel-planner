@@ -1,7 +1,7 @@
 ﻿import unittest
 
 from planner.constraints import validate_constraints
-from schemas.draft import TripDraft, OptimizeScope
+from schemas.draft import TripDraft
 
 
 def make_draft(**overrides) -> TripDraft:

@@ -3,17 +3,14 @@
 直接调用 12306 公开 JSON 接口，无需 API Key 或登录
 """
 import asyncio
-import json
 import re
 import time
-import os
 from pathlib import Path
 from typing import Optional
-from datetime import datetime, timedelta
 
 import httpx
 
-from services.train_parser import classify_train, parse_train_result
+from services.train_parser import parse_train_result
 from services.train_station_cache import build_code_to_name, load_station_cache, write_station_cache
 
 # ===== 配置 =====
@@ -209,8 +206,6 @@ async def download_station_map() -> dict[str, list[tuple[str, str]]]:
 
 def _extract_city(station_name: str) -> str:
     """从站名提取城市名"""
-    # 常见的站名后缀
-    suffixes = ["南", "北", "东", "西", "站"]
     city = station_name
     # 去掉尾部的"站"
     if city.endswith("站"):
@@ -384,8 +379,6 @@ async def search_trains(
 
             # 解析结果
             result = data.get("data", {}).get("result", [])
-            train_map = data.get("data", {}).get("map", {})
-
             trains = []
             for raw in result:
                 fields = raw.split("|")
@@ -397,7 +390,6 @@ async def search_trains(
                     continue
 
                 # 按车次类型过滤
-                train_no = train_info.get("train_no", "")
                 train_code = train_info.get("id", "")
                 # 如果指定了 prefer_train_type，过滤非高铁/动车
                 if prefer_train_type and prefer_train_type != "ALL":
@@ -415,7 +407,7 @@ async def search_trains(
             return trains
 
     except httpx.TimeoutException:
-        print(f"[TrainService] 12306 API 请求超时")
+        print("[TrainService] 12306 API 请求超时")
         return []
     except Exception as e:
         print(f"[TrainService] 查询车次失败: {e}")

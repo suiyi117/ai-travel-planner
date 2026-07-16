@@ -1,7 +1,7 @@
 import asyncio
 import unittest
 
-from planner.draft_optimizer import optimize_draft, compute_diff
+from planner.draft_optimizer import optimize_draft
 from schemas.draft import TripDraft, OptimizeScope
 
 

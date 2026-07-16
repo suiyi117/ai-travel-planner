@@ -9,18 +9,18 @@ from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
-load_dotenv()
-
 from core.observability import configure_logging, install_operability_middleware
 from core.settings import load_settings
 from routers.location import create_location_router
 from routers.planning import create_planning_router
 from routers.system import create_system_router
 from routers.transport import create_driving_router, router as transport_router
-from schemas.travel import CityInfo, PlanRequest
+from schemas.travel import CityInfo as CityInfo, PlanRequest as PlanRequest
 
 # 导入交通查询服务
 from services.train_service import init_station_data
+
+load_dotenv()
 
 settings = load_settings()
 APP_ENV = settings.app_env
@@ -74,11 +74,8 @@ if __name__ == "__main__":
     print("=" * 50)
     print(f"  高德地图 JS API: {'已配置' if AMAP_KEY else '未配置'}")
     print(f"  AI 模型: {AI_MODEL} ({'已配置' if AI_API_KEY else '未配置'})")
-    print(f"  火车票查询: 已启用 (12306 公开接口)")
+    print("  火车票查询: 已启用 (12306 公开接口)")
     print(f"  航班查询: {'已配置' if settings.juhe_flight_api_key else '内置数据'} ")
-    print(f"  访问地址: http://localhost:8000")
+    print("  访问地址: http://localhost:8000")
     print("=" * 50)
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
-
-

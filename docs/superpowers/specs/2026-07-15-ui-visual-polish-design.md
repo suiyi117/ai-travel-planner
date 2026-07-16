@@ -1,9 +1,9 @@
 # AeroTravel UI 视觉精修设计（羊皮纸 + 构图）
 
-日期：2026-07-15  
-状态：已批准（头脑风暴分段确认）  
-分支：`feature/ui-phase3-visual-polish`  
-方案：方案 1 — Phase 3 构图优先，再扫表单  
+日期：2026-07-15
+状态：已批准（头脑风暴分段确认）
+分支：`feature/ui-phase3-visual-polish`
+方案：方案 1 — Phase 3 构图优先，再扫表单
 
 相关文档：
 
@@ -36,23 +36,23 @@
 
 **成功标准**
 
-1. 扫一眼能感到暖羊皮纸成品，而非白底控件拼盘。  
-2. Step 1/2 主次按钮一眼可辨；城市卡不再像 admin 密表。  
-3. Step 3：时间可纵向扫读；卡片无「徽章墙」；折叠入口无浏览器默认按钮感。  
-4. Phase 1/2 行为不回归：工作区状态、看位置、地图双向联动、设置 diff / 重生成。  
+1. 扫一眼能感到暖羊皮纸成品，而非白底控件拼盘。
+2. Step 1/2 主次按钮一眼可辨；城市卡不再像 admin 密表。
+3. Step 3：时间可纵向扫读；卡片无「徽章墙」；折叠入口无浏览器默认按钮感。
+4. Phase 1/2 行为不回归：工作区状态、看位置、地图双向联动、设置 diff / 重生成。
 5. `.\scripts\check.ps1` 通过；主路径浏览器无 console 报错。
 
 ---
 
 ## 3. 非目标
 
-- 不改后端、API 契约、数据结构  
-- 不引入前端框架、bundler、数据库、登录  
-- 不重做信息架构或流程（仍为三步向导 + 地图按需抽屉）  
-- 不做移动端专项大改版、不做客户交付长图视觉大改  
-- 不换暗色主题 / 设计开关面板  
-- 不虚构评分、省钱、效率等指标填卡片  
-- 不锁死双栏地图、不恢复 100vh 三栏闷罐  
+- 不改后端、API 契约、数据结构
+- 不引入前端框架、bundler、数据库、登录
+- 不重做信息架构或流程（仍为三步向导 + 地图按需抽屉）
+- 不做移动端专项大改版、不做客户交付长图视觉大改
+- 不换暗色主题 / 设计开关面板
+- 不虚构评分、省钱、效率等指标填卡片
+- 不锁死双栏地图、不恢复 100vh 三栏闷罐
 
 ---
 
@@ -88,18 +88,18 @@
 
 ### 4.3 圆角 · 阴影 · 焦点 · 动效
 
-- 圆角：sm 10 / md 14 / lg 18 / pill  
-- 阴影：暖 ring + 极轻抬升；无玻璃拟态、无装饰光晕 blob  
-- Focus：`--focus-ring` 双环，外环半透明赤陶  
-- 选中：列表/时间线用 **墨色** ring 或边线；赤陶不铺满选中态  
-- 动效：150–200ms，`prefers-reduced-motion` 下瞬时或关闭  
+- 圆角：sm 10 / md 14 / lg 18 / pill
+- 阴影：暖 ring + 极轻抬升；无玻璃拟态、无装饰光晕 blob
+- Focus：`--focus-ring` 双环，外环半透明赤陶
+- 选中：列表/时间线用 **墨色** ring 或边线；赤陶不铺满选中态
+- 动效：150–200ms，`prefers-reduced-motion` 下瞬时或关闭
 
 ### 4.4 规则
 
-1. 页面背景永远 `--bg`，不用纯白。  
-2. 赤陶只做高信号（主按钮、kicker、少量 badge）。  
-3. 禁止暴露浏览器默认 button chrome（尤其折叠入口）。  
-4. 不新增虚构数据字段。  
+1. 页面背景永远 `--bg`，不用纯白。
+2. 赤陶只做高信号（主按钮、kicker、少量 badge）。
+3. 禁止暴露浏览器默认 button chrome（尤其折叠入口）。
+4. 不新增虚构数据字段。
 
 ---
 
@@ -109,23 +109,23 @@
 
 ### 5.1 页面头（两步共用）
 
-- Kicker：小号字距 + 赤陶（如 `STEP 01 · 路线`）  
-- 标题：衬线 display，一句话任务  
-- 副标题：一行暖灰帮助，max-width ~46ch  
+- Kicker：小号字距 + 赤陶（如 `STEP 01 · 路线`）
+- 标题：衬线 display，一句话任务
+- 副标题：一行暖灰帮助，max-width ~46ch
 
 ### 5.2 Step 1 路线
 
-- 城市卡：象牙 surface + 暖 ring；左侧细轨表顺序  
-- 卡内：城市名为主；天数 / 段交通为次级行（避免多控件横挤无层次）  
-- 天数汇总：Warm Sand 条  
-- 出发日期：独立 field 组，用间距分隔，不套厚盒子  
-- 拖拽手柄：默认淡、hover 卡时显现（行为保持）  
+- 城市卡：象牙 surface + 暖 ring；左侧细轨表顺序
+- 卡内：城市名为主；天数 / 段交通为次级行（避免多控件横挤无层次）
+- 天数汇总：Warm Sand 条
+- 出发日期：独立 field 组，用间距分隔，不套厚盒子
+- 拖拽手柄：默认淡、hover 卡时显现（行为保持）
 
 ### 5.3 Step 2 偏好
 
-- 节奏 / 交通 / 预算：统一芯片或 select 语言（选中墨边或淡暖底）  
-- 偏好文本：与上方同一 field 语言  
-- 生成中：主 CTA 锁定 + loading 文案；错误用 status-note  
+- 节奏 / 交通 / 预算：统一芯片或 select 语言（选中墨边或淡暖底）
+- 偏好文本：与上方同一 field 语言
+- 生成中：主 CTA 锁定 + loading 文案；错误用 status-note
 
 ### 5.4 按钮层级
 
@@ -148,39 +148,39 @@
                       [ 底栏 meta：城市 · 时长 · 已有字段 ]
 ```
 
-- 时间在 `.timeline-marker`，不回到卡片标题堆  
-- 竖轨：marker 列细线连接  
-- Active：墨点 + 时间加重 + 卡片墨 ring  
+- 时间在 `.timeline-marker`，不回到卡片标题堆
+- 竖轨：marker 列细线连接
+- Active：墨点 + 时间加重 + 卡片墨 ring
 
 实现上可在现有 `renderPlan` 网格骨架上强化视觉与 meta 底栏；若需从 badge 墙改为 compact meta，允许微调 markup class 结构，**保留** `data-item`、`data-open-map-item`、active/conflict。
 
 ### 6.2 卡片内容层级
 
-1. 类型 kicker / badge（交通可用淡赤陶变体）  
-2. 标题：展示感字重  
-3. 描述：约 3 行 clamp  
-4. 「看位置」：右上 secondary，仅有坐标时出现  
-5. Meta 底栏：分隔点/轻文字，替代徽章墙；字段仅用已有 duration / city / rating / transport extra  
+1. 类型 kicker / badge（交通可用淡赤陶变体）
+2. 标题：展示感字重
+3. 描述：约 3 行 clamp
+4. 「看位置」：右上 secondary，仅有坐标时出现
+5. Meta 底栏：分隔点/轻文字，替代徽章墙；字段仅用已有 duration / city / rating / transport extra
 
 ### 6.3 工作区其它表面
 
-- 标题：衬线总标题 + 赤陶 kicker；metric 卡降噪  
-- Day tab / 类型筛选：墨色选中 pill  
-- 折叠（城际交通 / 费用贴士）：象牙 + 暖 ring + chevron；整行 ≥44px；**不改**折叠 JS / ARIA / 强制展开逻辑  
-- 地图抽屉工具条：token 对齐，交互不动  
+- 标题：衬线总标题 + 赤陶 kicker；metric 卡降噪
+- Day tab / 类型筛选：墨色选中 pill
+- 折叠（城际交通 / 费用贴士）：象牙 + 暖 ring + chevron；整行 ≥44px；**不改**折叠 JS / ARIA / 强制展开逻辑
+- 地图抽屉工具条：token 对齐，交互不动
 
 ### 6.4 窄屏
 
-- 时间列可收窄或时间改到卡顶一行，避免溢出  
-- 本轮不做移动专项动效/手势  
+- 时间列可收窄或时间改到卡顶一行，避免溢出
+- 本轮不做移动专项动效/手势
 
 ### 6.5 行为硬约束（Phase 1/2）
 
-- 点卡片选中；键盘可操作  
-- 看位置开图并定位；无坐标不显示  
-- 地图开时列表 ↔ 地图双向联动与 `scrollIntoView`  
-- 工作区设置 diff：无变更安静返回；有变更确认后整单重生成  
-- 折叠逻辑与筛选强制展开行为不变  
+- 点卡片选中；键盘可操作
+- 看位置开图并定位；无坐标不显示
+- 地图开时列表 ↔ 地图双向联动与 `scrollIntoView`
+- 工作区设置 diff：无变更安静返回；有变更确认后整单重生成
+- 折叠逻辑与筛选强制展开行为不变
 
 ---
 
@@ -200,13 +200,13 @@
 
 ## 8. 实施顺序
 
-1. **Token 基线** — `static/index.html` `:root`  
-2. **全局控件** — btn / field / badge / segmented / topbar  
-3. **Step 1/2 表单** — 头区、城市卡、汇总、CTA  
-4. **Step 3 时间线** — marker 时间、标题气质、meta 底栏（必要时 `app.js` `renderPlan`）  
-5. **折叠与次要控件** — fold、card-map、day-map-hint、workspace 状态条  
-6. **扫尾** — empty/focus、窄屏、去掉纯白与默认 chrome 残留  
-7. **回归** — `.\scripts\check.ps1` + 浏览器冒烟  
+1. **Token 基线** — `static/index.html` `:root`
+2. **全局控件** — btn / field / badge / segmented / topbar
+3. **Step 1/2 表单** — 头区、城市卡、汇总、CTA
+4. **Step 3 时间线** — marker 时间、标题气质、meta 底栏（必要时 `app.js` `renderPlan`）
+5. **折叠与次要控件** — fold、card-map、day-map-hint、workspace 状态条
+6. **扫尾** — empty/focus、窄屏、去掉纯白与默认 chrome 残留
+7. **回归** — `.\scripts\check.ps1` + 浏览器冒烟
 
 ### 文件边界
 
@@ -221,21 +221,21 @@
 
 ## 9. 浏览器冒烟清单
 
-1. Step 1 加载 → 加城 / 改天数 → 下一步  
-2. Step 2 设偏好 → 生成 → 进入 Step 3  
-3. 扫时间线、点卡片、看位置开地图、关地图  
-4. 折叠城际交通 / 费用贴士  
-5. 工作区改设置：无变更安静返回；有变更可走重生成  
-6. 窄窗：无横向溢出、时间与卡不重叠失控  
-7. Console 无 error / warning（与本改动相关）  
+1. Step 1 加载 → 加城 / 改天数 → 下一步
+2. Step 2 设偏好 → 生成 → 进入 Step 3
+3. 扫时间线、点卡片、看位置开地图、关地图
+4. 折叠城际交通 / 费用贴士
+5. 工作区改设置：无变更安静返回；有变更可走重生成
+6. 窄窗：无横向溢出、时间与卡不重叠失控
+7. Console 无 error / warning（与本改动相关）
 
 ---
 
 ## 10. 测试与工程
 
-- 运行 `.\scripts\check.ps1`（compileall、ruff/mypy 若已装、unittest、`node --check`、frontend tests）  
-- 若 `renderPlan` HTML 结构变化导致 `tests/frontend/*.test.js` 断言失败，更新断言以匹配新 markup，不弱化行为覆盖  
-- 不手改 artifact JSON；不提交 `.env` / cache  
+- 运行 `.\scripts\check.ps1`（compileall、ruff/mypy 若已装、unittest、`node --check`、frontend tests）
+- 若 `renderPlan` HTML 结构变化导致 `tests/frontend/*.test.js` 断言失败，更新断言以匹配新 markup，不弱化行为覆盖
+- 不手改 artifact JSON；不提交 `.env` / cache
 
 ---
 

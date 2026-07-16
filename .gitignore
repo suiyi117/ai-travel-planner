@@ -17,5 +17,11 @@ services/.cache/
 
 # 开发过程产物，不对外发布
 .od-skills/
+.grok/
+.review_task*_diff.py
+.review_task*_out.txt
 critique.json
 static/index-before-ui-rebuild.html
+
+node_modules/
+check-out.txt

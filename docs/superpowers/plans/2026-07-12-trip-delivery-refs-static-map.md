@@ -110,7 +110,7 @@ test("buildStaticMapRequest caps markers at 10 and prefers overview route line",
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `node --test tests/frontend/trip-package.test.js`  
+Run: `node --test tests/frontend/trip-package.test.js`
 Expected: FAIL — `normalizeRefs` / `buildStaticMapRequest` / `static_map` missing
 
 - [ ] **Step 3: Implement in `static/trip-package.js`**
@@ -185,7 +185,7 @@ Export on `AeroTravelTripPackage`: `normalizeRefs`, `normalizeStaticMap`, `build
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `node --test tests/frontend/trip-package.test.js`  
+Run: `node --test tests/frontend/trip-package.test.js`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
@@ -242,7 +242,7 @@ Use the same patterns as existing tests in that file for fixtures.
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `node --test tests/frontend/draft-ops.test.js`  
+Run: `node --test tests/frontend/draft-ops.test.js`
 Expected: FAIL — refs not applied
 
 - [ ] **Step 3: Implement `updateNode` refs branch**
@@ -272,7 +272,7 @@ if (Object.hasOwn(patch, 'refs')) {
 
 - [ ] **Step 4: Run tests**
 
-Run: `node --test tests/frontend/draft-ops.test.js`  
+Run: `node --test tests/frontend/draft-ops.test.js`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
@@ -400,8 +400,8 @@ else if (action === 'refs-check') openRefsChecklist();
 
 - [ ] **Step 3: Manual smoke**
 
-Run server if needed: `python server.py`  
-Steps: open editor → ✎ node → add `攻略|https://example.com` → 导出「参考链接检查」→ 预览专属页应见 chips（after package rebuild via draft apply/commit path).  
+Run server if needed: `python server.py`
+Steps: open editor → ✎ node → add `攻略|https://example.com` → 导出「参考链接检查」→ 预览专属页应见 chips（after package rebuild via draft apply/commit path).
 If preview uses `state.itinerary`, ensure `commitDraft` / apply updates itinerary items with refs (via `draftToItinerary`). If commit only updates draft, call the same path that refreshes itinerary from draft after edit (follow existing `commitDraft` behavior).
 
 - [ ] **Step 4: Commit**
@@ -422,7 +422,7 @@ git commit -m "feat: edit and checklist place reference links"
 **Interfaces:**
 - Produces: `AMAP_STATIC_MAP_URL = "https://restapi.amap.com/v3/staticmap"`
 - Produces: `build_static_map_params(key, *, width, height, markers, path) -> dict`
-- Produces: `async def fetch_static_map(amap_key, *, width, height, markers, path) -> dict`  
+- Produces: `async def fetch_static_map(amap_key, *, width, height, markers, path) -> dict`
   returns `{ "status": "ok", "content_type": "image/png", "content": bytes }` or `{ "status": "error", "info": str }`
 
 - [ ] **Step 1: Write failing tests**
@@ -814,9 +814,9 @@ git commit -m "feat: use prerendered static map in PNG and print sheets"
 
 Add sections:
 
-1. 编辑地点 ✎ 可添加最多 3 条 `标签|https://...` 参考链接。  
-2. 导出菜单「参考链接检查」可按天查看覆盖并点选编辑。  
-3. 导出总览图 / PDF / 发布前会尝试生成高德静态总览图；需配置 `AMAP_KEY`。失败时仍可交付，图上显示「地图见专属链接」。  
+1. 编辑地点 ✎ 可添加最多 3 条 `标签|https://...` 参考链接。
+2. 导出菜单「参考链接检查」可按天查看覆盖并点选编辑。
+3. 导出总览图 / PDF / 发布前会尝试生成高德静态总览图；需配置 `AMAP_KEY`。失败时仍可交付，图上显示「地图见专属链接」。
 4. 客户 HTML 不含地图 Key；互动地图仍在线加载瓦片。
 
 - [ ] **Step 2: Run full gate**
@@ -854,9 +854,9 @@ git commit -m "docs: operator steps for refs and static map prerender"
 
 ## Placeholder / consistency self-review
 
-- No TBD steps.  
-- Marker/path coordinate order: **Amap API uses `lng,lat`**; internal package points stay **`[lat,lng]`** — conversion explicit in Tasks 4–6.  
-- `updateNode` refs API: `{ refs: [...] }` only (Task 2/3).  
+- No TBD steps.
+- Marker/path coordinate order: **Amap API uses `lng,lat`**; internal package points stay **`[lat,lng]`** — conversion explicit in Tasks 4–6.
+- `updateNode` refs API: `{ refs: [...] }` only (Task 2/3).
 - Enrich is async and only on workbench export paths.
 
 ---
@@ -865,7 +865,7 @@ Plan complete and saved to `docs/superpowers/plans/2026-07-12-trip-delivery-refs
 
 **Two execution options:**
 
-1. **Subagent-Driven (recommended)** — fresh subagent per task, review between tasks  
-2. **Inline Execution** — this session with executing-plans and checkpoints  
+1. **Subagent-Driven (recommended)** — fresh subagent per task, review between tasks
+2. **Inline Execution** — this session with executing-plans and checkpoints
 
 Which approach?
