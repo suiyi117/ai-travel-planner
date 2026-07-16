@@ -75,6 +75,55 @@ test("desktop toast is anchored away from the topbar", () => {
   );
 });
 
+test("step1 route editor keeps sticky actions, map drawer, and a11y hooks", () => {
+  assert.match(indexHtml, /id="cityInput"/);
+  assert.match(indexHtml, /for="cityInput"[^>]*>\s*城市路线\s*</);
+  assert.match(indexHtml, /id="cityInputError"[^>]*aria-live="polite"/);
+  assert.match(indexHtml, /id="routeShapeGroup"/);
+  assert.match(indexHtml, /role="radiogroup"/);
+  assert.match(indexHtml, /id="departureDate"/);
+  assert.match(indexHtml, /id="wizardNextBtn"/);
+  assert.match(indexHtml, /id="stepRouteActions"/);
+  assert.match(indexHtml, /wizard-sticky-actions/);
+  assert.match(indexHtml, /id="wizardNextReason"/);
+  assert.match(indexHtml, /id="stickyRouteLine"/);
+  assert.match(indexHtml, /id="mapDrawer"/);
+  assert.match(stylesCss, /wizard-sticky-actions/);
+  assert.match(stylesCss, /position:\s*sticky/);
+  assert.match(stylesCss, /safe-area-inset-bottom/);
+  assert.match(stylesCss, /\.city-actions \.btn-icon\s*\{[^}]*min-width:\s*44px/ms);
+  // Map remains on-demand drawer, not a permanent Step 1 pane.
+  assert.match(stylesCss, /\.map-drawer\s*\{[^}]*position:\s*fixed/ms);
+  assert.match(appJs, /canAddCity/);
+  assert.match(appJs, /removeCityWithUndo/);
+  assert.match(appJs, /syncStep1NextButton/);
+  assert.match(indexHtml, /app\.js/);
+  // Boundary modules load before app.js orchestration.
+  const wizardIdx = indexHtml.indexOf("wizard.js");
+  const appIdx = indexHtml.indexOf("app.js");
+  assert.ok(wizardIdx > -1 && appIdx > wizardIdx);
+});
+
+test("step1 route settings stay staged until regeneration", () => {
+  assert.match(
+    indexHtml,
+    /id="routeShapeHelp"[^>]*>\s*单程将在最后一站结束。\s*</
+  );
+  assert.doesNotMatch(
+    indexHtml,
+    /id="routeShapeHelp"[^>]*>[^<]*从最后一站返回出发地/
+  );
+  assert.match(appJs, /Wizard\.isSetupWizardStep\?\.\(state\.wizardStep\)/);
+  assert.match(
+    appJs,
+    /departureDate\.addEventListener\('change',[\s\S]{0,180}updateGenerateCta\(\)/
+  );
+  assert.match(
+    appJs,
+    /departureDate\.addEventListener\('input',[\s\S]{0,180}updateGenerateCta\(\)/
+  );
+});
+
 test("parchment design tokens match visual polish spec", () => {
   // Surfaces: warm cream, never pure white page/card base in :root
   assert.match(indexHtml, /--bg:\s*#f5f4ed/i);

@@ -60,6 +60,8 @@
 
 ## 当前架构备注
 
+- 交互地图优先加载 OpenFreeMap / MapLibre 矢量底图，并保留高德栅格回退；部署网络需允许访问 `unpkg.com` 与 `tiles.openfreemap.org`。
+- 地图显示层会将高德 GCJ-02 坐标转换为 WGS84，不需要开启 `EXPOSE_CLIENT_CONFIG`，也不应向浏览器暴露 `AMAP_KEY`。
 - 无数据库迁移，因此回滚不涉及数据 schema。
 - 用户保存的行程快照在浏览器 localStorage 中，服务端回滚不会迁移或删除。
 - 12306 站点缓存位于 `services/.cache/`，可删除后由服务启动时自动重建。

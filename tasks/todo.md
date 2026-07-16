@@ -1,5 +1,7 @@
 # Productization Backlog
 
+> 本文件记录已经完成的工程产品化工作，不再作为当前产品优先级来源。当前产品定位、验证计划和需求优先级分别见 [产品总纲](../docs/product/产品总纲.md)、[30 天验证路线图](../docs/product/30天验证路线图.md) 与 [统一需求池](../docs/product/需求池.md)。
+
 ## Phase 1: Foundation
 
 - [x] Add local quality gate script.
