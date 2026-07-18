@@ -1,4 +1,48 @@
-﻿# IMPLEMENTATION — 自驾规划交互重构
+# IMPLEMENTATION — 前端规范化与交互体验收口
+
+> 实施日期：2026-07-16
+> 状态：**结构拆分、组件对齐、交互可访问性与外置 Chrome 冒烟均已完成**
+
+## 变更摘要
+
+- 将 `index.html` 中的大段内联样式与展示交互拆为 `tokens.css`、`workspace.css` 和 `ui-interactions.js`，HTML 回归纯结构与明确资源顺序。
+- 表单、按钮、分段选择器与结果页操作统一使用控制高度令牌；配置页和结果页共用 864px 壳层上限，桌面步骤栏与可见面板同轴。
+- 三步向导增加完成态、锁定态、`aria-current`、面板隔离和换步聚焦；分段选择器支持方向键、Home/End 与 roving tabindex。
+- 顶栏菜单补齐键盘导航、面板互斥和移动端焦点恢复；地图抽屉增加背景隔离、焦点约束与触发器焦点恢复。
+- 跨日移动由文本 prompt 改为统一对话框，并在编辑区重建后将焦点落到目标日期；快照与移动操作统一触控尺寸和禁用态。
+- 整理忽略项、ADR 编号、关键目录说明、变更日志和浏览器冒烟清单，不删除用户本地文件。
+
+## 质量门与运行时验收
+
+- `.\scripts\check.ps1`：Python 编译、Ruff、Mypy、98 项 Python 测试、JavaScript 语法及 227 项前端测试全部通过。
+- `.\scripts\security.ps1`：secret scan 与 Python dependency audit 通过，无已知漏洞。
+- 外置 Chrome（未使用应用内置浏览器）：1440×900 与 390×844 均无横向溢出；桌面步骤栏/面板同轴，移动端关键操作为 44px；菜单、折叠、地图抽屉、保存面板与跨日移动焦点链路通过，页面无 console warning/error。
+
+## 追加交付：门到门交通与景点可执行排程（2026-07-17）
+
+- 新增 `planner/scheduling.py` 作为 AI 输出后的确定性排程层：先选择可执行的城际交通候选并扩展站前/站后缓冲，再按每日可用窗口安排午餐、景点开放时间、游玩时长和景点间移动。
+- 修正多城交通查询日期：普通路段在离开出发城市时查询；零天过境连续路段保持同日；环线回程与终点过境交通放在最后一个游玩日。
+- 高铁按“前往车站 + 提前进站 + 运行 + 出站 + 目的地接驳”计算，飞机加入机场通行、值机安检、取行李和进城时间；自驾在城市中心可用时调用高德道路服务补充距离、时长和过路费参考。
+- 景点容量不足、闭馆或城市不一致时不再硬塞到主时间线，而是进入 `alternatives` 并写入质量检查；每日响应附带 `transfers`、`lunch_time`、排程容量和剩余缓冲。
+- 前端交通卡与每日时间线显示门到门时段和景点间预计移动时间；用户改选班次后用新门到门窗口重新检测冲突并动态排序。
+- 离线覆盖交通日期偏移、零天过境、跨夜解析、环线回程、闭馆降级、自驾道路补全和前端缓冲计算；运行时冒烟必须使用外置浏览器。
+
+## 追加交付：统一视觉系统、地图与客户版（2026-07-16）
+
+- 在既有暖色纸张感与陶土色品牌基调上统一颜色、字体、间距、圆角、阴影、焦点与动效令牌；桌面工作台改为更克制的编辑台构图，保留可滚动三步向导、摘要轨和按需地图抽屉。
+- 重新梳理顶栏、表单、城市路线卡、分段选择器、时间线、交通卡与洞察卡的层级和密度；移动端继续使用页面级滚动、单栏布局和至少 44px 的核心触控目标。
+- 主工作台与专属分享页的交互地图继续由 Leaflet 承载标记和路线，优先使用主题化的 OpenFreeMap / MapLibre 矢量底图；矢量不可用时保留高德栅格回退。
+- 地图实例显式区分高德栅格的 GCJ-02 与矢量底图的 WGS84，底图切换时同步更新中心点并重绘标记、路线和范围，避免回退模式发生坐标偏移。
+- 高德后端接口保持不变，继续提供 POI、城市中心、天气、逆地理编码和驾车路线；浏览器端不新增必需密钥，也不暴露 `AMAP_KEY`。
+- 每日长图、行程总览 PNG、PDF 与专属分享页统一为同一套客户交付视觉；PNG/PDF 的地图仍使用高分辨率高德静态图，避免依赖 MapLibre WebGL 画布捕获。
+- 导出终验使用真实 1024×704 高德静态图：每日长图保持 540px 逻辑宽且无横向溢出，总览 PNG 的地图与画框同宽高比，A4 总览稳定为两列且长日程可自然分页。
+- 地图点选会按需初始化并打开抽屉，关闭抽屉时同步取消点选监听；地图区域、中文缩放按钮与地点标记补齐可访问名称，手机端归属信息避开底部地点卡。
+
+地图来源、坐标契约、回退与静态导出边界见 `docs/decisions/ADR-003-vector-basemap.md`。运行时验收继续使用外置 Chrome，并覆盖桌面/移动端、三步生成、地图开合、矢量/栅格切换及专属分享页。
+
+---
+
+# IMPLEMENTATION — 自驾规划交互重构
 
 > 实施日期：2026-07-14
 > 依据：`docs/product/自驾规划交互重构-PRD.md`
@@ -10,7 +54,7 @@
 - Step 2「默认城际交通」选自驾时渐进展开「自驾偏好」；段级自驾显示紧凑提示。
 - 生成始终产出按日行程；`/api/plan` 契约未改。
 - Step 3 编辑区新增任务入口：`调整每日安排` / 按需 `优化自驾路线`（`state.editTool`）。
-- 纯规则落在 `static/wizard.js`：`hasSelfDriveIntent`、`shouldShowSelfDrivePrefs`、`shouldShowSelfDriveEditEntry` 等。
+- 纯规则落在 `static/js/planning/wizard.js`：`hasSelfDriveIntent`、`shouldShowSelfDrivePrefs`、`shouldShowSelfDriveEditEntry` 等。
 - 旧 `planningMode` / draft `mode=self_drive` 仅作内部兼容；旧自驾草稿可恢复并显示自驾入口。
 
 ## 质量门
@@ -32,9 +76,9 @@
 
 依据 `docs/product/` 三份产品文档落地第一阶段交付闭环：
 
-- 结构化行程包 `static/trip-package.js`（单一数据源）
+- 结构化行程包 `static/js/delivery/trip-package.js`（单一数据源）
 - 客户专属只读页 `static/trip-share.html` + 渲染/导航/启动脚本
-- 自包含 HTML 发布打包 `static/trip-publish.js`（随机 token、`noindex`、人工上传）
+- 自包含 HTML 发布打包 `static/js/delivery/trip-publish.js`（随机 token、`noindex`、人工上传）
 - 总览图 PNG / PDF 打印备份 / 高德 HTTPS 导航与下一站
 - 工作台导出菜单：预览、发布、总览图、PDF
 - 操作说明：`docs/product/专属行程交付-操作说明.md`
@@ -44,7 +88,7 @@
 ## 仓库与界面收口（2026-07-11）
 
 - 修复通用 `[hidden]` 样式和优化候选面板挂载点，避免隐藏编辑器仍占布局。
-- 将客户版文字/长图生成抽到 `static/delivery.js`，固定导出样式抽到 `static/delivery.css`。
+- 将客户版文字/长图生成抽到 `static/js/delivery/delivery.js`，固定导出样式抽到 `static/css/delivery.css`。
 - 将 `/api/plan/optimize` 的校验、错误映射和响应组装抽到 `planner/optimization.py`，路由只保留 HTTP 边界。
 - 桌面复制/长图/日历操作合并为“导出”菜单，移动端使用省略号入口；toast 移至右下角。
 - 删除无调用的 `schemas/location.py`、`static/render.js` 和两份已完成的历史实施计划；保留设计规格。
@@ -135,7 +179,7 @@
 
 ### 2. 预算真实传导 + AI 输出健壮性（全栈）
 
-**文件**：`server.py`、`static/index.html`、`static/app.js`
+**文件**：`server.py`、`static/index.html`、`static/js/app.js`
 
 - 前端新增「预算档位」segmented 控件（经济型/舒适型[默认]/高端型），`state.budget` 随请求发送（原先硬编码 `'舒适型'`，后端预算逻辑是死代码）；费用估算卡片徽章实时反映当前档位。
 - 后端新增 `_resolve_train_type_pref()`：含"经济/预算/穷游"→ `GDCKTZ`（放行慢车），否则 `GDC`；经 `_enrich_one_segment` 透传给 `search_trains(prefer_train_type=...)`。
@@ -151,7 +195,7 @@
 
 ### 4. 天气感知行程（全栈，复用 AMAP_KEY）
 
-**文件**：`server.py`、`static/app.js`、`static/styles.css`
+**文件**：`server.py`、`static/js/app.js`、`static/css/styles.css`
 
 - 后端新增 `_query_amap_weather()`（district 接口取 adcode → `v3/weather/weatherInfo` extensions=all；30 分钟 TTL 缓存；无 key/失败一律返回 `[]` 绝不抛错）与 `GET /api/weather` 路由（永不 500）。
 - `generate_itinerary()` 并发查询各目的地天气，拼入 prompt 新节「各城市天气预报」（`[WEATHER_INFO]` 占位符在 replace 链**首位**替换，防用户输入注入）；响应新增 `city_weather` 字段。
@@ -160,7 +204,7 @@
 
 ### 5. 交通选择 ↔ 时间线/预算实时联动 + 刷新修复（前端）
 
-**文件**：`static/app.js`、`static/styles.css`
+**文件**：`static/js/app.js`、`static/css/styles.css`
 
 - 新增工具函数 `parseTimeRange()`（支持跨夜车次，如 `15:42 - 04:59` → 终点 +1440min）、`parsePriceValue()`、`normalizeSegKey()`、`findSegment()`、`selectedOption()`。
 - 时间线联动：转场卡片实时显示当前选中班次的真实时刻与「已选 G651」徽章（渲染时动态读 state，不固化进 mapPlanToItems，保持单一 state 源）；详情面板同步。
@@ -171,7 +215,7 @@
 
 ### 6. 本地行程持久化 +「我的行程」（前端，零后端改动）
 
-**文件**：`static/app.js`、`static/index.html`、`static/styles.css`
+**文件**：`static/js/app.js`、`static/index.html`、`static/css/styles.css`
 
 - localStorage 键 `aerotravel:trips`，自动保存最近 **8** 次 AI 生成结果（保存映射前的原始 plan + 城市/偏好/预算/班次选择快照）；fallback 演示行程不入快照。
 - 顶栏「我的行程」下拉面板：一键恢复（还原表单控件 + `applyPlan`，全程无网络请求）、删除、空态提示；按钮计数「我的行程（N）」随保存/删除实时刷新。
@@ -179,7 +223,7 @@
 
 ### 7. 行程日历导出 .ics（前端）
 
-**文件**：`static/app.js`、`static/index.html`
+**文件**：`static/js/app.js`、`static/index.html`
 
 - `buildIcsCalendar()`：每天一个全天概览事件（VALUE=DATE）+ 每个跨城交通段一个定时事件（本地浮动时间，SUMMARY 含所选班次号；跨夜车 DTEND 正确滚到次日；时刻不可解析时退化为全天事件，绝不抛错）；`icsEscape()` 按 RFC 5545 转义。
 - 顶栏「导出日历」按钮 → Blob 下载 `行程标题.ics`，可导入 Google/Apple/手机日历；无行程时仅 toast。
@@ -187,7 +231,7 @@
 ## 二、质量流程与裁决结果
 
 1. **分析仲裁**（Workflow 1，8 agents）：3 路 Sonnet 现状分析（前端/后端/产品竞争力）→ 4 视角 16 个提案 → Fable 仲裁合并为 7 项，并修正提案缺陷（gather 并发会破坏 12306 限速时间戳需加锁、预算映射在硬编码现状下是死代码需配套 UI、服务端分段必须无条件执行以支撑前端联动等）。
-2. **实施**（Workflow 2，13 agents）：7 项按依赖串行实施，每项完成后 `python -m compileall server.py services` + `node --check static/app.js` 必须通过，纯函数验收点用一次性脚本离线自测。
+2. **实施**（Workflow 2，13 agents）：7 项按依赖串行实施，每项完成后 `python -m compileall server.py services` + `node --check static/js/app.js` 必须通过，纯函数验收点用一次性脚本离线自测。
 3. **三路审查**：正确性 / 安全与不变量 / 运行时冒烟。发现 3 个 major 并修复：
    - 雨雪贴士插值外部天气字段未转义（XSS 风险）；
    - `parseTimeRange` 未处理跨夜车次（15:42-04:59 会被判为负区间，冲突校验与 .ics 全错）；
@@ -208,7 +252,7 @@
 
 ## 四、最终验证结果
 
-- `python -m compileall server.py services` ✅　`node --check static/app.js` ✅
+- `python -m compileall server.py services` ✅　`node --check static/js/app.js` ✅
 - `/api/health` 返回 `juhe_key_configured` 真实布尔 ✅
 - `GET /api/weather?city=北京` 返回 4 天真实预报 ✅
 - `GET /api/city_center?city=西安` → `(34.343, 108.940) 西安市` ✅
@@ -228,9 +272,9 @@
 CLAUDE.md                 |  28 ++-（含本轮前已有的未提交修改）
 server.py                 | 333 +++++++++++++-
 services/train_service.py | 107 ++++---
-static/app.js             | 531 +++++++++++++++++++++-
+static/js/app.js             | 531 +++++++++++++++++++++-
 static/index.html         |  14 +-
-static/styles.css         |  96 ++++
+static/css/styles.css         |  96 ++++
 6 files changed, ~994 insertions(+), ~115 deletions(-)
 ```
 
@@ -252,7 +296,7 @@ static/styles.css         |  96 ++++
 1. 增加本地一键检查脚本：
    - Python 语法检查：`python -m compileall server.py services`
    - 后端回归测试：`python -m unittest discover -s tests -v`
-   - 前端语法检查：`node --check static/app.js`（检测到 Node.js 时执行）
+   - 前端语法检查：`node --check static/js/app.js`（检测到 Node.js 时执行）
 2. 补充不联网、可稳定运行的回归测试：
    - 航班内置 fallback 方向不反转；
    - 服务端生成交通分段时保持 `A → B` 稳定契约；
@@ -268,7 +312,7 @@ static/styles.css         |  96 ++++
    - `schemas/`：Pydantic 请求/响应模型；
    - `clients/`：高德、AI、外部交通 API 客户端；
    - `planner/`：AI 行程生成、交通增强、质量检查、价格估算等纯业务逻辑。
-2. 拆分 `static/app.js`：
+2. 拆分 `static/js/app.js`：
    - `state.js`：单一状态对象与派生计算；
    - `api.js`：`fetchJson()`、POI、城市中心、交通刷新；
    - `delivery.js`：客户版文字与长图 HTML 生成；
@@ -311,13 +355,13 @@ static/styles.css         |  96 ++++
    - 天气查询异常改为结构化 warning 事件，不输出原始异常文本给用户。
 4. 自动化质量门禁：
    - 新增 `.github/workflows/ci.yml`；
-   - CI 执行 Python 依赖安装、`compileall`、`unittest`、`node --check static/app.js`。
+   - CI 执行 Python 依赖安装、`compileall`、`unittest`、`node --check static/js/app.js`。
 5. 回归测试：
    - 新增运行时配置与安全头测试；
    - 测试数从 7 个增加到 12 个；
    - `.\scripts\check.ps1` 已通过。
 
-仍未完成“完全产品化”：后续还需要拆分 `server.py` / `static/app.js`、增加上线 checklist、部署目标配置、浏览器运行时验证、发布/回滚流程和最终验收。
+仍未完成“完全产品化”：后续还需要拆分 `server.py` / `static/js/app.js`、增加上线 checklist、部署目标配置、浏览器运行时验证、发布/回滚流程和最终验收。
 
 ## P1 执行结果：后端配置与可观测性模块化
 
@@ -361,7 +405,7 @@ static/styles.css         |  96 ++++
 
 验证：`.\scripts\check.ps1` 通过，12 个测试全部通过。
 
-仍待完成：AI prompt 组装、行程 hydration、天气查询客户端、API 路由拆分和前端模块化仍在 `server.py` / `static/app.js` 中，完整产品化尚未完成。
+仍待完成：AI prompt 组装、行程 hydration、天气查询客户端、API 路由拆分和前端模块化仍在 `server.py` / `static/js/app.js` 中，完整产品化尚未完成。
 
 ## P1 执行结果：AI 响应解析与行程 Hydration 模块化
 
@@ -385,7 +429,7 @@ static/styles.css         |  96 ++++
 
 验证：`.\scripts\check.ps1` 通过，测试数从 12 个增加到 16 个。
 
-仍待完成：AI prompt 模板仍在 `server.py` 中，天气/高德客户端仍未独立，API 路由仍未拆分，前端 `static/app.js` 仍是单文件。
+仍待完成：AI prompt 模板仍在 `server.py` 中，天气/高德客户端仍未独立，API 路由仍未拆分，前端 `static/js/app.js` 仍是单文件。
 
 ## P1 执行结果：Prompt 模板外置与安全渲染
 
@@ -412,7 +456,7 @@ static/styles.css         |  96 ++++
 
 验证：`.\scripts\check.ps1` 通过，测试数从 16 个增加到 21 个。
 
-仍待完成：天气/高德客户端仍在 `server.py` 中，API 路由仍未拆分，前端 `static/app.js` 仍是单文件，仍需浏览器运行时验收和部署/回滚清单。
+仍待完成：天气/高德客户端仍在 `server.py` 中，API 路由仍未拆分，前端 `static/js/app.js` 仍是单文件，仍需浏览器运行时验收和部署/回滚清单。
 
 ## P1 执行结果：高德客户端模块化
 
@@ -436,7 +480,7 @@ static/styles.css         |  96 ++++
 
 验证：`.\scripts\check.ps1` 通过，测试数从 21 个增加到 25 个。
 
-仍待完成：API 路由仍在 `server.py` 中，AI 请求客户端仍未抽离，前端 `static/app.js` 仍是单文件，仍需浏览器运行时验收和部署/回滚清单。
+仍待完成：API 路由仍在 `server.py` 中，AI 请求客户端仍未抽离，前端 `static/js/app.js` 仍是单文件，仍需浏览器运行时验收和部署/回滚清单。
 
 ## P1 执行结果：AI Client 模块化
 
@@ -461,7 +505,7 @@ static/styles.css         |  96 ++++
 
 验证：`.\scripts\check.ps1` 通过，测试数从 25 个增加到 31 个。
 
-仍待完成：API 路由仍在 `server.py` 中，前端 `static/app.js` 仍是单文件，仍需浏览器运行时验收和部署/回滚清单。
+仍待完成：API 路由仍在 `server.py` 中，前端 `static/js/app.js` 仍是单文件，仍需浏览器运行时验收和部署/回滚清单。
 
 ## P1 执行结果：Transport API Router 模块化
 
@@ -483,7 +527,7 @@ static/styles.css         |  96 ++++
 
 验证：`.\scripts\check.ps1` 通过，测试数从 31 个增加到 35 个。
 
-仍待完成：plan/config/Amap/health 路由仍在 `server.py` 中，前端 `static/app.js` 仍是单文件，仍需浏览器运行时验收和部署/回滚清单。
+仍待完成：plan/config/Amap/health 路由仍在 `server.py` 中，前端 `static/js/app.js` 仍是单文件，仍需浏览器运行时验收和部署/回滚清单。
 
 ## P1 执行结果：Planning / Location / System Router 模块化
 
@@ -514,7 +558,7 @@ static/styles.css         |  96 ++++
 
 验证：新增路由测试通过，运行时硬化测试通过，`python -m compileall server.py clients core planner routers schemas services` 通过；`.\scripts\check.ps1` 通过，40 个测试全部通过；本地启动 uvicorn 后 `GET /api/health` 返回 `status: ok`。
 
-仍待完成：前端 `static/app.js` 仍是单文件，仍需浏览器运行时验收、上线 checklist、部署/回滚清单和持久化/auth 范围决策。
+仍待完成：前端 `static/js/app.js` 仍是单文件，仍需浏览器运行时验收、上线 checklist、部署/回滚清单和持久化/auth 范围决策。
 
 ## P2 执行结果：上线、回滚与人工冒烟清单
 
@@ -541,7 +585,7 @@ static/styles.css         |  96 ++++
 
 验证：文档已完成交叉检查；行为代码未变更，最终仍以 `.\scripts\check.ps1` 作为本批质量门禁。
 
-仍待完成：前端 `static/app.js` 仍是单文件；持久化/auth 范围决策在下一节 ADR 中记录。
+仍待完成：前端 `static/js/app.js` 仍是单文件；持久化/auth 范围决策在下一节 ADR 中记录。
 
 ## ADR 执行结果：持久化与 Auth 范围决策
 
@@ -565,11 +609,11 @@ static/styles.css         |  96 ++++
 
 本批完成前端模块化的低风险起步切片，不引入 npm、不改构建方式、不改变现有 UI 行为：
 
-1. 新增 `static/app-utils.js`：
+1. 新增 `static/js/core/app-utils.js`：
    - 暴露 `window.AeroTravelUtils`；
    - 抽出日期计算、类型标签、POI 元数据清洗、HTML 转义、交通时间解析、价格解析、segment key 标准化和方向匹配等纯工具函数；
    - 使用 IIFE + `Object.freeze()`，保持无构建、普通 `<script>` 加载模式。
-2. 更新 `static/app.js`：
+2. 更新 `static/js/app.js`：
    - 从 `window.AeroTravelUtils` 解构使用工具函数；
    - 删除重复的内联工具函数；
    - 保留 state、渲染、地图、API、localStorage、导出等现有逻辑在原文件中，避免一次性大拆。
@@ -577,14 +621,14 @@ static/styles.css         |  96 ++++
    - 在 `app.js` 前加载 `app-utils.js`；
    - 更新 cache-busting query。
 4. 更新 `scripts/check.ps1`：
-   - JavaScript 语法检查从单个 `static/app.js` 扩展为所有 `static/*.js`。
+   - JavaScript 语法检查从单个 `static/js/app.js` 扩展为所有 `static/*.js`。
 5. 更新 `README.md` 与 `tasks/todo.md`：
    - 记录当前无构建模块化模式；
    - 标记前端模块化 backlog 完成。
 
 验证：
-- `node --check static/app-utils.js` 通过；
-- `node --check static/app.js` 通过；
+- `node --check static/js/core/app-utils.js` 通过；
+- `node --check static/js/app.js` 通过；
 - `.\scripts\check.ps1` 通过，40 个测试全部通过；
 - 本地 uvicorn + Chrome headless 打开 `/static/index.html`：`window.AeroTravelUtils` 存在，首屏示例行程渲染，3 个 day tab、4 个 timeline item、Leaflet 地图存在，控制台无 error/warning。
 
@@ -596,7 +640,7 @@ static/styles.css         |  96 ++++
 
 在原 1.2.0 实施基础上补齐自驾闭环缺口：
 
-- 修复 `static/map.js` 点选导出与道路 polyline 辅助函数
+- 修复 `static/js/planning/map.js` 点选导出与道路 polyline 辅助函数
 - 落地 `/api/transport/driving-route` 与 `create_driving_router`
 - 将 `optimize_draft` 升级为 async，并接入 self-drive 成本矩阵/道路回填
 - 重写 `planner/route_optimizer.py` 为 plan 约定的稳定接口
@@ -612,4 +656,45 @@ static/styles.css         |  96 ++++
 - 主工作台、专属行程预览与自包含发布页统一加载矢量地图依赖和回退逻辑。
 - 将矢量样式中的双语拼接标签改为简体中文、中文非拉丁字段优先；源数据没有中文名称时才保留本地原名。
 - 修复主页缓存旧发布器造成自包含专属页缺少 `map.js` 的问题，并在分享页启动代码内增加独立高德栅格兜底。
-- 新增坐标往返测试、地图壳层测试和发布页依赖测试；决策记录见 `docs/decisions/ADR-002-vector-basemap.md`。
+- 新增坐标往返测试、地图壳层测试和发布页依赖测试；决策记录见 `docs/decisions/ADR-003-vector-basemap.md`。
+
+## 参考图 UI 对齐、专属页与真实使用验收（2026-07-17）
+
+- 主工作台按参考图重排为严格的 `260px` 摘要栏与统一内容网格：路线页使用横向路线总览、表格式城市行和三列表单，偏好页使用两列设置网格，结果页使用城市分组日期栏、紧凑时间线和固定摘要操作条。
+- 专属页由超长报告改为单日工作台：顶部摘要与日期带、左侧当天时间线、右侧共享交互地图、地点浮层、费用/提示/天气条和底部行动条；桌面 1536×1024 接近单屏，移动端保持页面无横向溢出。
+- 专属页地图与主工作台共用 `AeroTravelMap`，最终以 OpenFreeMap / MapLibre 矢量底图显示；矢量加载期间隐藏高德栅格闪现，仅在资源失败时回退高德。
+- 手机跳转使用高德 URI、小红书 `xhsdiscover://` 和大众点评 `dianping://` 深链；微信/QQ 内置浏览器提示改用系统浏览器，App 未安装时在当前页打开网页版，避免延迟弹窗被拦截。
+- 修复快速切换专属页日期时旧地图 WebGL 回调访问已销毁 Leaflet 实例的竞态，并以 Day 2 → Day 6 → Day 1 连续切换 13 秒压力检查确认无新增控制台错误。
+- 排程层新增住宿城市一致性校正：当天尚未跨城时，如果住宿文案提前指向后续路线城市，则保留 `ai_stay` 供复核并回落为当日城市住宿建议。
+- 外置 Chrome 真实生成并逐日检查三组组合：
+  - 北京 → 西安，2 天，高铁：城际门到门 06:35–13:05，午餐与景点从抵达后开始。
+  - 上海 → 成都，3 天，飞机：门到门 08:00–15:30，三天 17 个节点均无重叠。
+  - 杭州 → 黄山 → 景德镇 → 杭州，4 天，自驾环线：末日景点 15:30 结束、16:15 开始返程，三段均为高德道路参考。
+- 质量门禁：110 个 Python 测试、235 个前端测试、Ruff、Mypy、全部 `static/*.js` 语法检查、secret scan 与 `pip-audit` 全部通过。
+
+## PDF、总览图与专属页响应式交付升级（2026-07-18）
+
+- 按已确认的 ImageGen 效果图重构 PDF 打印文档：第 1 页为正式封面，第 2 页为地图优先总览，第 3 页起为每日时间线与当日路线侧栏，末页集中费用、交通和提示。
+- 删除打印文档根部冗余的静态地图节点，避免超高总览块被整页推后而产生空白首页；最终打印级联固定为 A4 纵向并保留文本层。
+- 总览 PNG 固定为 540×720 逻辑画布，`html2canvas` 2× 输出 1080×1440；地图保持主视觉，每日摘要最多两个核心地点，预算、提示、二维码和更新时间分区显示。
+- 专属页 901–1180px 使用约 40%/60% 的时间线/地图双栏；900px 以下切换为地图优先单列，560px 以下将所有导出动作收进「更多」。
+- 手机端压缩行程头和时间线操作，保留三项关键数据，并让固定底栏显示当前地点、下一站、复制当日和高德导航；地点卡避让地图版权条。
+- 更新 `trip-share-render`、`trip-share-boot`、壳层与渲染测试、交付操作说明、smoke checklist 和 inbox 完成记录。
+
+验证：
+
+- `scripts/check.ps1` 通过：110 个 Python 测试、260 个前端测试、Ruff、Mypy 与全部 JavaScript 语法检查全绿。
+- 外置 Chrome（未使用内置浏览器）验证 1024×1366 平板与 390×844 手机：页面横向溢出均为 0；手机地图视觉顺序早于时间线；「更多」菜单动作完整；控制台 error/warning 为 0。
+
+## 测试工程细节审计与仓库整理（2026-07-18）
+
+- 以自动化测试、真实 DOM/计算样式、启动日志和高德导航链接四条证据链审计主工作台与专属页，问题清单及完成状态统一回填到 `tasks/inbox/inbox.md`。
+- 城市中心回退改为已知城市 GCJ-02 坐标并支持行政后缀归一化；西安接口和专属页导航均回到西安附近，不再继承固定 `116,30`。
+- 新增统一时段排序：中文宽泛时段按早中晚稳定排序，但不伪装成精确钟点参与冲突计算；工作台和专属页首日顺序稳定为“上午 → 09:30 → 12:30 → 14:00 → 20:00”。
+- 行程卡片拆除嵌套按钮语义；日期提示、地图动作、标题选择和城市排序控件补足可读字号与触控面积，手机可见标题选择控件最小高度为 44px。
+- 结果层移除非地图横向溢出；手机摘要拆为路线、元信息和编辑操作三层；三步操作栏在桌面、平板、手机均保持 sticky 且避让安全区。
+- 1024px 平板摘要改为紧凑两行，Step 2 底栏由 275px 降至 76px；390px 手机 Step 2/3 底栏约 93px，正文未被遮挡。
+- FastAPI 启动初始化迁移至 lifespan，消除 `on_event` 弃用警告并以测试约束车站数据只初始化一次。
+- 前端静态资源整理为 `static/css`、`static/js/core`、`static/js/planning`、`static/js/delivery`；同步 HTML、测试、发布打包路径、递归 JS 检查，并补 `static/README.md` 与 `docs/engineering/repository-map.md`。
+- 外置 Chrome（未使用内置浏览器）完成 1440×900、1024×1366、390×844 三种主工作台视口和专属页回归：地图可开关、非地图横向溢出为 0、嵌套按钮为 0、误冲突为 0，两类页面控制台 error/warning 为 0。
+- 最终门禁：112 个 Python 测试、264 个前端测试、Ruff、Mypy、递归 JavaScript 语法检查全部通过；密钥扫描与 `pip-audit` 未发现问题。

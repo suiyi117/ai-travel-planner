@@ -50,7 +50,7 @@
   - Acceptance: remaining planning orchestration and non-transport API route grouping live outside `server.py`; route behavior is unchanged.
   - Verify: `.\scripts\check.ps1` and manual `/api/health` smoke check.
 
-- [x] Split `static/app.js` into focused modules or establish a no-build modular pattern.
+- [x] Split `static/js/app.js` into focused modules or establish a no-build modular pattern.
   - Acceptance: current UI behavior is preserved and JS syntax check passes.
   - Verify: browser smoke test and `node --check`.
 

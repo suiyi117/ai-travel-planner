@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 global.window = {};
-require('../../static/draft.js');
+require('../../static/js/planning/draft.js');
 
 const { itineraryToDraft, draftToItinerary, draftToCities, isTripDraft } = window.AeroTravelDraft;
 

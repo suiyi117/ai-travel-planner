@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 global.window = {};
-require("../../static/trip-nav.js");
+require("../../static/js/delivery/trip-nav.js");
 
 const {
   amapPoiUrl,
@@ -11,6 +11,10 @@ const {
   buildItemActions,
   dayPlainText,
   isInAppBrowser,
+  isMobileDevice,
+  resolveActionLink,
+  xhsAppUrl,
+  dianpingAppUrl,
   inAppBrowserHint
 } = window.AeroTravelTripNav;
 
@@ -75,4 +79,26 @@ test("isInAppBrowser detects wechat and qq containers", () => {
   assert.equal(isInAppBrowser("Mozilla/5.0 QQ/9.0.0"), true);
   assert.equal(isInAppBrowser("Mozilla/5.0 Chrome/120.0.0.0 Safari/537.36"), false);
   assert.match(inAppBrowserHint(), /系统浏览器/);
+});
+
+test("mobile content links prefer native apps and keep web fallbacks", () => {
+  const actions = buildItemActions({ title: "故宫", city: "北京" });
+  const xhs = actions.find(action => action.id === "xhs-search");
+  const dianping = actions.find(action => action.id === "dianping-search");
+
+  assert.match(xhsAppUrl("故宫", "北京"), /^xhsdiscover:\/\/search\/result\?/);
+  assert.match(dianpingAppUrl("故宫", "北京"), /^dianping:\/\/searchshoplist\?/);
+  assert.match(xhs.fallbackHref, /^https:\/\/www\.xiaohongshu\.com\//);
+  assert.match(dianping.fallbackHref, /^https:\/\/www\.dianping\.com\//);
+  assert.equal(isMobileDevice("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Mobile"), true);
+  assert.equal(isMobileDevice("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/140"), false);
+
+  const mobile = resolveActionLink(xhs, "Mozilla/5.0 (Linux; Android 16) Mobile");
+  assert.equal(mobile.attemptsApp, true);
+  assert.equal(mobile.href, xhs.appHref);
+  assert.equal(mobile.fallbackHref, xhs.fallbackHref);
+
+  const desktop = resolveActionLink(xhs, "Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
+  assert.equal(desktop.attemptsApp, false);
+  assert.equal(desktop.href, xhs.fallbackHref);
 });

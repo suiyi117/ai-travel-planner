@@ -161,6 +161,13 @@
     return (Array.isArray(cities) ? cities : []).length >= 2;
   }
 
+  function routeShapeAfterCityRestore(previousRouteShape, cities) {
+    const shape = String(previousRouteShape || 'one_way').trim() || 'one_way';
+    return shape === 'round_trip' && isRoundTripAllowed(cities)
+      ? 'round_trip'
+      : 'one_way';
+  }
+
   function createCityEntry(rawName, index, options) {
     const name = normalizeCityName(rawName);
     const isFirst = Number(index) === 0;
@@ -371,6 +378,17 @@
     if (n === 2) return Boolean(flags?.step1Done);
     if (n === 3) return Boolean(flags?.hasPlan);
     return false;
+  }
+
+  function wizardStepState(step, currentStep, flags) {
+    const value = Number(step);
+    const current = Number(currentStep);
+    const allowed = canEnterStep(value, flags);
+    return {
+      active: value === current,
+      complete: allowed && value < current,
+      locked: !allowed
+    };
   }
 
   function shouldAnimateStepTransition(previousStep, nextStep, reducedMotion) {
@@ -632,6 +650,7 @@
     arrivalLabel,
     getOriginName,
     isRoundTripAllowed,
+    routeShapeAfterCityRestore,
     createCityEntry,
     removeCityAt,
     restoreCityAt,
@@ -642,6 +661,7 @@
     validateStep1,
     isSetupWizardStep,
     canEnterStep,
+    wizardStepState,
     shouldAnimateStepTransition,
     buildSummary,
     buildSummaryDisplay,

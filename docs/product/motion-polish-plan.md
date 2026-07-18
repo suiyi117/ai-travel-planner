@@ -4,7 +4,7 @@
 
 在 **不改产品信息架构、不引重库** 的前提下，为 `static/index.html` 工作台补「状态确认型」动效，让步骤切换、主内容入场与城市卡插入更清晰、更高级，同时保持羊皮纸/赤陶的克制气质。
 
-- **目标文件**：`static/styles.css` + `static/app.js`（`static/index.html` 尽量不动）
+- **目标文件**：`static/css/styles.css` + `static/js/app.js`（`static/index.html` 尽量不动）
 - **硬约束**：只改前端；优先 `transform` / `opacity`；必须 `prefers-reduced-motion` 兜底
 - **审美目标**：冷静、短促、功能向（非 landing 英雄编排）；时长 140–220ms 控件级，步骤切换 ≤280ms
 - **范围已锁定（用户确认 2026-07-14）**：
@@ -63,7 +63,7 @@
 3. 若 `prefers-reduced-motion: reduce`：跳过时序，直接 `hidden` 切换（与现逻辑一致）。
 4. 连点保护：`panelMotionToken` 递增，过期回调丢弃。
 
-**触点代码：** `static/app.js` → `renderWizardChrome` / `setWizardStep`；`static/styles.css` → panel motion classes。
+**触点代码：** `static/js/app.js` → `renderWizardChrome` / `setWizardStep`；`static/css/styles.css` → panel motion classes。
 
 ---
 
@@ -118,9 +118,9 @@
 
 **触点代码：**
 
-- `static/app.js` → `renderCities` / 添加城市 handler
-- `static/styles.css` → `.city-card.is-city-enter`（类名以现有 city 根类为准）
-- `static/editor.js` 若生成 city 卡片 HTML，只加 class 钩子、不改交互逻辑
+- `static/js/app.js` → `renderCities` / 添加城市 handler
+- `static/css/styles.css` → `.city-card.is-city-enter`（类名以现有 city 根类为准）
+- `static/js/planning/editor.js` 若生成 city 卡片 HTML，只加 class 钩子、不改交互逻辑
 
 ---
 
@@ -165,10 +165,10 @@ JS：`matchMedia('(prefers-reduced-motion: reduce)').matches` 时走即时切换
 
 | 文件 | 改动 |
 |------|------|
-| `static/styles.css` | panel / compact-summary / step-index / city-enter + reduced-motion |
-| `static/app.js` | `renderWizardChrome` 切换时序；compact-summary enter；`renderCities` 新增卡 enter + token 防抖 |
+| `static/css/styles.css` | panel / compact-summary / step-index / city-enter + reduced-motion |
+| `static/js/app.js` | `renderWizardChrome` 切换时序；compact-summary enter；`renderCities` 新增卡 enter + token 防抖 |
 | `static/index.html` | 尽量 0 |
-| `static/editor.js` | 仅当 city 卡 HTML 在此生成时加 enter class 钩子 |
+| `static/js/planning/editor.js` | 仅当 city 卡 HTML 在此生成时加 enter class 钩子 |
 | `tests/frontend/*` | wizard 切步 + reduce 仍可用；可选：添加城市后卡存在 |
 
 **不在范围：** `trip-share.*`、`delivery.*`、后端、token 体系大改、拖拽算法重写。

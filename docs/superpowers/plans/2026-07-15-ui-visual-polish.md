@@ -4,7 +4,7 @@
 
 **Goal:** Unify AeroTravel’s static UI on the approved warm parchment system and finish Step 1/2 form density plus Step 3 timeline/meta composition so the product reads as a finished travel workbench—without changing API, wizard IA, or Phase 1/2 map/settings behavior.
 
-**Architecture:** Design tokens live in `static/index.html` `:root`. Component and layout styles live in `static/styles.css` plus the Phase 3 style block already inlined in `index.html`. Timeline DOM is produced by `renderPlan()` in `static/app.js`. Contract tests in `tests/frontend/shell.test.js` lock tokens, fold/timeline hooks, and markup shape. No bundler; no backend changes.
+**Architecture:** Design tokens live in `static/index.html` `:root`. Component and layout styles live in `static/css/styles.css` plus the Phase 3 style block already inlined in `index.html`. Timeline DOM is produced by `renderPlan()` in `static/js/app.js`. Contract tests in `tests/frontend/shell.test.js` lock tokens, fold/timeline hooks, and markup shape. No bundler; no backend changes.
 
 **Tech Stack:** FastAPI static mount (unchanged), vanilla HTML/CSS/JS, Leaflet (unchanged), Node `node:test` for frontend string/DOM-contract tests, PowerShell `.\scripts\check.ps1`.
 
@@ -29,8 +29,8 @@
 | File | Responsibility |
 |---|---|
 | `static/index.html` | `:root` tokens; fonts; fold styles; timeline layout block; page structure |
-| `static/styles.css` | Buttons, fields, city cards, wizard shell, badges, empty/toast, form density |
-| `static/app.js` | `renderPlan()` timeline markup (marker/time, card, meta); quiet chrome only if already present and in-scope |
+| `static/css/styles.css` | Buttons, fields, city cards, wizard shell, badges, empty/toast, form density |
+| `static/js/app.js` | `renderPlan()` timeline markup (marker/time, card, meta); quiet chrome only if already present and in-scope |
 | `tests/frontend/shell.test.js` | Static contracts: tokens, fold, timeline markup, workspace chrome |
 | `docs/product/ui-visual-phase3-plan.md` | Product slice notes (optional commit if still untracked; do not contradict design spec) |
 
@@ -135,12 +135,12 @@ git commit -m "feat(ui): lock parchment design tokens and shell contracts"
 ### Task 2: Global controls — buttons, fields, badges, topbar
 
 **Files:**
-- Modify: `static/styles.css` (`.btn*`, inputs, `.badge*`, `.topbar`, `.brand`)
+- Modify: `static/css/styles.css` (`.btn*`, inputs, `.badge*`, `.topbar`, `.brand`)
 - Modify: `static/index.html` only if control styles currently live in the Phase 3 inline block and must stay consistent
 
 - [ ] **Step 1: Align primary / secondary / ghost buttons**
 
-In `static/styles.css`, ensure:
+In `static/css/styles.css`, ensure:
 
 ```css
 .btn-primary,
@@ -234,7 +234,7 @@ Remove any remaining glass/`backdrop-filter` on topbar summary if still present.
 - [ ] **Step 5: Syntax + unit check**
 
 ```powershell
-node --check static/app.js
+node --check static/js/app.js
 node --test tests/frontend/shell.test.js
 ```
 
@@ -243,7 +243,7 @@ Expected: PASS.
 - [ ] **Step 6: Commit**
 
 ```powershell
-git add static/styles.css static/index.html
+git add static/css/styles.css static/index.html
 git commit -m "feat(ui): align buttons fields badges and topbar to parchment"
 ```
 
@@ -252,8 +252,8 @@ git commit -m "feat(ui): align buttons fields badges and topbar to parchment"
 ### Task 3: Step 1 / 2 form composition
 
 **Files:**
-- Modify: `static/styles.css` (`#stepRoute`, `#stepPrefs`, `.city-card*`, `.days-summary`, pane headers)
-- Modify: `static/app.js` only if city card inner labels need small copy/class hooks (keep structure)
+- Modify: `static/css/styles.css` (`#stepRoute`, `#stepPrefs`, `.city-card*`, `.days-summary`, pane headers)
+- Modify: `static/js/app.js` only if city card inner labels need small copy/class hooks (keep structure)
 - Spec reference: §5
 
 - [ ] **Step 1: Pane headers for setup steps**
@@ -329,7 +329,7 @@ Expected: PASS (wizard pure helpers unchanged).
 - [ ] **Step 5: Commit**
 
 ```powershell
-git add static/styles.css static/app.js
+git add static/css/styles.css static/js/app.js
 git commit -m "feat(ui): polish Step 1-2 form density and city cards"
 ```
 
@@ -338,8 +338,8 @@ git commit -m "feat(ui): polish Step 1-2 form density and city cards"
 ### Task 4: Step 3 timeline meta bar + card hierarchy
 
 **Files:**
-- Modify: `static/app.js` (`renderPlan` itinerary item template)
-- Modify: `static/index.html` and/or `static/styles.css` (timeline + card styles)
+- Modify: `static/js/app.js` (`renderPlan` itinerary item template)
+- Modify: `static/index.html` and/or `static/css/styles.css` (timeline + card styles)
 - Modify: `tests/frontend/shell.test.js`
 - Spec reference: §6
 
@@ -468,7 +468,7 @@ Narrow screens (`max-width: 720px`): reduce marker column to ~64px or stack time
 - [ ] **Step 5: Run tests**
 
 ```powershell
-node --check static/app.js
+node --check static/js/app.js
 node --test tests/frontend/shell.test.js tests/frontend/app-utils-focus.test.js
 ```
 
@@ -477,7 +477,7 @@ Expected: PASS.
 - [ ] **Step 6: Commit**
 
 ```powershell
-git add static/app.js static/index.html static/styles.css tests/frontend/shell.test.js
+git add static/js/app.js static/index.html static/css/styles.css tests/frontend/shell.test.js
 git commit -m "feat(ui): timeline marker time and card-meta footer"
 ```
 
@@ -487,7 +487,7 @@ git commit -m "feat(ui): timeline marker time and card-meta footer"
 
 **Files:**
 - Modify: `static/index.html` (`.fold-*` block)
-- Modify: `static/styles.css` (`.card-map-btn`, `.day-map-hint-btn`, workspace status if needed)
+- Modify: `static/css/styles.css` (`.card-map-btn`, `.day-map-hint-btn`, workspace status if needed)
 - Spec reference: §6.3, §7
 
 - [ ] **Step 1: Confirm fold contract still holds**
@@ -575,7 +575,7 @@ Expected: all green (compileall, ruff/mypy if installed, unittest, node --check,
 - [ ] **Step 6: Commit**
 
 ```powershell
-git add static/index.html static/styles.css
+git add static/index.html static/css/styles.css
 git commit -m "feat(ui): parchment fold triggers and secondary controls"
 ```
 
@@ -584,13 +584,13 @@ git commit -m "feat(ui): parchment fold triggers and secondary controls"
 ### Task 6: Empty states, focus sweep, narrow viewport, final regression
 
 **Files:**
-- Modify: `static/styles.css` (`.empty-state`, `.toast`, residual pure-white hardcodes)
+- Modify: `static/css/styles.css` (`.empty-state`, `.toast`, residual pure-white hardcodes)
 - Grep-driven cleanup across `static/`
 
 - [ ] **Step 1: Grep for residual anti-patterns**
 
 ```powershell
-rg -n "#ffffff|#fff\b|backdrop-filter|appearance:\s*auto" static/styles.css static/index.html
+rg -n "#ffffff|#fff\b|backdrop-filter|appearance:\s*auto" static/css/styles.css static/index.html
 ```
 
 Replace unjustified pure white backgrounds with `var(--surface)` or `var(--bg)`. Keep map tile containers / leaflet if they require white.
@@ -640,7 +640,7 @@ Expected: PASS.
 - [ ] **Step 6: Commit**
 
 ```powershell
-git add static/styles.css static/index.html
+git add static/css/styles.css static/index.html
 git commit -m "feat(ui): empty states focus sweep and viewport polish"
 ```
 

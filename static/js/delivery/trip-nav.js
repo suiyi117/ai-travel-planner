@@ -22,8 +22,13 @@
       || /miniProgram/i.test(ua);
   }
 
+  function isMobileDevice(userAgent) {
+    const ua = clean(userAgent || (typeof navigator !== 'undefined' ? navigator.userAgent : ''));
+    return /Android|iPhone|iPad|iPod|HarmonyOS|Mobile/i.test(ua);
+  }
+
   function inAppBrowserHint() {
-    return '当前可能在微信/QQ 等内置浏览器中。地图 App 调起可能失败：可先复制地址，再点右上角「···」用系统浏览器打开本页。';
+    return '当前可能在微信/QQ 等内置浏览器中，地图或内容 App 可能无法直接调起。可先复制地点，再点右上角「···」用系统浏览器打开本页。';
   }
 
   function amapPoiUrl(name, lat, lng, address) {
@@ -61,6 +66,35 @@
   function xhsSearchUrl(name, city) {
     const q = [clean(city), clean(name), '攻略'].filter(Boolean).join(' ');
     return `https://www.xiaohongshu.com/search_result?keyword=${encodeURIComponent(q)}`;
+  }
+
+  function xhsAppUrl(name, city) {
+    const q = [clean(city), clean(name), '攻略'].filter(Boolean).join(' ');
+    return `xhsdiscover://search/result?keyword=${encodeURIComponent(q)}&source=aerotravel`;
+  }
+
+  function dianpingAppUrl(name, city) {
+    const q = [clean(city), clean(name)].filter(Boolean).join(' ');
+    return `dianping://searchshoplist?keyword=${encodeURIComponent(q)}`;
+  }
+
+  function resolveActionLink(action, userAgent) {
+    const fallback = clean(action?.fallbackHref || action?.href);
+    const appHref = clean(action?.appHref);
+    if (appHref && isMobileDevice(userAgent)) {
+      return {
+        href: appHref,
+        fallbackHref: fallback,
+        attemptsApp: true,
+        appName: clean(action?.appName)
+      };
+    }
+    return {
+      href: fallback,
+      fallbackHref: '',
+      attemptsApp: false,
+      appName: clean(action?.appName)
+    };
   }
 
   function nextStop(items, currentIndex) {
@@ -124,12 +158,18 @@
         id: 'xhs-search',
         label: '小红书参考',
         href: xhsSearchUrl(title, city),
+        fallbackHref: xhsSearchUrl(title, city),
+        appHref: xhsAppUrl(title, city),
+        appName: '小红书',
         external: true
       });
       actions.push({
         id: 'dianping-search',
         label: '大众点评',
         href: dianpingSearchUrl(title, city),
+        fallbackHref: dianpingSearchUrl(title, city),
+        appHref: dianpingAppUrl(title, city),
+        appName: '大众点评',
         external: true
       });
     }
@@ -186,12 +226,16 @@
     webSearchUrl,
     dianpingSearchUrl,
     xhsSearchUrl,
+    dianpingAppUrl,
+    xhsAppUrl,
+    resolveActionLink,
     nextStop,
     buildItemActions,
     dayPlainText,
     copyText,
     hasCoords,
     isInAppBrowser,
+    isMobileDevice,
     inAppBrowserHint
   });
 })(typeof window !== 'undefined' ? window : globalThis);

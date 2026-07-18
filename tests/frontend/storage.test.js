@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 global.window = {};
-require('../../static/storage.js');
+require('../../static/js/core/storage.js');
 
 test('storage preserves legacy entries and writes version 2 entries', () => {
   let raw = JSON.stringify([{ id: 1, plan: { days: [] } }]);

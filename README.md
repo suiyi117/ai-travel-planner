@@ -1,240 +1,226 @@
-<h1 align="center">AeroTravel</h1>
+<div align="center">
 
-<p align="center">
-  <strong>中国多城市 AI 旅行规划师</strong><br>
-  把路线灵感变成一份能执行、能调整、能带走的完整行程。
+# AeroTravel
+
+### 从路线草图，到一份真正能出发的中国多城市行程
+
+<p>
+  路线、节奏、真实地点、城际交通、每日排程与客户交付，<br>
+  在一个安静、可编辑、可带走的旅行工作台里完成。
 </p>
 
-<p align="center">
-  <img alt="Python 3.10+" src="https://img.shields.io/badge/Python-3.10%2B-3776AB">
-  <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-backend-009688">
-  <img alt="Vanilla JavaScript" src="https://img.shields.io/badge/Frontend-vanilla_JS-F7DF1E">
+<p>
+  <img alt="Python 3.10+" src="https://img.shields.io/badge/Python-3.10%2B-1C1B18?style=flat-square&labelColor=1C1B18&color=B34B2E">
+  <img alt="FastAPI" src="https://img.shields.io/badge/Backend-FastAPI-1C1B18?style=flat-square&labelColor=1C1B18&color=E9E2D6">
+  <img alt="Vanilla JavaScript" src="https://img.shields.io/badge/Frontend-Vanilla_JS-1C1B18?style=flat-square&labelColor=1C1B18&color=E9E2D6">
   <img alt="CI" src="https://github.com/suiyi117/ai-travel-planner/actions/workflows/ci.yml/badge.svg">
-  <img alt="License MIT" src="https://img.shields.io/badge/License-MIT-222222">
+  <img alt="MIT" src="https://img.shields.io/badge/License-MIT-1C1B18?style=flat-square">
 </p>
+
+<p>
+  <a href="#quick-start">快速启动</a> ·
+  <a href="#product-experience">产品体验</a> ·
+  <a href="#architecture">系统架构</a> ·
+  <a href="#repository-guide">仓库导览</a>
+</p>
+
+</div>
 
 <p align="center">
-  <a href="#60-秒本地启动">快速开始</a> ·
-  <a href="#不止生成文本">产品界面</a> ·
-  <a href="#系统如何工作">系统架构</a> ·
-  <a href="#当前-github-分支">分支说明</a>
+  <img src="docs/assets/aerotravel-overview.png" alt="AeroTravel 多城市行程工作台与地图" width="100%">
+  <br>
+  <sub>按天浏览的结构化行程，地图只在需要时出现。</sub>
 </p>
 
-![AeroTravel 行程与地图](docs/assets/aerotravel-overview.png)
+---
 
-路线、天气、景点、交通和预算，最后落到同一份可编辑行程里。AeroTravel 面向中国多城市旅行，把高德 POI、天气、12306 火车、航班参考数据和按需地图串成结构化结果，而不只是生成一段“看起来合理”的文本。
+<div align="center">
 
-| 多城规划 | 真实数据 | 自由调整 | 直接交付 |
+**Plan with intent. Verify with data. Deliver with confidence.**
+
+</div>
+
+| 路线不是输入框 | AI 不是最终答案 | 地图不是背景图 | 导出不是截图 |
 |---|---|---|---|
-| 每城天数与段级交通 | 高德 POI、天气、12306 | 编辑、约束与自驾重算 | 长图、日历与本地快照 |
+| 每城天数、过境角色、环线与段级交通都有明确结构 | LLM 负责组织，规则引擎负责校验、补时和排序 | POI、路线、坐标与当前日程保持同一焦点 | 专属页、总览图、每日图、PDF 与日历共享同一份行程数据 |
 
-## 从想法到出发，只需要三步
+<a id="product-experience"></a>
 
-| 01 路线 | 02 偏好 | 03 行程 |
+## Product experience
+
+### 一条完整但克制的三步流程
+
+| 01 · 路线 | 02 · 偏好 | 03 · 行程 |
 |---|---|---|
-| 设置城市顺序、停留天数、日期和城际交通。 | 告诉它节奏、预算、兴趣和需要避开的安排。 | 检查地图、编辑节点，保存并导出给同行者。 |
+| 设置城市顺序、游玩/过境角色、每城天数、日期与交通方式。 | 选择节奏、预算、兴趣与自驾策略，不要求用户理解规划术语。 | 按天检查时间线、地图和交通；需要时进入编辑，再生成客户交付物。 |
 
-前端采用可滚动三步向导。桌面侧保留行程摘要，地图默认不占主视觉，只有在点击“看地图”或景点卡片时才打开抽屉。
-
-## 不止生成文本
-
-![结构化行程](docs/assets/aerotravel-itinerary.png)
-
-生成结果包含天数、目的地、内部检查、每日安排、城际交通、预算和出行贴士。浏览模式适合快速评审，编辑模式负责城市顺序、想去清单、日期节点和硬约束。
+前端保持可滚动向导，而不是锁死在三栏工作台里。桌面使用摘要侧栏与常驻决策区；手机端把路线、元信息和编辑操作分层，地图以抽屉方式按需打开。
 
 <table>
   <tr>
     <td width="50%">
-      <img src="docs/assets/aerotravel-map-drawer.png" alt="按需地图抽屉"><br>
-      <sub>路线、真实地点与地图上下文</sub>
+      <img src="docs/assets/aerotravel-itinerary.png" alt="AeroTravel 按天行程时间线">
+      <br><sub>按天时间线：交通、景点、美食与住宿使用同一排序规则。</sub>
     </td>
     <td width="50%">
-      <img src="docs/assets/aerotravel-editor.png" alt="可编辑行程工作台"><br>
-      <sub>城市顺序、日期节点、约束与编辑操作</sub>
+      <img src="docs/assets/aerotravel-map-drawer.png" alt="AeroTravel 行程地图抽屉">
+      <br><sub>按需地图：选中卡片、标记和地点详情保持同步。</sub>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <img src="docs/assets/aerotravel-editor.png" alt="AeroTravel 可编辑行程">
+      <br><sub>可编辑草稿：必去、固定日期、固定时段、固定顺序与自驾路线都能被明确表达。</sub>
     </td>
   </tr>
 </table>
 
-## 为什么行程更可信
+## What makes the plan executable
 
-| 能力 | AeroTravel 的处理方式 |
+| Layer | AeroTravel 的处理方式 |
 |---|---|
-| 地点与天气 | 后端代理高德 Web 服务，获取 POI 坐标、评分、地址、开放时间和城市天气。 |
-| AI 编排 | Prompt 独立存放并可审查，支持 OpenAI-compatible Chat Completions，模型供应商可替换。 |
-| 城际交通 | 服务端稳定生成 `A → B` 分段，再用 12306 与航班参考数据增强，避免方向和段数漂移。 |
-| 编辑与自驾 | 行程可转为草稿，支持必去、固定日期、固定时段、固定顺序以及自驾道路重算。 |
-| 数据边界 | 快照只保存在浏览器 `localStorage`；当前无数据库、无账号、无云端同步。 |
+| 地点与天气 | 由后端代理高德 Web 服务；坐标、评分、地址和开放时间作为不可信外部数据清洗后进入行程。 |
+| AI 编排 | Prompt 独立存放并可审查，兼容 OpenAI-style Chat Completions，供应商可以替换。 |
+| 城际交通 | 稳定生成 “A → B” 分段，再用 12306、航班参考和自驾道路数据增强，避免方向与段数漂移。 |
+| 确定性排程 | 交通扩展为门到门窗口，再结合游玩时长、开放时间、午餐和移动时间落到每日时间线。 |
+| 编辑约束 | 行程可转为草稿；硬约束不会在拖拽、删除、跨日移动或重新优化时静默丢失。 |
+| 本地边界 | 快照仅保存在当前浏览器 localStorage；没有数据库、账号和云端同步。 |
 
-## 60 秒本地启动
+<a id="quick-start"></a>
 
-### 1. 安装依赖
+## Quick start
 
-```powershell
+### Windows 一键启动
+
+1. 安装 Python 3.10 或更高版本。
+2. 复制 .env.example 为 .env，并填入需要的 Key。
+3. 双击仓库根目录的 [start.bat](start.bat)。
+
+脚本会优先使用项目 .conda 环境，在后端未运行时启动服务，并打开 [http://localhost:8000](http://localhost:8000)。
+
+### 手动启动
+
+~~~powershell
 pip install -r requirements.txt
-```
-
-### 2. 配置环境变量
-
-```powershell
 Copy-Item .env.example .env
-```
+python server.py
+~~~
 
-编辑 `.env`：
+没有真实 API 时，前端仍会加载可交互示例；真实 POI、天气与 AI 生成需要相应配置。
 
-```dotenv
+> 请使用 http://localhost:8000。直接双击 static/index.html 会以 file:// 打开，浏览器的 Origin: null 不在默认 CORS 白名单内。
+
+### Minimal environment
+
+~~~dotenv
 AMAP_KEY=你的高德 Web 服务 Key
 AI_API_KEY=你的模型供应商 Key
 AI_BASE_URL=https://api.openai.com/v1
 AI_MODEL=gpt-5.5
-```
+~~~
 
-### 3. 启动
+可选变量与生产安全默认值见 [.env.example](.env.example) 和 [部署清单](docs/deployment-checklist.md)。
 
-**推荐（Windows）：** 双击仓库根目录的 [`start.bat`](start.bat)。
-会自动选用项目 `.conda` 或系统 Python、按需启动后端，并打开 [http://localhost:8000](http://localhost:8000)。服务已在跑时只会打开浏览器。
+<a id="architecture"></a>
 
-手动启动：
+## Architecture
 
-```powershell
-python server.py
-```
-
-打开 [http://localhost:8000](http://localhost:8000)。没有真实 API 时，前端仍会载入可交互的示例行程；真实 POI、天气与 AI 生成需要相应 Key。
-
-> **排障：** 若生成时提示「无法连接后端」或浏览器 `Failed to fetch`，请确认服务已启动，并用 **http://localhost:8000** 打开页面。不要直接双击 `static/index.html`（`file://` 会因 CORS 无法调用 API）。
-> 关闭后端控制台窗口即可停止服务。
-## 模型配置
-
-项目使用 OpenAI-compatible `chat/completions` 接口。模型名称和 endpoint 更新较快，下表按 2026-07-09 的官方文档整理，实际可用性以账号权限为准。
-
-| 供应商 | `AI_BASE_URL` | 推荐 `AI_MODEL` | 适合场景 |
-|---|---|---|---|
-| OpenAI | `https://api.openai.com/v1` | `gpt-5.5` | 质量优先，复杂多城行程规划。 |
-| OpenAI | `https://api.openai.com/v1` | `gpt-5.4-mini` | 成本和速度优先的日常规划。 |
-| 阿里云百炼 / 通义千问 | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `qwen3.7-plus` | 中文效果、成本和速度均衡。 |
-| 阿里云百炼 / 通义千问 | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `qwen3.7-max` | 更高质量中文规划。 |
-| DeepSeek | `https://api.deepseek.com/v1` | `deepseek-v4-flash` | 成本优先，生成速度快。 |
-| DeepSeek | `https://api.deepseek.com/v1` | `deepseek-v4-pro` | 推理质量优先。 |
-
-参考：[OpenAI 模型迁移指南](https://developers.openai.com/api/docs/guides/latest-model) · [阿里云百炼模型列表](https://www.alibabacloud.com/help/en/model-studio/models) · [DeepSeek API 说明](https://api-docs.deepseek.com/quick_start/pricing)
-
-DeepSeek 官方已标注 `deepseek-chat` 与 `deepseek-reasoner` 将于 2026-07-24 弃用，旧配置应迁移到 `deepseek-v4-flash` 或 `deepseek-v4-pro`。
-
-## 系统如何工作
-
-```mermaid
+~~~mermaid
 flowchart LR
   U["路线与偏好"] --> UI["三步向导<br/>Vanilla JS"]
-  UI -->|"POI / 城市 / 天气"| LOC["Location Router"]
+  UI --> LOC["地点 / 天气 API"]
   LOC --> AMAP["高德 Web 服务"]
-  UI -->|"POST /api/plan"| PLAN["Planning Router"]
-  PLAN --> GEN["Itinerary Generator"]
-  GEN --> PROMPT["可审查 Prompt"]
+  UI --> PLAN["POST /api/plan"]
+  PLAN --> GEN["AI 行程编排"]
   GEN --> LLM["OpenAI-compatible LLM"]
-  GEN --> TRANSIT["12306 / 航班 / 自驾"]
-  GEN --> RESULT["结构化可编辑行程"]
+  GEN --> SCHED["确定性排程与校验"]
+  SCHED --> TRANSIT["12306 / 航班 / 自驾"]
+  SCHED --> RESULT["结构化可编辑行程"]
   RESULT --> UI
-  UI --> OUTPUT["地图 · 快照 · 长图 · ICS"]
-```
+  UI --> DELIVERY["地图 · 专属页 · 长图 · PDF · ICS"]
+~~~
 
-| 层 | 技术与边界 |
+| Boundary | Technology |
 |---|---|
-| 后端 | Python 3.10+、FastAPI、httpx、python-dotenv |
-| 前端 | HTML、CSS、Vanilla JavaScript，无构建步骤 |
-| 地图与地点 | Leaflet + 高德地图瓦片；高德 Web API 由后端代理 |
-| AI | OpenAI-compatible Chat Completions，Prompt 模板外置 |
-| 交通 | 12306 公开接口、可选聚合数据航班 API、高德自驾道路参考 |
-| 持久化 | 浏览器 `localStorage`，无数据库、无登录系统 |
-| 工程治理 | Ruff、Mypy、Coverage、Node `node:test`、detect-secrets、pip-audit、GitHub Actions |
+| Backend | Python 3.10+、FastAPI、httpx、python-dotenv |
+| Frontend | HTML、CSS、Vanilla JavaScript；无构建步骤 |
+| Maps | Leaflet + MapLibre vector basemap；高德栅格回退 |
+| AI | OpenAI-compatible Chat Completions；Prompt 模板外置 |
+| Transport | 12306 公开接口、可选航班 API、高德自驾道路参考 |
+| Persistence | 浏览器 localStorage |
+| Quality | Ruff、Mypy、Coverage、Node test、secret scan、dependency audit |
 
-<details>
-<summary><strong>核心目录</strong></summary>
+<a id="repository-guide"></a>
 
-```text
+## Repository guide
+
+~~~text
 ai-travel-planner/
-├── server.py              # FastAPI 应用装配入口
-├── clients/               # 高德、AI 等外部服务客户端
-├── core/                  # 配置、安全默认值、结构化日志
-├── planner/               # 生成、Prompt、Hydration、交通与草稿优化
-├── prompts/               # 可审查的行程 Prompt 模板
-├── routers/               # FastAPI API 路由
-├── schemas/               # Pydantic 请求模型
-├── services/              # 12306、航班、自驾道路服务
-├── static/                # 三步向导、地图、编辑器、快照和导出
-├── tests/                 # 后端镜像测试 + 前端 Node 单测
-├── docs/                  # 部署、ADR、工程流程和设计规格
-├── scripts/               # 本地质量与安全门禁
-└── tasks/                 # 产品化规格和 backlog
-```
+├── server.py              # FastAPI composition root
+├── clients/               # Amap and model-provider clients
+├── core/                  # Settings, logging and security defaults
+├── planner/               # Prompting, hydration, scheduling and optimization
+├── prompts/               # Reviewable itinerary prompt
+├── routers/               # HTTP route handlers
+├── schemas/               # Pydantic contracts
+├── services/              # Train, flight and driving integrations
+├── static/
+│   ├── css/               # Tokens, components, workspace and delivery styles
+│   └── js/
+│       ├── core/          # State, API, storage and pure utilities
+│       ├── planning/      # Wizard, map, draft and editor
+│       └── delivery/      # Preview, publish and export
+├── tests/                 # Mirrored backend tests + browser-module unit tests
+├── docs/                  # Product, ADR, engineering and launch documentation
+├── scripts/               # Quality and security gates
+└── tasks/                 # Product backlog and QA inbox
+~~~
 
-</details>
+Start with the [repository map](docs/engineering/repository-map.md). Frontend load order and module ownership are documented in [static/README.md](static/README.md).
 
-<details>
-<summary><strong>开发与检查命令</strong></summary>
+## Quality gates
 
-```powershell
-# 可选：安装开发质量与安全工具
-pip install -r requirements-dev.txt
-
-# 热重载
-python -m uvicorn server:app --reload --host 0.0.0.0 --port 8000
-
-# 完整本地质量门禁
+~~~powershell
+# Full syntax, lint, typing and regression suite
 .\scripts\check.ps1
 
-# 密钥与依赖安全门禁
+# Tracked-secret scan and Python dependency audit
 .\scripts\security.ps1
 
-# API 冒烟
+# Focused API smoke checks
 curl http://localhost:8000/api/health
 curl "http://localhost:8000/api/city_center?city=北京"
 curl "http://localhost:8000/api/search_pois?city=北京&keywords=景点&count=5"
 curl "http://localhost:8000/api/weather?city=北京"
-```
+~~~
 
-</details>
+Browser-facing changes should also pass the [manual smoke checklist](docs/smoke-checklist.md): Step 1 load, Step 2 preferences, generation to Step 3, day switching, map open/close, editor entry and dedicated-page preview.
 
-## 生产配置
+## Product and engineering docs
 
-| 变量 | 默认值 | 说明 |
-|---|---|---|
-| `APP_ENV` | `development` | 生产设置为 `production`，启用 HSTS 并禁止 `ALLOWED_ORIGINS=*`。 |
-| `ALLOWED_ORIGINS` | 本机开发地址 | 逗号分隔的浏览器来源白名单，生产必须配置真实域名。 |
-| `EXPOSE_CLIENT_CONFIG` | `false` | 当前前端不需要浏览器端高德 Key，生产保持关闭。 |
-| `LOG_LEVEL` | `INFO` | 后端结构化请求日志等级。 |
-| `JUHE_FLIGHT_API_KEY` | 空 | 可选；未配置时使用内置航线参考数据。 |
-
-生产环境不要提交 `.env`，不要使用 wildcard CORS，也不要在没有兼容需求时开启 `EXPOSE_CLIENT_CONFIG`。
-
-## 当前 GitHub 分支
-
-GitHub 的 Branches 页面没有自定义备注字段；分支用途在这里和对应 Pull Request 中共同维护。
-
-| 分支 | 用途 | 维护方 | 生命周期 |
-|---|---|---|---|
-| `master` | 受保护的稳定主分支 | 仓库维护者 | 永久保留，只能通过 PR 合并 |
-| `dependabot/github_actions/github-actions-6ebb6fc752` | [PR #13](https://github.com/suiyi117/ai-travel-planner/pull/13) 的 GitHub Actions 分组升级 | Dependabot | PR 合并或关闭后删除 |
-| `dependabot/pip/python-dependencies-315ee4c38f` | [PR #14](https://github.com/suiyi117/ai-travel-planner/pull/14) 的 Python 依赖分组升级 | Dependabot | PR 合并或关闭后删除 |
-
-Dependabot 分支名由 GitHub 自动生成，实时状态以对应 PR 为准。完整规则见 [分支管理](docs/engineering/branch-management.md)。
-
-## 工程与上线文档
-
-| 主题 | 文档 |
+| Topic | Document |
 |---|---|
-| 当前产品定位、用户与 MVP 边界 | [产品总纲](docs/product/产品总纲.md) |
-| 首轮商业验证执行计划 | [30 天验证路线图](docs/product/30天验证路线图.md) |
-| 唯一产品优先级与现有 PRD 状态 | [统一需求池](docs/product/需求池.md) |
-| 部署、观察与回滚 | [部署清单](docs/deployment-checklist.md) |
-| 浏览器和 API 验收 | [人工冒烟清单](docs/smoke-checklist.md) |
-| 工程变更与文档触发条件 | [变更管理](docs/engineering/change-management.md) |
-| 分支用途、命名与清理 | [分支管理](docs/engineering/branch-management.md) |
-| 版本、发布与回滚流程 | [发布流程](docs/engineering/release-process.md) |
-| 本地快照与 Auth 边界 | [ADR-001](docs/decisions/ADR-001-local-only-persistence.md) |
-| 可编辑行程与约束模型 | [ADR-002](docs/decisions/ADR-002-constraint-driven-editable-planning.md) |
-| 产品化任务 | [Backlog](tasks/todo.md) |
-| 版本历史 | [CHANGELOG](CHANGELOG.md) |
+| Product direction and MVP boundary | [产品总纲](docs/product/产品总纲.md) |
+| Priorities and PRD state | [统一需求池](docs/product/需求池.md) |
+| QA findings and small improvements | [问题收件箱](tasks/inbox/inbox.md) |
+| Repository ownership | [Repository map](docs/engineering/repository-map.md) |
+| Deployment and rollback | [部署清单](docs/deployment-checklist.md) |
+| Runtime smoke checks | [人工冒烟清单](docs/smoke-checklist.md) |
+| Change governance | [变更管理](docs/engineering/change-management.md) |
+| Release process | [发布流程](docs/engineering/release-process.md) |
+| Local persistence boundary | [ADR-001](docs/decisions/ADR-001-local-only-persistence.md) |
+| Editable planning model | [ADR-002](docs/decisions/ADR-002-constraint-driven-editable-planning.md) |
+| Vector basemap strategy | [ADR-003](docs/decisions/ADR-003-vector-basemap.md) |
+| Version history | [CHANGELOG](CHANGELOG.md) |
 
-## License
+## Scope
 
-MIT
+AeroTravel is intentionally single-user and local-first. Do not add a database, login system, frontend framework or required paid API without an explicit product decision and ADR.
+
+---
+
+<div align="center">
+  <sub>Built for trips where the details matter.</sub>
+  <br>
+  MIT License
+</div>

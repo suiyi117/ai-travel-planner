@@ -1,5 +1,7 @@
 .env
 __pycache__/
+.mypy_cache/
+.ruff_cache/
 *.pyc
 .coverage
 .venv/
@@ -10,6 +12,7 @@ venv/
 *.baiduyun.uploading.cfg
 mrbw*-image.png
 mrbw*-drawing-*.png
+/drawing-*.png
 *.pem
 services/.cache/
 .worktrees/
@@ -22,6 +25,7 @@ services/.cache/
 .review_task*_out.txt
 critique.json
 static/index-before-ui-rebuild.html
+/tmp*/
 
 node_modules/
 check-out.txt

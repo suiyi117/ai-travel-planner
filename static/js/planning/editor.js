@@ -53,18 +53,108 @@
 
   function renderCityStops(cities, escapeHtml) {
     if (!cities.length) return "";
-    return cities.map((city, index) => `
+    const transportLabels = {
+      auto: "智能推荐",
+      train: "高铁优先",
+      plane: "飞机优先",
+      driving: "自驾优先"
+    };
+    return cities.map((city, index) => {
+      const days = Math.max(0, Number(city.days) || 0);
+      const isTransitOnly = days === 0 || city.plan_stay === false;
+      const routeLabel = isTransitOnly
+        ? "仅过境"
+        : index === 0
+          ? "出发地"
+          : (transportLabels[city.transport] || transportLabels.auto);
+      return `
       <article class="city-order-item" draggable="true" data-city-id="${escapeHtml(city.id)}" data-index="${index}" aria-grabbed="false" title="拖拽调整城市顺序">
         <span class="city-order-handle" aria-hidden="true">⠿</span>
         <div class="city-order-info">
           <strong>${escapeHtml(city.name)}</strong>
-          <span>${city.days}天 · ${escapeHtml(city.transport || "auto")}</span>
+          <span>${days}天 · ${escapeHtml(routeLabel)}</span>
         </div>
         <div class="city-order-actions">
           <button class="btn btn-icon" type="button" data-action="city-up" data-index="${index}" ${index === 0 ? "disabled" : ""} aria-label="${escapeHtml(city.name)} 上移">↑</button>
           <button class="btn btn-icon" type="button" data-action="city-down" data-index="${index}" ${index === cities.length - 1 ? "disabled" : ""} aria-label="${escapeHtml(city.name)} 下移">↓</button>
         </div>
-      </article>`).join("");
+      </article>`;
+    }).join("");
+  }
+
+  function normalizePlaceSearchResults(pois, fallbackCity) {
+    const results = [];
+    const seen = new Set();
+    const clean = (value, maxLength = 300) => {
+      const source = Array.isArray(value) ? value.filter(Boolean).join("、") : value;
+      if (source === null || source === undefined) return "";
+      return String(source).trim().slice(0, maxLength);
+    };
+
+    for (const raw of Array.isArray(pois) ? pois : []) {
+      if (!raw || typeof raw !== "object") continue;
+      const name = clean(raw.name, 200);
+      const lat = Number(raw.lat);
+      const lng = Number(raw.lng);
+      if (
+        !name
+        || !Number.isFinite(lat)
+        || !Number.isFinite(lng)
+        || lat < -90
+        || lat > 90
+        || lng < -180
+        || lng > 180
+        || lat === 0
+        || lng === 0
+      ) {
+        continue;
+      }
+
+      const place = {
+        provider_id: clean(raw.provider_id || raw.id, 200),
+        name,
+        city: clean(raw.city || raw.cityname || fallbackCity, 100),
+        district: clean(raw.district || raw.adname, 100),
+        address: clean(raw.address, 300),
+        rating: clean(raw.rating, 30),
+        tel: clean(raw.tel, 100),
+        opentime: clean(raw.opentime, 200),
+        lat,
+        lng
+      };
+      const key = place.provider_id || [
+        place.name,
+        place.address,
+        place.lat.toFixed(6),
+        place.lng.toFixed(6)
+      ].join("|");
+      if (seen.has(key)) continue;
+      seen.add(key);
+      results.push(place);
+      if (results.length >= 8) break;
+    }
+    return results;
+  }
+
+  function renderPlaceSearchResults(places, escapeHtml) {
+    if (!Array.isArray(places) || !places.length) return "";
+    return places.map((place, index) => {
+      const meta = [place.city, place.district, place.address]
+        .filter((value, position, values) => value && values.indexOf(value) === position)
+        .join(" · ") || "已匹配地图坐标";
+      const rating = place.rating
+        ? '<span class="place-search-rating">评分 ' + escapeHtml(place.rating) + '</span>'
+        : "";
+      return [
+        '<button class="place-search-result" type="button" data-place-result-index="' + index + '" aria-label="选择地图地点：' + escapeHtml(place.name) + '">',
+        '<span class="place-search-result-main">',
+        '<span class="place-search-result-title"><strong>' + escapeHtml(place.name) + '</strong>' + rating + '</span>',
+        '<small>' + escapeHtml(meta) + '</small>',
+        '</span>',
+        '<span class="place-search-result-source">高德地图</span>',
+        '</button>'
+      ].join("");
+    }).join("");
   }
 
   function renderConstraintPanel(node, escapeHtml) {
@@ -111,6 +201,8 @@
     renderWishlist,
     renderDayNodes,
     renderCityStops,
+    normalizePlaceSearchResults,
+    renderPlaceSearchResults,
     renderConstraintPanel
   });
 })(typeof window !== "undefined" ? window : globalThis);

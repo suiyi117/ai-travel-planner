@@ -106,7 +106,7 @@
 
 | 允许 | 禁止 |
 |---|---|
-| `static/styles.css`、`static/index.html`（token/内联样式）、`static/app.js`（timeline markup） | 后端、API、框架 |
+| `static/css/styles.css`、`static/index.html`（token/内联样式）、`static/js/app.js`（timeline markup） | 后端、API、框架 |
 | 极少量 class 调整 | 破坏 Phase 1/2 选择器/行为 |
 | 测试若涉及 DOM 字符串断言则更新 | 虚构数据字段 |
 

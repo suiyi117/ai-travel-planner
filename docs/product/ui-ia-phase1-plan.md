@@ -72,16 +72,16 @@
 - 栈不变：FastAPI + 无构建静态前端；不引入 React/Vue/bundler。
 - 不改后端 API 契约，除非实现中发现前端无法完成 diff/重生成（若必须改 API，先停并确认）。
 - 保持：可滚动三步壳、地图 **按需抽屉**、POI 元数据转义、`state` + `applyPlan()` 主路径。
-- 纯逻辑优先进 `static/wizard.js`（`window.AeroTravelWizard`），并用 `tests/frontend/wizard.test.js` 覆盖。
-- 编排仍在 `static/app.js`；样式在现有 `static/styles.css` / `index.html` 内联策略中与现状一致地改，**不为 Phase 1 新开设计体系**。
+- 纯逻辑优先进 `static/js/planning/wizard.js`（`window.AeroTravelWizard`），并用 `tests/frontend/wizard.test.js` 覆盖。
+- 编排仍在 `static/js/app.js`；样式在现有 `static/css/styles.css` / `index.html` 内联策略中与现状一致地改，**不为 Phase 1 新开设计体系**。
 - 合入前：`.\scripts\check.ps1`；浏览器冒烟见第 6 节。
 
 **允许修改的主要文件（预期）**
 
-- `static/wizard.js` — diff、摘要折叠相关纯函数、状态条文案辅助等
-- `static/app.js` — 步骤/状态条切换、编辑快照、确认重生成、弱提示绑定
+- `static/js/planning/wizard.js` — diff、摘要折叠相关纯函数、状态条文案辅助等
+- `static/js/app.js` — 步骤/状态条切换、编辑快照、确认重生成、弱提示绑定
 - `static/index.html` — 状态条 / 折叠摘要 / 弱提示 DOM
-- `static/styles.css` 与/或 `index.html` 内样式 — Step 3 降级与折叠的最小样式
+- `static/css/styles.css` 与/或 `index.html` 内样式 — Step 3 降级与折叠的最小样式
 - `tests/frontend/wizard.test.js` — 新纯逻辑测试
 - 本计划与（可选）`tasks/todo.md` 勾选
 

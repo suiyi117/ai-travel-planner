@@ -150,10 +150,10 @@ buildCurrentTripPackage(extra)
 
 | 区域 | 文件 |
 |---|---|
-| 编排 | `static/app.js` |
-| package | `static/trip-package.js` |
-| 渲染 | `static/trip-share-render.js`、必要时 `trip-share-boot.js` / CSS |
-| 草稿 | `static/draft-ops.js` / `draft.js`（仅当往返丢 refs） |
+| 编排 | `static/js/app.js` |
+| package | `static/js/delivery/trip-package.js` |
+| 渲染 | `static/js/delivery/trip-share-render.js`、必要时 `trip-share-boot.js` / CSS |
+| 草稿 | `static/js/planning/draft-ops.js` / `draft.js`（仅当往返丢 refs） |
 | 后端 | `clients/amap.py`、`routers/location.py`、对应 `tests/` |
 | 文档 | `docs/product/专属行程交付-操作说明.md` |
 

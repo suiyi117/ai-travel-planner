@@ -7,12 +7,15 @@
   <meta name="referrer" content="no-referrer">
   <title>专属行程 · AeroTravel</title>
   <link rel="icon" href="data:,">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""><!-- pragma: allowlist secret -->
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" integrity="sha384-uTttxo/aOKbdE5RlD/SPzSDoDmNvGlUYPjONi2MN/b7c9HPSvW07OIuyP7uL6jxK" crossorigin=""><!-- pragma: allowlist secret -->
-  <link rel="stylesheet" href="trip-share.css?v=readable-map-20260715">
+  <link rel='stylesheet' href='css/trip-share.css?v=delivery-layout-20260718d'>
 </head>
 <body class="trip-share-body">
-  <main class="trip-main" style="padding-top:40px">
+  <main class='trip-main trip-loading'>
     <section class="trip-panel">
       <p class="trip-brand">AeroTravel</p>
       <h1>正在加载专属行程…</h1>
@@ -23,9 +26,9 @@
   <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js" integrity="sha384-5+cfbwT0iiub6VsQAdn6yz16nr6sDiQoHx6tm4O8OVYXHYOxcffFmCJBL0dgdvGp" crossorigin=""></script><!-- pragma: allowlist secret -->
   <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.3/leaflet-maplibre-gl.js" integrity="sha384-LIxE/QjpJKC2A91yD40ZisdYtFbgAjl58jqpo9/MUZNgwhqsTfzwrTlqv6nDdzzB" crossorigin=""></script><!-- pragma: allowlist secret -->
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" defer></script>
-  <script src="map.js?v=vector-map-zh-20260715"></script>
-  <script src="trip-nav.js?v=trip-share-20260712"></script>
-  <script src="trip-share-render.js?v=trip-share-20260712"></script>
-  <script src="trip-share-boot.js?v=vector-map-zh-20260715"></script>
+  <script src='js/planning/map.js?v=journey-map-dock-20260718b'></script>
+  <script src="js/delivery/trip-nav.js?v=mobile-app-links-20260717b"></script>
+  <script src='js/delivery/trip-share-render.js?v=delivery-layout-20260718d'></script>
+  <script src='js/delivery/trip-share-boot.js?v=delivery-layout-20260718d'></script>
 </body>
 </html>

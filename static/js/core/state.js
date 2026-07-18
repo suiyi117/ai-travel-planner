@@ -3,16 +3,17 @@
   const MAX_SAVED_TRIPS = 8;
 
   const fallbackCenters = {
-    北京: { lat: 39.9042, lng: 116.4074 },
-    西安: { lat: 34.3416, lng: 108.9398 },
-    上海: { lat: 31.2304, lng: 121.4737 },
-    成都: { lat: 30.5728, lng: 104.0668 },
-    杭州: { lat: 30.2741, lng: 120.1551 },
-    广州: { lat: 23.1291, lng: 113.2644 },
-    深圳: { lat: 22.5431, lng: 114.0579 },
-    重庆: { lat: 29.563, lng: 106.5516 },
-    长沙: { lat: 28.2282, lng: 112.9388 },
-    南京: { lat: 32.0603, lng: 118.7969 }
+    // Fallback data follows the same GCJ-02 contract as Amap responses.
+    北京: { lat: 39.905603, lng: 116.413642 },
+    西安: { lat: 34.340044, lng: 108.944456 },
+    上海: { lat: 31.228458, lng: 121.478223 },
+    成都: { lat: 30.570346, lng: 104.069305 },
+    杭州: { lat: 30.271771, lng: 120.159794 },
+    广州: { lat: 23.126423, lng: 113.26973 },
+    深圳: { lat: 22.540383, lng: 114.063014 },
+    重庆: { lat: 29.560151, lng: 106.555318 },
+    长沙: { lat: 28.224692, lng: 112.94425 },
+    南京: { lat: 32.058224, lng: 118.802084 }
   };
 
   function createInitialState() {
@@ -54,6 +55,9 @@
       activeOptimizationController: null,
       activeRouteController: null,
       routeRequestTimer: null,
+      activePlaceSearchController: null,
+      placeSearchTimer: null,
+      placeSearchResults: [],
       cancelPointPicker: null,
       /** Pure UI route-editor state (not sent to /api/plan). */
       routeDirty: false,

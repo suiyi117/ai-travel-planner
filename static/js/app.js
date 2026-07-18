@@ -15,6 +15,7 @@ const {
       cityInput: document.getElementById('cityInput'),
       cityInputError: document.getElementById('cityInputError'),
       cityList: document.getElementById('cityList'),
+      routeOverview: document.getElementById('routeOverview'),
       addCityBtn: document.getElementById('addCityBtn'),
       routeTip: document.getElementById('routeTip'),
       daysRange: document.getElementById('daysRange'),
@@ -25,6 +26,10 @@ const {
       departureDateHelp: document.getElementById('departureDateHelp'),
       stickyRouteLine: document.getElementById('stickyRouteLine'),
       stickyRouteMeta: document.getElementById('stickyRouteMeta'),
+      prefsSummaryRoute: document.getElementById('prefsSummaryRoute'),
+      prefsSummaryMeta: document.getElementById('prefsSummaryMeta'),
+      resultsFooterRoute: document.getElementById('resultsFooterRoute'),
+      resultsFooterMeta: document.getElementById('resultsFooterMeta'),
       wizardNextReason: document.getElementById('wizardNextReason'),
       routeShapeHelp: document.getElementById('routeShapeHelp'),
       interestsInput: document.getElementById('interestsInput'),
@@ -82,11 +87,16 @@ const {
     constraintTime: document.getElementById('constraintTime'),
     cancelConstraintBtn: document.getElementById('cancelConstraintBtn'),
     addPlaceDialog: document.getElementById('addPlaceDialog'),
+    closeAddPlaceDialogBtn: document.getElementById('closeAddPlaceDialogBtn'),
     addPlaceForm: document.getElementById('addPlaceForm'),
     addPlaceQuery: document.getElementById('addPlaceQuery'),
     usePlaceNameBtn: document.getElementById('usePlaceNameBtn'),
     pickPlaceOnMapBtn: document.getElementById('pickPlaceOnMapBtn'),
     addPlaceResults: document.getElementById('addPlaceResults'),
+    moveDayDialog: document.getElementById('moveDayDialog'),
+    moveDayForm: document.getElementById('moveDayForm'),
+    moveDaySelect: document.getElementById('moveDaySelect'),
+    cancelMoveDayBtn: document.getElementById('cancelMoveDayBtn'),
     selfDriveControls: document.getElementById('selfDriveControls'),
     selfDriveSegmentHint: document.getElementById('selfDriveSegmentHint'),
     routeShapeGroup: document.getElementById('routeShapeGroup'),
@@ -112,6 +122,7 @@ const {
     wizardEditPrefsBtn: document.getElementById('wizardEditPrefsBtn'),
     stepRouteNote: document.getElementById('stepRouteNote'),
     openMapDrawerBtn: document.getElementById('openMapDrawerBtn'),
+    openMapFooterBtn: document.getElementById('openMapFooterBtn'),
     closeMapDrawerBtn: document.getElementById('closeMapDrawerBtn'),
     mapDrawer: document.getElementById('mapDrawer'),
     mapDrawerBackdrop: document.getElementById('mapDrawerBackdrop'),
@@ -137,6 +148,7 @@ const {
     let routeLine = null;
     let markers = [];
     let mapDrawerLastFocus = null;
+    let mapDrawerFocusTimer = null;
     let mapViewMode = 'route';
     let mapSheetState = 'peek';
     let draggedCityIndex = null;
@@ -151,6 +163,9 @@ const {
     let removeUndoTimer = null;
     let toastHideTimer = null;
     let toastRemoveTimer = null;
+    let movingDayNodeId = null;
+    let moveDayLastFocus = null;
+    let savedTripsLastFocus = null;
 
     const WIZARD_PANEL_ENTER_MS = 220;
     const CITY_CARD_ENTER_MS = 180;
@@ -166,6 +181,10 @@ const {
       mergePoiMeta,
       escapeHtml,
       parseTimeRange,
+      sortItineraryItems,
+      hasExplicitClockTime,
+      buildDoorToDoorTime,
+      buildHotelCheckInTime,
       parsePriceValue,
       normalizeSegKey,
       optionMatchesDirection,
@@ -226,10 +245,30 @@ let draggedDraftNodeId = null;
       return Array.from(document.querySelectorAll('[data-step-panel]'));
     }
 
+    function setWizardPanelAvailability(panel, isActive) {
+      panel.inert = !isActive;
+      panel.setAttribute('aria-hidden', isActive ? 'false' : 'true');
+      if (!isActive) panel.hidden = true;
+    }
+
     function settleWizardPanels(targetPanel) {
       getWizardPanels().forEach(panel => {
-        panel.hidden = panel !== targetPanel;
+        const active = panel === targetPanel;
+        panel.hidden = !active;
+        panel.inert = !active;
+        panel.setAttribute('aria-hidden', active ? 'false' : 'true');
         panel.classList.remove('is-entering', 'is-exiting');
+      });
+    }
+
+    function focusWizardPanel(step) {
+      const panel = getWizardPanels().find(item => Number(item.dataset.stepPanel) === Number(step));
+      const heading = panel?.querySelector('.wizard-panel-header h2');
+      if (!heading) return;
+      if (!heading.hasAttribute('tabindex')) heading.tabIndex = -1;
+      window.requestAnimationFrame(() => {
+        if (state.wizardStep !== Number(step) || panel.hidden) return;
+        try { heading.focus({ preventScroll: true }); } catch (_) { heading.focus(); }
       });
     }
 
@@ -264,13 +303,17 @@ let draggedDraftNodeId = null;
 
       panels.forEach(panel => {
         if (panel !== visiblePanel && panel !== targetPanel) {
-          panel.hidden = true;
+          setWizardPanelAvailability(panel, false);
           panel.classList.remove('is-entering', 'is-exiting');
         }
       });
+      visiblePanel.inert = true;
+      visiblePanel.setAttribute('aria-hidden', 'true');
       visiblePanel.classList.remove('is-entering');
       visiblePanel.classList.add('is-exiting');
       targetPanel.hidden = false;
+      targetPanel.inert = false;
+      targetPanel.setAttribute('aria-hidden', 'false');
       targetPanel.classList.remove('is-exiting');
       targetPanel.classList.add('is-entering');
 
@@ -280,7 +323,7 @@ let draggedDraftNodeId = null;
       });
       wizardPanelMotionTimer = window.setTimeout(() => {
         if (token !== wizardPanelMotionToken) return;
-        visiblePanel.hidden = true;
+        setWizardPanelAvailability(visiblePanel, false);
         visiblePanel.classList.remove('is-exiting');
         targetPanel.classList.remove('is-entering');
         wizardPanelMotionTimer = null;
@@ -392,8 +435,8 @@ let draggedDraftNodeId = null;
         }
         if (!allowed && state.routeShape === 'round_trip') {
           state.routeShape = 'one_way';
-          setActiveByValue(el.routeShapeGroup, 'one_way');
         }
+        setActiveByValue(el.routeShapeGroup, state.routeShape || 'one_way');
       }
       if (el.routeShapeHelp) {
         el.routeShapeHelp.textContent = allowed
@@ -575,12 +618,21 @@ let draggedDraftNodeId = null;
       swapWizardPanel(state.wizardStep);
       document.querySelectorAll('.wizard-step').forEach(btn => {
         const step = Number(btn.dataset.step);
-        const allowed = Wizard.canEnterStep(step, flags);
-        btn.classList.toggle('is-active', step === state.wizardStep);
-        btn.classList.toggle('is-locked', !allowed);
-        btn.disabled = !allowed;
-        btn.setAttribute('aria-disabled', allowed ? 'false' : 'true');
-        if (!allowed) {
+        const stepState = Wizard.wizardStepState
+          ? Wizard.wizardStepState(step, state.wizardStep, flags)
+          : {
+              active: step === state.wizardStep,
+              complete: step < state.wizardStep,
+              locked: !Wizard.canEnterStep(step, flags)
+            };
+        btn.classList.toggle('is-active', stepState.active);
+        btn.classList.toggle('is-complete', stepState.complete);
+        btn.classList.toggle('is-locked', stepState.locked);
+        btn.disabled = stepState.locked;
+        btn.setAttribute('aria-disabled', stepState.locked ? 'true' : 'false');
+        if (stepState.active) btn.setAttribute('aria-current', 'step');
+        else btn.removeAttribute('aria-current');
+        if (stepState.locked) {
           btn.title = step === 2
             ? '请先完成路线设置'
             : step === 3
@@ -652,6 +704,7 @@ let draggedDraftNodeId = null;
       }
       state.wizardStep = target;
       renderWizardChrome();
+      focusWizardPanel(target);
       window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
     }
 
@@ -721,6 +774,51 @@ let draggedDraftNodeId = null;
       }
     }
 
+    function setMapBackgroundInert(isInert) {
+      ['.topbar', '.wizard-shell'].forEach(selector => {
+        const node = document.querySelector(selector);
+        if (!node) return;
+        node.inert = isInert;
+        if (isInert) node.setAttribute('aria-hidden', 'true');
+        else node.removeAttribute('aria-hidden');
+      });
+    }
+
+    function mapDrawerFocusableElements() {
+      if (!el.mapDrawer) return [];
+      const selector = [
+        'button:not([disabled])',
+        'a[href]',
+        'input:not([disabled])',
+        'select:not([disabled])',
+        'textarea:not([disabled])',
+        '[tabindex]:not([tabindex="-1"])'
+      ].join(',');
+      return Array.from(el.mapDrawer.querySelectorAll(selector)).filter(node => (
+        !node.hidden && node.getAttribute('aria-hidden') !== 'true' && node.offsetParent !== null
+      ));
+    }
+
+    function trapMapDrawerFocus(event) {
+      if (!state.mapDrawerOpen || event.key !== 'Tab') return;
+      const focusable = mapDrawerFocusableElements();
+      if (!focusable.length) {
+        event.preventDefault();
+        el.closeMapDrawerBtn?.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey && (active === first || !el.mapDrawer.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (active === last || !el.mapDrawer.contains(active))) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
     function openMapDrawer(itemId) {
       state.mapDrawerOpen = true;
       mapViewMode = itemId ? 'place' : 'route';
@@ -739,11 +837,15 @@ let draggedDraftNodeId = null;
         el.mapDrawer.hidden = false;
         el.mapDrawer.setAttribute('aria-hidden', 'false');
       }
+      setMapBackgroundInert(true);
       document.body.classList.add('map-drawer-open');
       ensureMap();
       syncMapControls();
       renderMap();
-      setTimeout(() => {
+      if (mapDrawerFocusTimer) window.clearTimeout(mapDrawerFocusTimer);
+      mapDrawerFocusTimer = window.setTimeout(() => {
+        mapDrawerFocusTimer = null;
+        if (!state.mapDrawerOpen) return;
         if (map) {
           map.invalidateSize();
           const focusId = state.mapFocusItemId || state.activeItemId;
@@ -755,6 +857,8 @@ let draggedDraftNodeId = null;
     }
 
     function closeMapDrawer() {
+      state.cancelPointPicker?.();
+      state.cancelPointPicker = null;
       state.mapDrawerOpen = false;
       state.mapFocusItemId = null;
       mapViewMode = 'route';
@@ -763,11 +867,18 @@ let draggedDraftNodeId = null;
         el.mapDrawer.hidden = true;
         el.mapDrawer.setAttribute('aria-hidden', 'true');
       }
+      if (mapDrawerFocusTimer) {
+        window.clearTimeout(mapDrawerFocusTimer);
+        mapDrawerFocusTimer = null;
+      }
+      setMapBackgroundInert(false);
       document.body.classList.remove('map-drawer-open');
       const restore = mapDrawerLastFocus;
       mapDrawerLastFocus = null;
       if (restore && typeof restore.focus === 'function' && document.contains(restore)) {
         restore.focus();
+      } else {
+        el.openMapDrawerBtn?.focus();
       }
     }
 
@@ -918,13 +1029,15 @@ let draggedDraftNodeId = null;
 
     function removeCityWithUndo(index) {
       const previousOrigin = Wizard.getOriginName?.(state.cities) || '';
+      const previousRouteShape = state.routeShape || 'one_way';
       const removed = Wizard.removeCityAt(state.cities, index);
       if (!removed.removed) return;
       state.cities = removed.cities;
       state.recentlyRemovedCity = {
         city: removed.removed,
         index: removed.index,
-        previousOrigin
+        previousOrigin,
+        previousRouteShape
       };
       if (removeUndoTimer) {
         window.clearTimeout(removeUndoTimer);
@@ -947,6 +1060,7 @@ let draggedDraftNodeId = null;
           if (!state.recentlyRemovedCity) return;
           const payload = state.recentlyRemovedCity;
           state.cities = Wizard.restoreCityAt(state.cities, payload.city, payload.index);
+          state.routeShape = Wizard.routeShapeAfterCityRestore(payload.previousRouteShape, state.cities);
           state.recentlyRemovedCity = null;
           if (removeUndoTimer) {
             window.clearTimeout(removeUndoTimer);
@@ -1026,6 +1140,7 @@ let draggedDraftNodeId = null;
         button.classList.toggle('is-active', active);
         if (button.getAttribute('role') === 'radio') {
           button.setAttribute('aria-checked', active ? 'true' : 'false');
+          button.tabIndex = active ? 0 : -1;
         }
       });
     }
@@ -1250,20 +1365,57 @@ let draggedDraftNodeId = null;
       }).join('');
     }
 
-    function setSavedTripsPanelOpen(isOpen) {
+    function closeCompetingTopbarPanels(exceptPanel) {
+      [
+        [el.savedTripsBtn, el.savedTripsPanel],
+        [el.exportMenuBtn, el.exportMenuPanel],
+        [el.mobileMoreBtn, el.mobileMorePanel]
+      ].forEach(([button, panel]) => {
+        if (!button || !panel || panel === exceptPanel) return;
+        panel.hidden = true;
+        button.setAttribute('aria-expanded', 'false');
+        if (panel === el.savedTripsPanel) savedTripsLastFocus = null;
+      });
+    }
+
+    function setSavedTripsPanelOpen(isOpen, focusFirst = false, returnFocus = el.savedTripsBtn) {
       if (!el.savedTripsBtn || !el.savedTripsPanel) return;
-      if (isOpen) renderSavedTripsPanel();
+      if (isOpen) {
+        savedTripsLastFocus = returnFocus;
+        closeCompetingTopbarPanels(el.savedTripsPanel);
+        renderSavedTripsPanel();
+      }
       el.savedTripsPanel.hidden = !isOpen;
       el.savedTripsBtn.setAttribute('aria-expanded', String(isOpen));
+      if (isOpen && focusFirst) {
+        window.requestAnimationFrame(() => {
+          const firstAction = el.savedTripsPanel.querySelector('button:not([disabled])');
+          (firstAction || el.savedTripsPanel).focus();
+        });
+      } else if (!isOpen) {
+        savedTripsLastFocus = null;
+      }
     }
 
-    function setTopbarMenuOpen(button, panel, isOpen) {
+    function topbarMenuItems(panel) {
+      return Array.from(panel.querySelectorAll('[role="menuitem"]')).filter(item => (
+        !item.hidden && !item.disabled
+      ));
+    }
+
+    function setTopbarMenuOpen(button, panel, isOpen, focusFirst = false) {
+      if (isOpen) closeCompetingTopbarPanels(panel);
       panel.hidden = !isOpen;
       button.setAttribute('aria-expanded', String(isOpen));
+      if (isOpen && focusFirst) {
+        window.requestAnimationFrame(() => topbarMenuItems(panel)[0]?.focus());
+      }
     }
 
-    function runTopbarAction(action) {
-      if (action === 'saved-trips' && el.savedTripsBtn) el.savedTripsBtn.click();
+    function runTopbarAction(action, returnFocus) {
+      if (action === 'saved-trips' && el.savedTripsPanel) {
+        setSavedTripsPanelOpen(true, true, returnFocus || el.savedTripsBtn);
+      }
       else if (action === 'copy') copyPlan();
       else if (action === 'export-image') exportLongImage();
       else if (action === 'export-overview') exportOverviewImage();
@@ -1278,13 +1430,42 @@ let draggedDraftNodeId = null;
       if (!button || !panel || !wrap) return;
       button.addEventListener('click', event => {
         event.stopPropagation();
-        setTopbarMenuOpen(button, panel, panel.hidden);
+        const opening = panel.hidden;
+        setTopbarMenuOpen(button, panel, opening, opening);
+      });
+      button.addEventListener('keydown', event => {
+        if (event.key !== 'ArrowDown') return;
+        event.preventDefault();
+        setTopbarMenuOpen(button, panel, true, true);
       });
       panel.addEventListener('click', event => {
         const actionButton = event.target.closest('[data-action]');
         if (!actionButton) return;
         setTopbarMenuOpen(button, panel, false);
-        runTopbarAction(actionButton.dataset.action);
+        runTopbarAction(actionButton.dataset.action, button);
+      });
+      panel.addEventListener('keydown', event => {
+        const items = topbarMenuItems(panel);
+        if (!items.length) return;
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          setTopbarMenuOpen(button, panel, false);
+          button.focus();
+          return;
+        }
+        if (event.key === 'Tab') {
+          setTopbarMenuOpen(button, panel, false);
+          return;
+        }
+        if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        const current = Math.max(0, items.indexOf(document.activeElement));
+        let next = current;
+        if (event.key === 'Home') next = 0;
+        else if (event.key === 'End') next = items.length - 1;
+        else if (event.key === 'ArrowDown') next = (current + 1) % items.length;
+        else next = (current - 1 + items.length) % items.length;
+        items[next].focus();
       });
       document.addEventListener('pointerdown', event => {
         if (panel.hidden || wrap.contains(event.target)) return;
@@ -1391,13 +1572,69 @@ let draggedDraftNodeId = null;
       return `从 ${from} 到达 · 仅途经`;
     }
 
+    function transportDisplayName(value) {
+      if (value === 'train') return '高铁';
+      if (value === 'plane') return '飞机';
+      if (value === 'driving') return '自驾';
+      return '智能推荐';
+    }
+
+    function renderRouteOverview() {
+      if (!el.routeOverview) return;
+      const cities = Array.isArray(state.cities) ? state.cities : [];
+      if (!cities.length) {
+        el.routeOverview.innerHTML = '<p class="route-overview-empty">添加城市后，这里会形成清晰的路线顺序。</p>';
+        return;
+      }
+      const parts = [];
+      cities.forEach((city, index) => {
+        const cityName = escapeHtml(cleanMetaValue(city.name));
+        const stayLabel = city.plan_stay === true
+          ? `${Number(city.days) || 1} 天`
+          : (index === 0 ? '仅过境' : '途经');
+        parts.push(`
+          <div class="route-overview-node">
+            <span class="route-overview-index">${String(index + 1).padStart(2, '0')}</span>
+            <strong>${cityName}</strong>
+            <small>${escapeHtml(stayLabel)}</small>
+          </div>
+        `);
+        const nextCity = cities[index + 1];
+        if (nextCity) {
+          parts.push(`
+            <div class="route-overview-segment" aria-label="${cityName} 到 ${escapeHtml(cleanMetaValue(nextCity.name))}，${transportDisplayName(nextCity.transport)}">
+              <span aria-hidden="true"></span>
+              <em>${transportDisplayName(nextCity.transport)}</em>
+            </div>
+          `);
+        }
+      });
+      el.routeOverview.innerHTML = `
+        <div class="route-overview-heading">
+          <span>当前路线</span>
+          <strong>${escapeHtml(Wizard.routeLabel ? Wizard.routeLabel(cities, state.routeShape) : cities.map(city => city.name).join(' → '))}</strong>
+        </div>
+        <div class="route-overview-track">${parts.join('')}</div>
+      `;
+    }
+
     function renderCities() {
       state.cities = state.cities.map((city, index) => normalizeCityEntry(city, index));
+      syncRouteShapeControls();
       const previousCityNames = hasRenderedCities ? renderedCityNames : [];
       const addedCityNames = hasRenderedCities
         ? Wizard.findAddedCityNames(previousCityNames, state.cities)
         : [];
-      el.cityList.innerHTML = '';
+      el.cityList.innerHTML = `
+        <div class="city-list-head" aria-hidden="true">
+          <span>序号</span>
+          <span>城市</span>
+          <span>停留角色</span>
+          <span>游玩天数</span>
+          <span>抵达段与交通方式</span>
+          <span>排序 / 操作</span>
+        </div>
+      `;
       state.cities.forEach((city, index) => {
         const cityName = cleanMetaValue(city.name);
         const cityNameHtml = escapeHtml(cityName);
@@ -1430,7 +1667,7 @@ let draggedDraftNodeId = null;
           : `${cityName} 到达方式`;
         card.innerHTML = `
           <div class="city-card-rail">
-            <span class="city-drag-handle" data-drag-handle="1" role="button" tabindex="0" aria-label="拖拽排序 ${cityNameHtml}" title="拖拽排序">⋮⋮</span>
+            <span class="city-drag-handle" data-drag-handle="1" aria-hidden="true" title="拖拽排序">⋮⋮</span>
             <div class="city-index">${String(index + 1).padStart(2, '0')}</div>
           </div>
           <div class="city-card-body">
@@ -1448,7 +1685,9 @@ let draggedDraftNodeId = null;
             <div class="city-controls">
               <label class="city-plan-stay">
                 <input type="checkbox" class="city-plan-stay-input" data-index="${index}" ${planStay ? 'checked' : ''}>
-                <span>${isOrigin ? '在出发地游玩' : '安排游玩'}</span>
+                <span>${isOrigin
+                  ? (planStay ? '出发地游玩' : '仅过境')
+                  : (planStay ? '游玩城市' : '仅途经')}</span>
               </label>
               <label class="city-days-label">
                 <span>游玩天数</span>
@@ -1481,6 +1720,7 @@ let draggedDraftNodeId = null;
       renderedCityNames = state.cities.map(city => city.name);
       hasRenderedCities = true;
       syncAddCityButtonState();
+      renderRouteOverview();
       renderWizardChrome();
     }
 
@@ -1530,6 +1770,15 @@ let draggedDraftNodeId = null;
           summary.dateLabel || ''
         ].filter(Boolean).join(' · ');
       }
+      if (el.prefsSummaryRoute) el.prefsSummaryRoute.textContent = summary.route || '未设置路线';
+      if (el.prefsSummaryMeta) {
+        el.prefsSummaryMeta.textContent = [
+          state.pace,
+          state.budget,
+          transportDisplayName(state.globalTransport)
+        ].filter(Boolean).join(' · ');
+      }
+      if (el.resultsFooterRoute) el.resultsFooterRoute.textContent = summary.route || '未设置路线';
       // Keep summary rail in sync with enhanced meta.
       if (el.wizardSummaryRoute) el.wizardSummaryRoute.textContent = summary.route;
       if (el.wizardSummaryMeta) el.wizardSummaryMeta.textContent = summary.meta;
@@ -1544,12 +1793,15 @@ let draggedDraftNodeId = null;
         el.mapEmpty.style.display = 'grid';
         return;
       }
-      map = window.AeroTravelMap.createMap('map', [39.9042, 116.4074], 12);
+      map = window.AeroTravelMap.createMap('map', [39.905603, 116.413642], 12);
+      map.getContainer().addEventListener('aerotravel:basemapchange', () => {
+        if (state.mapDrawerOpen) renderMap();
+      });
     }
 
     function toMapLatLng(point) {
       return window.AeroTravelMap?.toMapLatLng
-        ? window.AeroTravelMap.toMapLatLng(point)
+        ? window.AeroTravelMap.toMapLatLng(point, map)
         : point;
     }
 
@@ -1827,7 +2079,30 @@ let draggedDraftNodeId = null;
         if (!fromCity && dayIndex === 0 && origin && firstPlay && day.city === firstPlay && origin !== firstPlay) {
           fromCity = origin;
         }
-        if (fromCity && fromCity !== day.city) {
+        const scheduledTransfers = Array.isArray(day.transfers) ? day.transfers : [];
+        if (scheduledTransfers.length) {
+          scheduledTransfers.forEach((transfer, transferIndex) => {
+            const toCity = transfer.to_city || day.city;
+            const transferFromCity = transfer.from_city || fromCity || '';
+            const center = getCenter(toCity);
+            items.push({
+              id: 'day-' + day.day + '-transport-' + transferIndex,
+              type: 'transport',
+              time: transfer.time || '待确认',
+              fromCity: transferFromCity,
+              title: (transfer.is_return ? '环线回程：' : '城际转场：') + (transfer.segment || (transferFromCity + ' → ' + toCity)),
+              desc: transfer.option_id
+                ? ('系统推荐 ' + transfer.option_id + '（初始排程依据）；运行时段 ' + (transfer.vehicle_time || '待确认') + '，时间线按门到门窗口计算。')
+                : (day.route || '请按门到门窗口预留接驳与缓冲。'),
+              duration: transfer.duration || '跨城交通',
+              optionId: transfer.option_id || '',
+              vehicleTime: transfer.vehicle_time || '',
+              lat: center.lat,
+              lng: center.lng,
+              city: toCity
+            });
+          });
+        } else if (fromCity && fromCity !== day.city) {
           const center = getCenter(day.city);
           items.push({
             id: `day-${day.day}-transport`,
@@ -1848,10 +2123,12 @@ let draggedDraftNodeId = null;
           items.push({
             id: `day-${day.day}-food`,
             type: 'food',
-            time: '12:30',
+            time: day.lunch_time || '12:30',
             title: `风味美食：${day.food.join('、')}`,
             desc: day.evening || `安排${day.city}本地特色餐食。`,
-            duration: '1.5 小时',
+            duration: day.lunch_duration_minutes
+              ? (day.lunch_duration_minutes + ' 分钟')
+              : '1.5 小时',
             lat: center.lat + 0.012,
             lng: center.lng - 0.012,
             city: day.city
@@ -1863,7 +2140,7 @@ let draggedDraftNodeId = null;
           items.push({
             id: `day-${day.day}-hotel`,
             type: 'hotel',
-            time: '20:00',
+            time: buildHotelCheckInTime(items),
             title: `住宿区域：${day.stay}`,
             desc: `优先选择地铁、火车站或次日路线方便的位置。`,
             duration: '过夜',
@@ -1881,16 +2158,24 @@ let draggedDraftNodeId = null;
     function toItem(day, spot, index, slot, poisByName = new Map()) {
       const center = getCenter(day.city);
       const poi = poisByName.get(spot.name) || {};
+      const localTransfer = spot.transfer_from_previous || {};
+      const localTransferMinutes = Number(localTransfer.minutes) || 0;
       return {
         id: `day-${day.day}-${slot}-${index}`,
         type: 'experience',
         time: spot.time || (slot === 'morning' ? (index ? '11:00' : '09:30') : (index ? '16:00' : '14:00')),
         title: spot.name,
         desc: spot.desc || '根据地理位置和节奏安排的核心游览点。',
-        duration: spot.tips || '2 小时',
+        duration: Number(spot.duration_minutes) > 0
+          ? (Number(spot.duration_minutes) + ' 分钟')
+          : (spot.tips || '2 小时'),
+        travelFromPrevious: localTransferMinutes
+          ? ('从上一站约 ' + localTransferMinutes + ' 分钟'
+            + (Number(localTransfer.distance_km) > 0 ? (' · ' + localTransfer.distance_km + ' km') : ''))
+          : '',
         lat: Number(spot.lat) || Number(poi.lat) || center.lat + (index - 0.5) * 0.015,
         lng: Number(spot.lng) || Number(poi.lng) || center.lng + (index ? 0.018 : -0.018),
-        city: day.city,
+        city: spot.city || day.city,
         ...mergePoiMeta(spot, poi)
       };
     }
@@ -1899,9 +2184,14 @@ let draggedDraftNodeId = null;
       const segment = findSegment(item.fromCity, item.city);
       const option = selectedOption(segment);
       if (!option) return { time: item.time, extra: '' };
+      const doorToDoor = option.door_to_door_time
+        || option.schedule?.door_to_door_time
+        || buildDoorToDoorTime(option.time, segment?.tool);
       return {
-        time: option.time || item.time,
-        extra: option.id ? `已选 ${option.id}` : ''
+        time: doorToDoor || option.time || item.time,
+        extra: option.id
+          ? ('已选 ' + option.id + (doorToDoor && option.time ? (' · 运行 ' + option.time) : ''))
+          : ''
       };
     }
 
@@ -1910,14 +2200,16 @@ let draggedDraftNodeId = null;
       const ranges = [];
       (day.items || []).forEach(item => {
         const timeStr = item.type === 'transport' ? transportDisplay(item).time : item.time;
+        if (!hasExplicitClockTime(timeStr)) return;
         const range = parseTimeRange(timeStr);
         if (!range) return;
-        ranges.push({ id: item.id, start: range[0], end: range[1] });
+        ranges.push({ id: item.id, type: item.type, start: range[0], end: range[1] });
       });
       for (let i = 0; i < ranges.length; i += 1) {
         for (let j = i + 1; j < ranges.length; j += 1) {
           const a = ranges[i];
           const b = ranges[j];
+          if (a.type !== 'transport' && b.type !== 'transport') continue;
           if (a.start < b.end && b.start < a.end) {
             conflicted.add(a.id);
             conflicted.add(b.id);
@@ -1980,6 +2272,13 @@ let draggedDraftNodeId = null;
             items.push({ level: 'warn', message: `Day ${day.day}：${item.fromCity} → ${item.city} 未匹配到交通段。` });
           }
         });
+        const conflictedItems = checkDayConflicts(day);
+        if (conflictedItems.size) {
+          items.push({
+            level: 'error',
+            message: `Day ${day.day}：有 ${conflictedItems.size} 个节点与当前所选交通的门到门窗口重叠，请改选班次或调整景点。`
+          });
+        }
       });
 
       guide.forEach(segment => {
@@ -1992,6 +2291,9 @@ let draggedDraftNodeId = null;
         }
         if (segment.data_source === 'reference') {
           items.push({ level: 'warn', message: `${segment.segment}：典型参考数据不代表实时余票或票价。` });
+        }
+        if (segment.data_source === 'road_provider') {
+          items.push({ level: 'warn', message: `${segment.segment}：道路耗时为高德路径参考，出发前需按实时路况复核。` });
         }
       });
 
@@ -2134,9 +2436,13 @@ let draggedDraftNodeId = null;
       state.activeOptimizationController = null;
       state.activeRouteController = null;
       state.cityWeather = plan.city_weather || {};
-      const mappedDays = options.daysAreMapped
+      const rawMappedDays = options.daysAreMapped
         ? JSON.parse(JSON.stringify(plan.days || []))
         : mapPlanToItems(plan);
+      const mappedDays = rawMappedDays.map(day => ({
+        ...day,
+        items: sortItineraryItems(day.items || [])
+      }));
       const tips = (plan.tips || []).slice();
       const rainTips = buildRainWeatherTips(mappedDays);
       rainTips.reverse().forEach(tip => {
@@ -2308,16 +2614,19 @@ let draggedDraftNodeId = null;
     }
 
     function addPlaceFromResult(place, source) {
-      if (!state.workingDraft) return;
+      if (!state.workingDraft) return false;
+      const placeCity = cleanMetaValue(place.city || place.cityname || place.adname);
+      const cityId = findBestCityId(placeCity);
+      const matchedCity = state.workingDraft.city_stops.find(city => city.id === cityId);
       try {
         commitDraft(window.AeroTravelDraftOps.addNode(state.workingDraft, {
           source: source || 'manual',
           name: cleanMetaValue(place.name),
-          city_id: findBestCityId(place.city),
-          city: cleanMetaValue(place.city) || '',
+          city_id: cityId,
+          city: matchedCity?.name || placeCity,
           lat: Number(place.lat) || 0,
           lng: Number(place.lng) || 0,
-          provider_id: cleanMetaValue(place.provider_id),
+          provider_id: cleanMetaValue(place.provider_id || place.id),
           metadata: {
             address: cleanMetaValue(place.address),
             rating: cleanMetaValue(place.rating),
@@ -2326,13 +2635,15 @@ let draggedDraftNodeId = null;
           }
         }));
         showToast('已添加"' + escapeHtml(place.name) + '"到想去清单');
+        return true;
       } catch (e) {
         showToast(e.message || '添加失败', 'error');
+        return false;
       }
     }
 
     function addPlaceFromAmapResult(place) {
-      addPlaceFromResult(place, 'amap_search');
+      return addPlaceFromResult(place, 'amap_search');
     }
 
     function findBestCityId(cityName) {
@@ -2369,23 +2680,111 @@ let draggedDraftNodeId = null;
     }
 
 
-    function addPlaceByName(name) {
-      if (!state.workingDraft) return;
-      const day = state.workingDraft.days.find(d => d.day === state.currentDay);
-      const cityStop = day ? state.workingDraft.city_stops.find(c => c.id === day.primary_city_id) : state.workingDraft.city_stops[0];
-      try {
-        commitDraft(window.AeroTravelDraftOps.addNode(state.workingDraft, {
-          source: 'manual',
-          name: name.trim(),
-          city: cityStop?.name || '',
-          city_id: cityStop?.id || state.workingDraft.city_stops[0]?.id || '',
-          lat: 0,
-          lng: 0
-        }));
-        showToast(`已添加"${escapeHtml(name)}"到想去清单`);
-      } catch (e) {
-        showToast(e.message || '添加失败', 'error');
+    function currentPlaceSearchCity() {
+      if (!state.workingDraft) return '';
+      const day = state.workingDraft.days.find(item => item.day === state.currentDay);
+      const currentStop = day
+        ? state.workingDraft.city_stops.find(city => city.id === day.primary_city_id)
+        : null;
+      if (currentStop?.name) return currentStop.name;
+      const stay = state.workingDraft.city_stops.find(city => Number(city.days) > 0);
+      return stay?.name || state.workingDraft.city_stops[0]?.name || '';
+    }
+
+    function renderPlaceSearchMessage(message, tone = 'hint') {
+      const className = 'place-search-message' + (tone === 'error' ? ' is-error' : '');
+      const role = tone === 'error' ? 'alert' : 'status';
+      el.addPlaceResults.setAttribute('aria-busy', tone === 'loading' ? 'true' : 'false');
+      el.addPlaceResults.innerHTML = '<p class="' + className + '" role="' + role + '">'
+        + escapeHtml(message)
+        + '</p>';
+    }
+
+    function clearPlaceSearchRequest() {
+      window.clearTimeout(state.placeSearchTimer);
+      state.placeSearchTimer = null;
+      state.activePlaceSearchController?.abort();
+      state.activePlaceSearchController = null;
+    }
+
+    function resetPlaceSearch(clearInput = true) {
+      clearPlaceSearchRequest();
+      state.placeSearchResults = [];
+      el.addPlaceResults.removeAttribute('aria-busy');
+      el.addPlaceResults.innerHTML = '';
+      if (clearInput) el.addPlaceQuery.value = '';
+    }
+
+    async function searchPlacesByName(rawQuery) {
+      const query = cleanMetaValue(rawQuery).slice(0, 80);
+      const city = currentPlaceSearchCity();
+      if (query.length < 2) {
+        state.placeSearchResults = [];
+        renderPlaceSearchMessage('请至少输入 2 个字，以匹配地图中的具体地点。');
+        return;
       }
+      if (!city) {
+        renderPlaceSearchMessage('当前日期没有可用于搜索的城市，请先检查行程城市。', 'error');
+        return;
+      }
+
+      clearPlaceSearchRequest();
+      const controller = new AbortController();
+      state.activePlaceSearchController = controller;
+      renderPlaceSearchMessage('正在「' + city + '」搜索高德地图地点…', 'loading');
+      try {
+        const data = await fetchJson(
+          '/api/search_pois?city=' + encodeURIComponent(city)
+            + '&keywords=' + encodeURIComponent(query)
+            + '&count=8',
+          { signal: controller.signal }
+        );
+        if (state.activePlaceSearchController !== controller) return;
+        if (data.status !== 'ok') {
+          throw new Error(cleanMetaValue(data.info) || '高德地图地点搜索失败');
+        }
+        const places = window.AeroTravelEditor.normalizePlaceSearchResults(data.pois, city);
+        state.placeSearchResults = places;
+        el.addPlaceResults.setAttribute('aria-busy', 'false');
+        if (!places.length) {
+          renderPlaceSearchMessage('没有找到带地图坐标的候选地点，请换个名称或从地图选点。');
+          return;
+        }
+        el.addPlaceResults.innerHTML = window.AeroTravelEditor.renderPlaceSearchResults(
+          places,
+          escapeHtml
+        );
+      } catch (error) {
+        if (error.name === 'AbortError') return;
+        state.placeSearchResults = [];
+        renderPlaceSearchMessage(
+          error.message || '地图地点搜索暂不可用，请稍后重试或从地图选点。',
+          'error'
+        );
+      } finally {
+        if (state.activePlaceSearchController === controller) {
+          state.activePlaceSearchController = null;
+          el.addPlaceResults.setAttribute('aria-busy', 'false');
+        }
+      }
+    }
+
+    function schedulePlaceSearch() {
+      const query = el.addPlaceQuery.value.trim().slice(0, 80);
+      const city = currentPlaceSearchCity();
+      clearPlaceSearchRequest();
+      state.placeSearchResults = [];
+      if (query.length < 2) {
+        renderPlaceSearchMessage(
+          '输入至少 2 个字，将在「' + (city || '当前城市') + '」提示地图地点。'
+        );
+        return;
+      }
+      renderPlaceSearchMessage('将自动搜索「' + city + '」的地图地点…');
+      state.placeSearchTimer = window.setTimeout(() => {
+        state.placeSearchTimer = null;
+        void searchPlacesByName(query);
+      }, 280);
     }
 
 
@@ -2547,8 +2946,9 @@ let draggedDraftNodeId = null;
       const days = state.workingDraft.days || [];
       el.draftDayTabs.innerHTML = days.map(day => {
         const cityStop = state.workingDraft.city_stops.find(c => c.id === day.primary_city_id);
+        const active = day.day === state.currentDay;
         return `
-        <button class="day-tab ${day.day === state.currentDay ? 'is-active' : ''}" type="button" data-draft-day="${day.day}">
+        <button class="day-tab ${active ? 'is-active' : ''}" type="button" data-draft-day="${day.day}" aria-pressed="${active ? 'true' : 'false'}">
           Day ${day.day}<small>${escapeHtml(cityStop?.name || '')}</small>
         </button>
       `;
@@ -2602,8 +3002,84 @@ let draggedDraftNodeId = null;
       el.draftActionBar.hidden = false;
       el.undoAppliedBtn.hidden = !state.appliedUndo;
       const pastCount = state.draftHistory?.past?.length || 0;
+      const futureCount = state.draftHistory?.future?.length || 0;
+      el.undoDraftBtn.disabled = pastCount === 0;
+      el.redoDraftBtn.disabled = futureCount === 0;
       el.draftStatus.textContent = pastCount ? `${pastCount} 处修改尚未应用` : '没有未应用修改';
       renderCandidatePanel();
+    }
+
+    function closeMoveDayDialog(fallbackFocus) {
+      const restoreTarget = moveDayLastFocus && document.contains(moveDayLastFocus)
+        ? moveDayLastFocus
+        : fallbackFocus;
+      movingDayNodeId = null;
+      if (el.moveDayDialog?.open) el.moveDayDialog.close();
+      if (restoreTarget && document.contains(restoreTarget)) {
+        restoreTarget.focus();
+      }
+      moveDayLastFocus = null;
+    }
+
+    function openMoveDayDialog(nodeId, trigger) {
+      const draft = state.workingDraft;
+      const currentDay = draft?.days?.find(day => day.day === state.currentDay);
+      if (!draft || !currentDay || !el.moveDayDialog || !el.moveDaySelect) return;
+
+      const otherDays = draft.days.filter(day => day.id !== currentDay.id);
+      if (!otherDays.length) {
+        showToast('当前行程没有其他可移动日期。', 'error');
+        return;
+      }
+
+      const cityById = new Map((draft.city_stops || []).map(city => [city.id, city.name]));
+      el.moveDaySelect.replaceChildren();
+      otherDays.forEach(day => {
+        const option = document.createElement('option');
+        option.value = day.id;
+        const cityName = cityById.get(day.primary_city_id) || '';
+        option.textContent = `第 ${day.day} 天${cityName ? ` · ${cityName}` : ''}`;
+        el.moveDaySelect.append(option);
+      });
+
+      movingDayNodeId = nodeId;
+      moveDayLastFocus = trigger || document.activeElement;
+      el.moveDayDialog.showModal();
+      el.moveDaySelect.focus();
+    }
+
+    function submitMoveDay(event) {
+      event.preventDefault();
+      const draft = state.workingDraft;
+      const nodeId = movingDayNodeId;
+      const targetDayId = el.moveDaySelect?.value;
+      if (!draft || !nodeId || !targetDayId) return;
+
+      const node = draft.nodes.find(item => item.id === nodeId);
+      const target = draft.days.find(day => day.id === targetDayId);
+      if (!target) {
+        showToast('目标日期已变化，请重新选择。', 'error');
+        closeMoveDayDialog();
+        return;
+      }
+      if (node && node.city_id !== target.primary_city_id
+        && !window.confirm('该地点属于其他城市，是否将这一天标记为跨城日？')) {
+        return;
+      }
+
+      try {
+        commitDraft(window.AeroTravelDraftOps.moveNode(
+          draft,
+          nodeId,
+          target.id,
+          target.node_ids.length
+        ));
+        const targetDayTab = el.draftDayTabs?.querySelector(`[data-draft-day="${target.day}"]`);
+        closeMoveDayDialog(targetDayTab || el.itineraryEditor);
+        showToast(`已移动到第 ${target.day} 天。`);
+      } catch (error) {
+        showToast(error.message || '移动失败', 'error');
+      }
     }
 
     function handleDraftListAction(event) {
@@ -2638,19 +3114,7 @@ let draggedDraftNodeId = null;
           commitDraft(window.AeroTravelDraftOps.moveNode(state.workingDraft, nodeId, day.id, target));
         }
       } else if (button.dataset.action === 'move-day') {
-        const day = state.workingDraft.days.find(d => d.day === state.currentDay);
-        if (!day) return;
-        const node = state.workingDraft.nodes.find(n => n.id === nodeId);
-        const otherDays = state.workingDraft.days.filter(d => d.id !== day.id);
-        const dayNames = otherDays.map(d => `Day ${d.day}`).join(', ');
-        const targetDay = window.prompt(`移动到哪个日期？可选: ${dayNames}`, '');
-        if (!targetDay) return;
-        const target = otherDays.find(d => String(d.day) === targetDay.trim());
-        if (!target) { showToast('无效的日期选择', 'error'); return; }
-        if (node && node.city_id !== target.primary_city_id) {
-          if (!window.confirm('该地点属于其他城市，是否将这一天标记为跨城日？')) return;
-        }
-        commitDraft(window.AeroTravelDraftOps.moveNode(state.workingDraft, nodeId, target.id, target.node_ids.length));
+        openMoveDayDialog(nodeId, button);
       }
     }
 
@@ -2717,23 +3181,42 @@ let draggedDraftNodeId = null;
       el.metricStops.textContent = days.reduce((sum, day) => sum + day.items.length, 0);
       updateHeaderMeta();
 
-      el.dayTabs.innerHTML = days.map(day => {
-        const cast = weatherForDay(day);
-        const weatherHtml = cast
-          ? `<small class="day-weather">${escapeHtml(cast.dayweather)} ${escapeHtml(cast.nighttemp)}~${escapeHtml(cast.daytemp)}℃</small>`
-          : '';
-        return `
-        <button class="day-tab ${day.day === state.currentDay ? 'is-active' : ''}" type="button" data-day="${day.day}">
-          Day ${day.day}<small>${escapeHtml(day.city)}</small>${weatherHtml}
-        </button>
-      `;
-      }).join('');
+      const dayGroups = days.reduce((groups, day) => {
+        const city = cleanMetaValue(day.city) || '未命名城市';
+        const previous = groups.at(-1);
+        if (previous && previous.city === city) previous.days.push(day);
+        else groups.push({ city, days: [day] });
+        return groups;
+      }, []);
+      el.dayTabs.innerHTML = dayGroups.map(group => `
+        <section class="day-city-group" aria-label="${escapeHtml(group.city)}行程日期">
+          <div class="day-city-label">${escapeHtml(group.city)}</div>
+          <div class="day-city-buttons">
+            ${group.days.map(day => {
+              const cast = weatherForDay(day);
+              const weatherHtml = cast
+                ? `<small class="day-weather">${escapeHtml(cast.dayweather)} ${escapeHtml(cast.nighttemp)}~${escapeHtml(cast.daytemp)}℃</small>`
+                : '';
+              return `
+                <button class="day-tab ${day.day === state.currentDay ? 'is-active' : ''}" type="button" data-day="${day.day}">
+                  <span>Day ${day.day}</span>${weatherHtml}
+                </button>
+              `;
+            }).join('')}
+          </div>
+        </section>
+      `).join('');
 
       if (el.dayMapHint) {
         const hint = Wizard.dayMapHintLabel ? Wizard.dayMapHintLabel(current) : '';
         if (hint) {
           el.dayMapHint.hidden = false;
-          el.dayMapHint.innerHTML = `<button class="day-map-hint-btn" type="button" data-open-map-day="${current.day}">${escapeHtml(hint)}</button>`;
+          el.dayMapHint.innerHTML = `
+            <button class="day-map-hint-btn" type="button" data-open-map-day="${current.day}">
+              <strong>Day ${current.day} · ${escapeHtml(current.city)}</strong>
+              <span>${escapeHtml(hint)}</span>
+            </button>
+          `;
         } else {
           el.dayMapHint.hidden = true;
           el.dayMapHint.innerHTML = '';
@@ -2744,7 +3227,10 @@ let draggedDraftNodeId = null;
         button.classList.toggle('is-active', button.dataset.filter === state.currentFilter);
       });
 
-      const visibleItems = current.items.filter(item => state.currentFilter === 'all' || item.type === state.currentFilter);
+      const visibleItems = sortItineraryItems(
+        current.items.filter(item => state.currentFilter === 'all' || item.type === state.currentFilter),
+        item => item.type === 'transport' ? transportDisplay(item).time : item.time
+      );
       const conflicts = checkDayConflicts(current);
       const hasCoordsFn = typeof itemHasMapCoords === 'function'
         ? itemHasMapCoords
@@ -2759,6 +3245,7 @@ let draggedDraftNodeId = null;
         const metaParts = [
           item.city ? `<span>${escapeHtml(item.city)}</span>` : '',
           item.duration ? `<span>${escapeHtml(item.duration)}</span>` : '',
+          item.travelFromPrevious ? `<span>${escapeHtml(item.travelFromPrevious)}</span>` : '',
           item.rating ? `<span>评分 ${escapeHtml(item.rating)}</span>` : '',
           display.extra ? `<span class="card-meta-extra">${escapeHtml(display.extra)}</span>` : ''
         ].filter(Boolean);
@@ -2767,7 +3254,7 @@ let draggedDraftNodeId = null;
               '<span class="card-meta-sep" aria-hidden="true">·</span>'
             )}</div>`
           : '';
-        // Layout: [marker+time | card]. Card is a div so map button can nest safely.
+        // Layout: [marker+time | card]. Selection and map actions are sibling controls.
         return `
         <article class="timeline-item ${item.id === state.activeItemId ? 'is-active' : ''}">
           <div class="timeline-marker" aria-hidden="true">
@@ -2775,14 +3262,16 @@ let draggedDraftNodeId = null;
             <span class="item-time">${timeLabel}</span>
           </div>
           <div class="itinerary-card-shell ${item.id === state.activeItemId ? 'is-active' : ''}">
-            <div class="itinerary-card ${item.id === state.activeItemId ? 'is-active' : ''}" role="button" tabindex="0" data-item="${item.id}" aria-label="${timeLabel} ${escapeHtml(item.title)}">
+            <div class="itinerary-card ${item.id === state.activeItemId ? 'is-active' : ''}" data-item="${item.id}">
               <div class="card-top">
                 <div class="card-heading">
                   <div class="card-kicker">
                     <span class="badge ${item.type === 'transport' ? 'badge-accent' : ''}">${normalizeType(item.type)}</span>
                     ${conflicts.has(item.id) ? '<span class="badge badge-warn">时间冲突</span>' : ''}
                   </div>
-                  <h3 class="item-title">${escapeHtml(item.title)}</h3>
+                  <h3 class="item-title">
+                    <button class="card-select-btn" type="button" aria-label="选择 ${timeLabel} ${escapeHtml(item.title)}">${escapeHtml(item.title)}</button>
+                  </h3>
                 </div>
                 ${mapBtn}
               </div>
@@ -2802,6 +3291,9 @@ let draggedDraftNodeId = null;
       renderTips(plan.tips || []);
       renderPlaceDetail();
       el.mapTitle.textContent = `Day ${current.day} · ${cleanMetaValue(current.city)}`;
+      if (el.resultsFooterMeta) {
+        el.resultsFooterMeta.textContent = `Day ${current.day} · ${cleanMetaValue(current.city)} · ${current.items?.length || 0} 个点`;
+      }
     }
 
     function renderQualityChecks(checks) {
@@ -2848,7 +3340,7 @@ let draggedDraftNodeId = null;
                 <button class="option-row ${selected === optionIndex ? 'is-selected' : ''}" type="button" data-segment="${segmentIndex}" data-option="${optionIndex}">
                   <div>
                     <div class="option-code">${escapeHtml(option.id || option.flight_no || option.train_no) || '待定'}</div>
-                    <div class="option-meta">${escapeHtml(option.time || `${option.depart_time || ''} - ${option.arrive_time || ''}`)} · ${escapeHtml(option.duration || option.duration_text) || '时长待定'}</div>
+                    <div class="option-meta">${escapeHtml(option.time || `${option.depart_time || ''} - ${option.arrive_time || ''}`)} · ${escapeHtml(option.duration || option.duration_text) || '时长待定'}${option.door_to_door_time ? (' · 门到门 ' + escapeHtml(option.door_to_door_time)) : ''}</div>
                   </div>
                   <div class="option-price">${escapeHtml(option.price) || '¥待定'}</div>
                   <div class="option-desc">${escapeHtml(option.desc || option.train_type || option.airline) || '推荐班次'}</div>
@@ -2887,7 +3379,10 @@ let draggedDraftNodeId = null;
 
     function activeItems() {
       const day = state.itinerary?.days.find(item => item.day === state.currentDay);
-      return day?.items || [];
+      return sortItineraryItems(
+        day?.items || [],
+        item => item.type === 'transport' ? transportDisplay(item).time : item.time
+      );
     }
 
     function activeItem() {
@@ -2923,12 +3418,13 @@ let draggedDraftNodeId = null;
         const hasCoords = Number(item.lat) && Number(item.lng);
         const isActive = String(item.id) === String(state.activeItemId);
         const locationLabel = hasCoords ? '地图位置' : '无地图位置';
+        const display = item.type === 'transport' ? transportDisplay(item) : { time: item.time };
         return `
           <button class="map-stop-chip ${isActive ? 'is-active' : ''}" type="button" data-map-item="${escapeHtml(item.id)}" aria-current="${isActive ? 'step' : 'false'}">
             <span class="map-stop-index">${index + 1}</span>
             <span class="map-stop-copy">
               <span class="map-stop-title">${escapeHtml(item.title)}</span>
-              <span class="map-stop-meta ${hasCoords ? '' : 'is-unmapped'}">${escapeHtml(item.time)} · ${escapeHtml(locationLabel)}</span>
+              <span class="map-stop-meta ${hasCoords ? '' : 'is-unmapped'}">${escapeHtml(display.time)} · ${escapeHtml(locationLabel)}</span>
             </span>
           </button>
         `;
@@ -2993,7 +3489,11 @@ let draggedDraftNodeId = null;
             iconSize: [24, 24],
             iconAnchor: [12, 12]
           });
-          const marker = L.marker(toMapLatLng(point), { icon }).addTo(map);
+          const marker = L.marker(toMapLatLng(point), {
+            icon,
+            title: node.name,
+            alt: `行程节点 ${index + 1}：${node.name}`
+          }).addTo(map);
           marker.aeroTravelItemId = node.id;
           marker.bindPopup(`<strong>${escapeHtml(node.name)}</strong>`);
           marker.on('click', () => focusItem(node.id, true));
@@ -3009,6 +3509,7 @@ let draggedDraftNodeId = null;
         const items = activeItems().filter(item => Number(item.lat) && Number(item.lng));
         items.forEach((item, index) => {
           const point = [Number(item.lat), Number(item.lng)];
+          const display = item.type === 'transport' ? transportDisplay(item) : { time: item.time };
           points.push(point);
           const icon = L.divIcon({
             className: '',
@@ -3016,9 +3517,13 @@ let draggedDraftNodeId = null;
             iconSize: [24, 24],
             iconAnchor: [12, 12]
           });
-          const marker = L.marker(toMapLatLng(point), { icon }).addTo(map);
+          const marker = L.marker(toMapLatLng(point), {
+            icon,
+            title: item.title,
+            alt: `行程节点 ${index + 1}：${item.title}`
+          }).addTo(map);
           marker.aeroTravelItemId = item.id;
-          marker.bindPopup(`<strong>${escapeHtml(item.title)}</strong><br>${escapeHtml(item.time)} · ${normalizeType(item.type)}${renderPopupMeta(item)}`);
+          marker.bindPopup(`<strong>${escapeHtml(item.title)}</strong><br>${escapeHtml(display.time)} · ${normalizeType(item.type)}${renderPopupMeta(item)}`);
           marker.on('click', () => focusItem(item.id, true));
           markers.push(marker);
         });
@@ -3066,17 +3571,27 @@ let draggedDraftNodeId = null;
       return null;
     }
 
-    function scrollEntityIntoView(entityId) {
-      if (entityId == null || entityId === '') return;
+    function escapeEntitySelectorValue(entityId) {
       const id = String(entityId);
-      const escaped = (typeof CSS !== 'undefined' && CSS.escape)
+      return (typeof CSS !== 'undefined' && CSS.escape)
         ? CSS.escape(id)
         : id.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-      const candidates = [
-        `[data-item="${escaped}"]`,
-        `[data-node-id="${escaped}"]`,
-        `.map-stop-chip[data-map-item="${escaped}"]`
-      ];
+    }
+
+    function scrollEntityIntoView(entityId) {
+      if (entityId == null || entityId === '') return;
+      const escaped = escapeEntitySelectorValue(entityId);
+      const candidates = state.mapDrawerOpen
+        ? [
+            `.map-stop-chip[data-map-item="${escaped}"]`,
+            `[data-node-id="${escaped}"]`,
+            `[data-item="${escaped}"]`
+          ]
+        : [
+            `[data-item="${escaped}"]`,
+            `[data-node-id="${escaped}"]`,
+            `.map-stop-chip[data-map-item="${escaped}"]`
+          ];
       let target = null;
       for (let i = 0; i < candidates.length; i += 1) {
         target = document.querySelector(candidates[i]);
@@ -3091,6 +3606,10 @@ let draggedDraftNodeId = null;
     }
 
     function focusItem(itemId, updateMap = true) {
+      const escaped = escapeEntitySelectorValue(itemId);
+      const activeMapChip = state.mapDrawerOpen
+        ? document.activeElement?.closest?.(`.map-stop-chip[data-map-item="${escaped}"]`)
+        : null;
       state.activeItemId = itemId;
       state.mapFocusItemId = itemId;
       if (state.editMode && state.workingDraft) {
@@ -3103,6 +3622,15 @@ let draggedDraftNodeId = null;
         renderPlan();
       }
       scrollEntityIntoView(itemId);
+      if (activeMapChip) {
+        window.requestAnimationFrame(() => {
+          const replacement = el.mapStopRail?.querySelector(
+            `.map-stop-chip[data-map-item="${escaped}"]`
+          );
+          if (!replacement) return;
+          try { replacement.focus({ preventScroll: true }); } catch (_) { replacement.focus(); }
+        });
+      }
       syncMarkerFocus(itemId);
       const coords = resolveFocusCoords(itemId);
       const mapShouldMove = typeof shouldUpdateMapOnItemFocus === 'function'
@@ -3133,6 +3661,10 @@ let draggedDraftNodeId = null;
         const options = list.slice(0, 6).map(item => ({
           id: item.flight_no || item.id || item.train_no,
           time: item.time || `${item.depart_time || item.departure_time || ''} - ${item.arrive_time || item.arrival_time || ''}`,
+          door_to_door_time: buildDoorToDoorTime(
+            item.time || `${item.depart_time || item.departure_time || ''} - ${item.arrive_time || item.arrival_time || ''}`,
+            segment.tool
+          ),
           duration: item.duration || item.duration_text || '',
           price: item.price || item.price_text || '¥待定',
           desc: item.desc || item.airline || item.train_type || '',
@@ -3236,8 +3768,11 @@ let draggedDraftNodeId = null;
     }
 
     function deliveryOptions() {
+      const routeSummary = Wizard.buildSummary
+        ? Wizard.buildSummary(currentSettingsLike())
+        : null;
       return {
-        route: state.cities.map(city => city.name).join(' → '),
+        route: routeSummary?.route || state.cities.map(city => city.name).join(' → '),
         totalDays: state.totalDays,
         budget: state.budget,
         departureDate: el.departureDate.value,
@@ -3249,6 +3784,30 @@ let draggedDraftNodeId = null;
         selectedTransportTotal: computeSelectedTransportTotal().total,
         escapeHtml
       };
+    }
+
+    async function waitForExportAssets(rootNode) {
+      const pending = [];
+      if (document.fonts?.ready) {
+        pending.push(Promise.resolve(document.fonts.ready).catch(() => {}));
+      }
+      rootNode?.querySelectorAll?.('img').forEach(image => {
+        if (image.complete) {
+          if (typeof image.decode === 'function') pending.push(image.decode().catch(() => {}));
+          return;
+        }
+        pending.push(new Promise(resolve => {
+          image.addEventListener('load', resolve, { once: true });
+          image.addEventListener('error', resolve, { once: true });
+        }));
+      });
+      await Promise.race([
+        Promise.allSettled(pending),
+        new Promise(resolve => window.setTimeout(resolve, 1800))
+      ]);
+      await new Promise(resolve => window.requestAnimationFrame(
+        () => window.requestAnimationFrame(resolve)
+      ));
     }
 
     function requireCurrentPlan(actionLabel) {
@@ -3279,7 +3838,7 @@ let draggedDraftNodeId = null;
       if (!pkg) return pkg;
       const req = window.AeroTravelTripPackage.buildStaticMapRequest(pkg, {
         width: 1024,
-        height: 1024
+        height: 704
       });
       if (!req.markers.length) {
         pkg.static_map = {
@@ -3435,6 +3994,7 @@ let draggedDraftNodeId = null;
         document.body.appendChild(wrapper);
         try {
           const sheet = wrapper.querySelector('.delivery-sheet');
+          await waitForExportAssets(sheet);
           const canvas = await window.html2canvas(sheet, {
             backgroundColor: '#faf9f5',
             scale: 2,
@@ -3478,6 +4038,7 @@ let draggedDraftNodeId = null;
       document.body.appendChild(wrapper);
       try {
         const sheet = wrapper.querySelector('.trip-png-sheet');
+        await waitForExportAssets(sheet);
         const canvas = await window.html2canvas(sheet, {
           backgroundColor: '#faf9f5',
           scale: 2,
@@ -3505,7 +4066,7 @@ let draggedDraftNodeId = null;
         return;
       }
       const title = window.AeroTravelTripShareRender.escapeHtml(pkg.title || '行程');
-      win.document.write(`<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>${title} PDF 备份</title><link rel="stylesheet" href="/static/trip-share.css"><style>@page{size:A4 landscape;margin:12mm}body{background:#fff}</style></head><body class="trip-print-body">${html}<script>window.addEventListener('load',function(){setTimeout(function(){window.print()},200)});<\/script></body></html>`);
+      win.document.write(`<!doctype html><html lang='zh-CN'><head><meta charset='UTF-8'><title>${title} PDF 备份</title><link rel='stylesheet' href='/static/css/trip-share.css?v=delivery-layout-20260718d'><style>body{background:#fff}</style></head><body class='trip-print-body'>${html}<script>window.addEventListener('load',function(){setTimeout(function(){window.print()},260)});<\/script></body></html>`);
       win.document.close();
       showToast('已打开 PDF 打印预览，可保存为 PDF。', 'success');
     }
@@ -3786,6 +4347,9 @@ let draggedDraftNodeId = null;
       if (el.openMapDrawerBtn) {
         el.openMapDrawerBtn.addEventListener('click', () => openMapDrawer(state.activeItemId));
       }
+      if (el.openMapFooterBtn) {
+        el.openMapFooterBtn.addEventListener('click', () => openMapDrawer(state.activeItemId));
+      }
       if (el.dayMapHint) {
         el.dayMapHint.addEventListener('click', event => {
           const button = event.target.closest('[data-open-map-day]');
@@ -3823,10 +4387,11 @@ let draggedDraftNodeId = null;
         });
       }
       document.addEventListener('keydown', event => {
-        if (event.key === 'Escape' && state.mapDrawerOpen) closeMapDrawer();
+        if (!state.mapDrawerOpen) return;
+        if (event.key === 'Escape') closeMapDrawer();
+        else trapMapDrawerFocus(event);
       });
       if (el.savedTripsBtn && el.savedTripsPanel) {
-        el.savedTripsBtn.setAttribute('aria-haspopup', 'menu');
         el.savedTripsBtn.setAttribute('aria-expanded', 'false');
 
         el.savedTripsBtn.addEventListener('click', event => {
@@ -3853,6 +4418,15 @@ let draggedDraftNodeId = null;
           if (el.savedTripsPanel.contains(event.target) || event.target === el.savedTripsBtn) return;
           setSavedTripsPanelOpen(false);
         }, true);
+        document.addEventListener('keydown', event => {
+          if (event.key !== 'Escape' || el.savedTripsPanel.hidden) return;
+          const restoreTarget = savedTripsLastFocus && document.contains(savedTripsLastFocus)
+            && savedTripsLastFocus.getClientRects().length
+            ? savedTripsLastFocus
+            : el.savedTripsBtn;
+          setSavedTripsPanelOpen(false);
+          if (restoreTarget?.getClientRects().length) restoreTarget.focus();
+        });
       }
 
       bindTopbarMenu(el.exportMenuBtn, el.exportMenuPanel, el.exportMenuWrap);
@@ -3920,15 +4494,6 @@ let draggedDraftNodeId = null;
           }
           const card = event.target.closest('[data-item]');
           if (!card) return;
-          activateTimelineCard(card.dataset.item);
-        });
-        el.timelineList.addEventListener('keydown', event => {
-          if (event.key !== 'Enter' && event.key !== ' ') return;
-          const mapBtn = event.target.closest('[data-open-map-item]');
-          if (mapBtn) return;
-          const card = event.target.closest('[data-item]');
-          if (!card || event.target !== card) return;
-          event.preventDefault();
           activateTimelineCard(card.dataset.item);
         });
       }
@@ -4233,6 +4798,13 @@ let draggedDraftNodeId = null;
         el.constraintDialog.close();
       });
 
+      el.moveDayForm?.addEventListener('submit', submitMoveDay);
+      el.cancelMoveDayBtn?.addEventListener('click', closeMoveDayDialog);
+      el.moveDayDialog?.addEventListener('cancel', event => {
+        event.preventDefault();
+        closeMoveDayDialog();
+      });
+
       el.undoDraftBtn.addEventListener('click', () => {
         restoreDraftHistory(window.AeroTravelHistory.undo(state.draftHistory));
       });
@@ -4270,6 +4842,9 @@ let draggedDraftNodeId = null;
           Object.keys(state.selectedOptions || {}).forEach(key => {
             if (!validSegments.has(key)) delete state.selectedOptions[key];
           });
+          state.draftHistory = window.AeroTravelHistory.createHistory(state.workingDraft, 50);
+          state.appliedUndo = null;
+          state.candidatePlan = null;
           state.editMode = false;
           setActiveByValue(el.planModeGroup, 'browse');
           syncItineraryRingSurface();
@@ -4324,30 +4899,48 @@ let draggedDraftNodeId = null;
       });
 
       el.addWishBtn.addEventListener('click', () => {
-        el.addPlaceQuery.value = '';
-        el.addPlaceResults.innerHTML = '';
+        resetPlaceSearch();
+        const city = currentPlaceSearchCity();
+        renderPlaceSearchMessage(
+          '输入至少 2 个字，将在「' + (city || '当前城市') + '」提示地图地点。'
+        );
         el.addPlaceDialog.showModal();
       });
+      if (el.closeAddPlaceDialogBtn) {
+        el.closeAddPlaceDialogBtn.addEventListener('click', () => {
+          el.addPlaceDialog.close();
+        });
+      }
+      el.addPlaceDialog.addEventListener('close', () => resetPlaceSearch());
       el.addPlaceForm.addEventListener('submit', event => {
         event.preventDefault();
         const query = el.addPlaceQuery.value.trim();
-        if (!query) return;
-        addPlaceByName(query);
-        el.addPlaceDialog.close();
+        void searchPlacesByName(query);
       });
       el.usePlaceNameBtn.addEventListener('click', () => {
-        const name = el.addPlaceQuery.value.trim();
-        if (!name) return;
-        addPlaceByName(name);
-        el.addPlaceDialog.close();
+        void searchPlacesByName(el.addPlaceQuery.value);
+      });
+      el.addPlaceQuery.addEventListener('input', schedulePlaceSearch);
+      el.addPlaceResults.addEventListener('click', event => {
+        const button = event.target.closest?.('[data-place-result-index]');
+        if (!button) return;
+        const index = Number(button.dataset.placeResultIndex);
+        const place = state.placeSearchResults[index];
+        if (!place) return;
+        if (addPlaceFromAmapResult(place)) el.addPlaceDialog.close();
       });
       if (el.pickPlaceOnMapBtn) {
         el.pickPlaceOnMapBtn.addEventListener('click', () => {
-          if (!map || !window.AeroTravelMap?.enablePointPicker) {
+          if (!window.AeroTravelMap?.enablePointPicker) {
             showToast('地图点选暂不可用', 'error');
             return;
           }
           el.addPlaceDialog.close();
+          openMapDrawer();
+          if (!map) {
+            showToast('地图点选暂不可用', 'error');
+            return;
+          }
           showToast('请在地图上点击选择地点');
           state.cancelPointPicker?.();
           state.cancelPointPicker = window.AeroTravelMap.enablePointPicker(map, async ({ lat, lng }) => {

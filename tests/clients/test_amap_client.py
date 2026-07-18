@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from clients import amap
-from clients.amap import get_city_center, parse_amap_pois, pick_primary_district
+from clients.amap import fallback_city_center, get_city_center, parse_amap_pois, pick_primary_district
 
 
 class FakeAsyncClient:
@@ -50,7 +50,17 @@ class AmapDistrictTests(unittest.TestCase):
     def test_get_city_center_without_key_returns_stable_fallback(self):
         result = asyncio.run(get_city_center("", "北京"))
 
-        self.assertEqual(result, {"lat": 30.0, "lng": 116.0, "name": "北京"})
+        self.assertEqual(result, {"lat": 39.905603, "lng": 116.413642, "name": "北京"})
+
+    def test_city_fallback_normalizes_municipal_suffix_and_keeps_unknown_safe(self):
+        self.assertEqual(
+            fallback_city_center("西安市"),
+            {"lat": 34.340044, "lng": 108.944456, "name": "西安市"},
+        )
+        self.assertEqual(
+            fallback_city_center("未知目的地"),
+            {"lat": 34.2, "lng": 108.9, "name": "未知目的地"},
+        )
 
 
 class AmapPoiParsingTests(unittest.TestCase):

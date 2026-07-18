@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 global.window = {};
-require('../../static/wizard.js');
+require('../../static/js/planning/wizard.js');
 
 const W = window.AeroTravelWizard;
 
@@ -345,6 +345,15 @@ test('isRoundTripAllowed requires at least two cities', () => {
   assert.equal(W.isRoundTripAllowed([{ name: '北京' }, { name: '西安' }]), true);
 });
 
+test('routeShapeAfterCityRestore restores a valid ring after deletion undo', () => {
+  const oneCity = [{ name: 'A' }];
+  const twoCities = [{ name: 'A' }, { name: 'B' }];
+
+  assert.equal(W.routeShapeAfterCityRestore('round_trip', twoCities), 'round_trip');
+  assert.equal(W.routeShapeAfterCityRestore('round_trip', oneCity), 'one_way');
+  assert.equal(W.routeShapeAfterCityRestore('one_way', twoCities), 'one_way');
+});
+
 test('formatDepartureLabel handles empty and concrete dates', () => {
   assert.equal(W.formatDepartureLabel(''), '日期未定');
   assert.equal(W.formatDepartureLabel(null), '日期未定');
@@ -448,6 +457,25 @@ test('canEnterStep: step3 only when hasPlan', () => {
 test('canEnterStep: invalid step is false', () => {
   assert.equal(W.canEnterStep(0, { step1Done: true, hasPlan: true }), false);
   assert.equal(W.canEnterStep(4, { step1Done: true, hasPlan: true }), false);
+});
+
+test('wizardStepState distinguishes current, completed, and locked steps', () => {
+  const flags = { step1Done: true, hasPlan: false };
+  assert.deepEqual(W.wizardStepState(1, 2, flags), {
+    active: false,
+    complete: true,
+    locked: false
+  });
+  assert.deepEqual(W.wizardStepState(2, 2, flags), {
+    active: true,
+    complete: false,
+    locked: false
+  });
+  assert.deepEqual(W.wizardStepState(3, 2, flags), {
+    active: false,
+    complete: false,
+    locked: true
+  });
 });
 
 test('shouldAnimateStepTransition only animates real step changes', () => {

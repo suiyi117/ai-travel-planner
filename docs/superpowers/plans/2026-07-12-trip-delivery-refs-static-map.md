@@ -23,11 +23,11 @@
 
 | File | Responsibility |
 |---|---|
-| `static/trip-package.js` | `normalizeRefs`, `static_map` on package, static-map request payload helpers |
-| `static/draft-ops.js` | `updateNode` accepts `refs` → writes `metadata.item.refs` |
-| `static/app.js` | Edit-node refs prompts, delivery checklist, `enrichStaticMap`, export/publish await |
+| `static/js/delivery/trip-package.js` | `normalizeRefs`, `static_map` on package, static-map request payload helpers |
+| `static/js/planning/draft-ops.js` | `updateNode` accepts `refs` → writes `metadata.item.refs` |
+| `static/js/app.js` | Edit-node refs prompts, delivery checklist, `enrichStaticMap`, export/publish await |
 | `static/index.html` | Export menu: 「参考链接检查」 |
-| `static/trip-share-render.js` | PNG/print use `static_map` img or placeholder |
+| `static/js/delivery/trip-share-render.js` | PNG/print use `static_map` img or placeholder |
 | `clients/amap.py` | Static map URL + fetch bytes |
 | `routers/location.py` | `GET /api/static_map` proxy |
 | `tests/frontend/trip-package.test.js` | refs + static_map package tests |
@@ -41,7 +41,7 @@
 ### Task 1: Normalize refs + package static_map field
 
 **Files:**
-- Modify: `static/trip-package.js`
+- Modify: `static/js/delivery/trip-package.js`
 - Test: `tests/frontend/trip-package.test.js`
 
 **Interfaces:**
@@ -113,7 +113,7 @@ test("buildStaticMapRequest caps markers at 10 and prefers overview route line",
 Run: `node --test tests/frontend/trip-package.test.js`
 Expected: FAIL — `normalizeRefs` / `buildStaticMapRequest` / `static_map` missing
 
-- [ ] **Step 3: Implement in `static/trip-package.js`**
+- [ ] **Step 3: Implement in `static/js/delivery/trip-package.js`**
 
 Add helpers (near other normalizers):
 
@@ -191,7 +191,7 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```powershell
-git add static/trip-package.js tests/frontend/trip-package.test.js
+git add static/js/delivery/trip-package.js tests/frontend/trip-package.test.js
 git commit -m "feat: package refs normalizer and static_map field"
 ```
 
@@ -200,7 +200,7 @@ git commit -m "feat: package refs normalizer and static_map field"
 ### Task 2: Draft-ops persist refs on metadata.item
 
 **Files:**
-- Modify: `static/draft-ops.js` (`updateNode`)
+- Modify: `static/js/planning/draft-ops.js` (`updateNode`)
 - Test: `tests/frontend/draft-ops.test.js`
 
 **Interfaces:**
@@ -247,7 +247,7 @@ Expected: FAIL — refs not applied
 
 - [ ] **Step 3: Implement `updateNode` refs branch**
 
-In `static/draft-ops.js` `updateNode`, after name/duration handling:
+In `static/js/planning/draft-ops.js` `updateNode`, after name/duration handling:
 
 ```js
 if (Object.hasOwn(patch, 'refs')) {
@@ -278,7 +278,7 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```powershell
-git add static/draft-ops.js tests/frontend/draft-ops.test.js
+git add static/js/planning/draft-ops.js tests/frontend/draft-ops.test.js
 git commit -m "feat: persist place refs on draft metadata.item"
 ```
 
@@ -287,7 +287,7 @@ git commit -m "feat: persist place refs on draft metadata.item"
 ### Task 3: Workbench refs editor + delivery checklist
 
 **Files:**
-- Modify: `static/app.js` (`handleDraftListAction` edit-node, export menu handler)
+- Modify: `static/js/app.js` (`handleDraftListAction` edit-node, export menu handler)
 - Modify: `static/index.html` (export + mobile menus)
 - Test: extend `tests/frontend/trip-package.test.js` only if pure helpers extracted; otherwise manual smoke + existing package/nav tests
 
@@ -407,7 +407,7 @@ If preview uses `state.itinerary`, ensure `commitDraft` / apply updates itinerar
 - [ ] **Step 4: Commit**
 
 ```powershell
-git add static/app.js static/index.html
+git add static/js/app.js static/index.html
 git commit -m "feat: edit and checklist place reference links"
 ```
 
@@ -642,8 +642,8 @@ git commit -m "feat: proxy amap static map for workbench prerender"
 ### Task 6: Workbench enrichStaticMap + export/publish wiring
 
 **Files:**
-- Modify: `static/app.js`
-- Optionally small helper in `static/trip-package.js` already has `buildStaticMapRequest`
+- Modify: `static/js/app.js`
+- Optionally small helper in `static/js/delivery/trip-package.js` already has `buildStaticMapRequest`
 
 **Interfaces:**
 - Produces: `async function enrichStaticMap(pkg) → pkg` (mutates/returns copy with static_map)
@@ -719,7 +719,7 @@ With no key: export overview still downloads sheet with placeholder; no throw.
 - [ ] **Step 3: Commit**
 
 ```powershell
-git add static/app.js
+git add static/js/app.js
 git commit -m "feat: prerender static map into trip package on export"
 ```
 
@@ -728,7 +728,7 @@ git commit -m "feat: prerender static map into trip package on export"
 ### Task 7: PNG / print render use static_map
 
 **Files:**
-- Modify: `static/trip-share-render.js` (`renderOverviewPngSheet`, `renderOverviewDesktop` print path / map wrap optional)
+- Modify: `static/js/delivery/trip-share-render.js` (`renderOverviewPngSheet`, `renderOverviewDesktop` print path / map wrap optional)
 - Test: `tests/frontend/trip-share-render.test.js`
 
 **Interfaces:**
@@ -799,7 +799,7 @@ Add minimal CSS in `trip-share.css`:
 - [ ] **Step 5: Commit**
 
 ```powershell
-git add static/trip-share-render.js static/trip-share.css tests/frontend/trip-share-render.test.js
+git add static/js/delivery/trip-share-render.js static/css/trip-share.css tests/frontend/trip-share-render.test.js
 git commit -m "feat: use prerendered static map in PNG and print sheets"
 ```
 

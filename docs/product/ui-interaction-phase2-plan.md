@@ -56,7 +56,7 @@
 
 ### Slice 0 — 纯逻辑 / 可测辅助
 
-文件：`static/app-utils.js` 或 `static/wizard.js`（优先 **app-utils**，与向导无关的 DOM/列表辅助也可放 app 内纯函数测）。
+文件：`static/js/core/app-utils.js` 或 `static/js/planning/wizard.js`（优先 **app-utils**，与向导无关的 DOM/列表辅助也可放 app 内纯函数测）。
 
 建议纯函数（便于 `tests/frontend`）：
 
@@ -110,7 +110,7 @@
 ## 5. 工程约束
 
 - 栈不变；路由契约不变
-- 主改：`static/app.js`、`static/index.html`（若卡片 DOM）、`static/styles.css`、`static/app-utils.js`（若抽纯函数）、`tests/frontend/*`
+- 主改：`static/js/app.js`、`static/index.html`（若卡片 DOM）、`static/css/styles.css`、`static/js/core/app-utils.js`（若抽纯函数）、`tests/frontend/*`
 - 保持：行程主舞台、地图按需抽屉、POI 转义、`state` + `applyPlan`
 - 合入前：`.\scripts\check.ps1`
 

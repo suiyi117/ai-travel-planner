@@ -48,7 +48,7 @@ python -m uvicorn server:app --reload --host 0.0.0.0 --port 8000
 - `ruff check .` when dev dependencies are installed
 - `mypy server.py clients core planner routers schemas services` when dev dependencies are installed
 - `python -m unittest discover -s tests -v`
-- `node --check` for every `static/*.js` file when Node.js is installed
+- `node --check` recursively for every `static/**/*.js` file when Node.js is installed
 - `node --test tests/frontend/*.test.js` when frontend unit tests exist
 
 `.\scripts\security.ps1` runs tracked-file secret scanning and Python dependency audit.
@@ -69,7 +69,7 @@ The server mounts `static/` at `/static` and redirects `/` to `/static/index.htm
 ### Data Flow
 
 ```text
-Browser (static/index.html + no-build static/*.js modules)
+Browser (static/index.html + no-build static/js/**/*.js modules)
   │
   ├─ GET /api/search_pois ──→ routers/location.py → clients/amap.py
   ├─ GET /api/city_center ──→ routers/location.py → clients/amap.py
@@ -108,11 +108,15 @@ Browser (static/index.html + no-build static/*.js modules)
 | `services/train_parser.py` | 12306 result row parsing |
 | `services/train_station_cache.py` | Station cache loading, writing, normalization, reverse lookup |
 | `services/flight_service.py` | Juhe flight API plus built-in route fallback |
-| `static/app-utils.js` | No-build frontend utility module exposed as `window.AeroTravelUtils` |
-| `static/wizard.js` | Pure wizard step helpers (`validateStep1`, `canEnterStep`, `buildSummary`) as `window.AeroTravelWizard` |
-| `static/state.js`, `static/api.js`, `static/map.js`, `static/storage.js`, `static/export-ics.js`, `static/delivery.js` | No-build frontend boundary modules |
-| `static/delivery.css` | Fixed-format customer long-image/export styles |
-| `static/app.js` | Frontend startup, event binding, wizard/map orchestration, rendering coordination |
+| `static/css/tokens.css` | Shared design tokens and responsive component geometry |
+| `static/css/styles.css` | Base elements, controls, cards, editor, map, and wizard components |
+| `static/css/workspace.css` | Workspace-only composition, result timeline, and responsive layout |
+| `static/js/core/app-utils.js` | No-build frontend utility module exposed as `window.AeroTravelUtils` |
+| `static/js/planning/wizard.js` | Pure wizard step helpers (`validateStep1`, `canEnterStep`, `buildSummary`) as `window.AeroTravelWizard` |
+| `static/js/core/state.js`, `static/js/core/api.js`, `static/js/planning/map.js`, `static/js/core/storage.js`, `static/js/delivery/export-ics.js`, `static/js/delivery/delivery.js` | No-build frontend boundary modules |
+| `static/js/ui-interactions.js` | DOM-only accessibility and presentation behavior as `window.AeroTravelInteractions` |
+| `static/css/delivery.css` | Fixed-format customer long-image/export styles |
+| `static/js/app.js` | Frontend startup, event binding, wizard/map orchestration, rendering coordination |
 | `docs/` | Deployment, smoke checks, ADRs |
 | `docs/engineering/` | Team collaboration, change management, release process |
 | `tasks/` | Productization spec and backlog |
@@ -141,16 +145,17 @@ Browser (static/index.html + no-build static/*.js modules)
 ## Frontend Rules
 
 - There is no bundler. Use plain browser scripts loaded from `static/index.html`.
-- Shared pure frontend utilities should go in `static/app-utils.js` and be exposed through `window.AeroTravelUtils`.
-- Boundary-specific no-build modules should use `window.AeroTravel*` namespaces and be loaded from `static/index.html` before `static/app.js`.
-- Keep `static/app.js` as the startup/event/state orchestration file; avoid moving business behavior back into it when a focused no-build module exists.
+- Keep `static/index.html` structural: do not add page-sized inline `<style>` or `<script>` blocks. Load tokens before base CSS, workspace CSS after base CSS, and DOM interactions after `static/js/app.js`.
+- Shared pure frontend utilities should go in `static/js/core/app-utils.js` and be exposed through `window.AeroTravelUtils`.
+- Boundary-specific no-build modules should use `window.AeroTravel*` namespaces and be loaded from `static/index.html` before `static/js/app.js`.
+- Keep `static/js/app.js` as the startup/event/state orchestration file; avoid moving business behavior back into it when a focused no-build module exists.
 - Preserve the single mutable `state` object and `applyPlan()` as the main hydration path.
 - Preserve boot-time fallback itinerary behavior: the app should be useful before backend generation succeeds.
 - Preserve `fetchJson()` behavior that routes `/api` calls to `http://localhost:8000` when opened via `file://` or a non-8000 port.
 - Prefer opening the app at `http://localhost:8000`. `file://` still rewrites API URLs but browsers send `Origin: null`, which is not in default CORS allowlist and surfaces as a network failure; keep user-facing errors actionable instead of raw `Failed to fetch`.
 - Preserve per-city days: `state.cities[].days` is source of truth; global total days is derived.
 - Preserve the **scrollable three-step wizard shell** (route → preferences → itinerary): sticky summary rail on desktop, page-level scrolling on the main column, and **on-demand map drawer** (not a locked 100vh three-pane workbench). Do not restore pane brief-collapse / `.pane-body` as the primary scroll model.
-- Keep wizard pure helpers in `static/wizard.js` (`window.AeroTravelWizard`) and cover them with `tests/frontend/wizard.test.js` when changing unlock or summary rules.
+- Keep wizard pure helpers in `static/js/planning/wizard.js` (`window.AeroTravelWizard`) and cover them with `tests/frontend/wizard.test.js` when changing unlock or summary rules.
 - Keep all POI metadata escaped. Amap fields such as `rating`, `address`, `tel`, and `opentime` must pass through `escapeHtml()` / `cleanMetaValue()` before HTML insertion.
 - Browser-facing changes require a runtime smoke check when feasible: page loads on Step 1, console has no errors/warnings, generate reaches Step 3, map drawer opens/closes, and the initial itinerary appears.
 

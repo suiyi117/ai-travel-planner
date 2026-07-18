@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 global.window = {};
-require('../../static/history.js');
+require('../../static/js/planning/history.js');
 
 const { createHistory, push, undo, redo } = window.AeroTravelHistory;
 

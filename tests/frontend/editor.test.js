@@ -1,7 +1,7 @@
-﻿const test = require("node:test");
+const test = require("node:test");
 const assert = require("node:assert/strict");
 global.window = {};
-require("../../static/editor.js");
+require("../../static/js/planning/editor.js");
 
 const escapeHtml = (value) => String(value).replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 
@@ -21,6 +21,48 @@ test("wishlist rendering escapes untrusted names and exposes move controls", () 
 test("wishlist renders empty state when no nodes", () => {
   const html = window.AeroTravelEditor.renderWishlist([], escapeHtml);
   assert.match(html, /想去清单为空/);
+});
+
+test("map place search normalizes resolved candidates and drops invalid duplicates", () => {
+  const results = window.AeroTravelEditor.normalizePlaceSearchResults([
+    {
+      id: "poi-1",
+      name: "大雁塔",
+      cityname: "西安市",
+      adname: "雁塔区",
+      address: "雁塔路",
+      rating: "4.8",
+      lat: 34.218,
+      lng: 108.964
+    },
+    {
+      id: "poi-1",
+      name: "重复地点",
+      lat: 34.218,
+      lng: 108.964
+    },
+    { name: "无坐标地点", lat: 0, lng: 0 }
+  ], "西安");
+
+  assert.equal(results.length, 1);
+  assert.equal(results[0].provider_id, "poi-1");
+  assert.equal(results[0].name, "大雁塔");
+  assert.equal(results[0].city, "西安市");
+  assert.equal(results[0].district, "雁塔区");
+  assert.equal(results[0].lat, 34.218);
+  assert.equal(results[0].lng, 108.964);
+});
+
+test("map place search rendering escapes provider content and exposes selection indexes", () => {
+  const html = window.AeroTravelEditor.renderPlaceSearchResults([
+    { name: "<img onerror=alert(1)>", city: "西安", district: "雁塔区", address: "雁塔路", rating: "4.8" }
+  ], escapeHtml);
+
+  assert.doesNotMatch(html, /<img/);
+  assert.match(html, /&lt;img onerror=alert\(1\)&gt;/);
+  assert.match(html, /data-place-result-index="0"/);
+  assert.match(html, /西安 · 雁塔区 · 雁塔路/);
+  assert.match(html, /高德地图/);
 });
 
 test("day nodes rendering exposes move controls and constraint button", () => {
@@ -69,6 +111,28 @@ test("city ordering exposes keyboard-operable ordering controls", () => {
   assert.match(html, /data-action="city-down"/);
   assert.match(html, /draggable="true"/);
   assert.match(html, /city-order-handle/);
+});
+
+test("city ordering uses clear Chinese route roles instead of internal transport enums", () => {
+  const html = window.AeroTravelEditor.renderCityStops(
+    [
+      { id: "c1", name: "杭州", days: 2, plan_stay: true, transport: "auto" },
+      { id: "c2", name: "上海", days: 1, plan_stay: true, transport: "train" },
+      { id: "c3", name: "南京", days: 0, plan_stay: false, transport: "plane" },
+      { id: "c4", name: "苏州", days: 1, plan_stay: true, transport: "driving" },
+      { id: "c5", name: "无锡", days: 1, plan_stay: true, transport: "plane" },
+      { id: "c6", name: "常州", days: 1, plan_stay: true, transport: "auto" }
+    ],
+    escapeHtml
+  );
+
+  assert.match(html, /2天 · 出发地/);
+  assert.match(html, /1天 · 高铁优先/);
+  assert.match(html, /0天 · 仅过境/);
+  assert.match(html, /1天 · 自驾优先/);
+  assert.match(html, /1天 · 飞机优先/);
+  assert.match(html, /1天 · 智能推荐/);
+  assert.doesNotMatch(html, />\s*(?:auto|train|plane|driving)\s*</);
 });
 
 test("day nodes surface drag affordance text for unlocked nodes", () => {

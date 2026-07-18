@@ -515,7 +515,7 @@
 
 ### Slice A：规则与纯函数（P0）
 
-涉及：`static/wizard.js`、`tests/frontend/wizard.test.js`
+涉及：`static/js/planning/wizard.js`、`tests/frontend/wizard.test.js`
 
 - 提取城市名规范化与重复判断；
 - 扩展 Step 1 校验，覆盖过去日期与单城市环线；
@@ -527,7 +527,7 @@
 
 ### Slice B：城市卡交互（P0）
 
-涉及：`static/app.js`、`static/styles.css`、必要的前端测试
+涉及：`static/js/app.js`、`static/css/styles.css`、必要的前端测试
 
 - 输入错误和重复反馈；
 - 明确出发地、过境、上一段文案；
@@ -540,7 +540,7 @@
 
 ### Slice C：摘要与粘性操作（P0）
 
-涉及：`static/index.html`、`static/styles.css`、`static/app.js`
+涉及：`static/index.html`、`static/css/styles.css`、`static/js/app.js`
 
 - 路线摘要补充形态、游玩日、城市分类和日期；
 - 下一步禁用原因；
@@ -551,7 +551,7 @@
 
 ### Slice D：已生成结果的脏状态（P0）
 
-涉及：`static/wizard.js`、`static/app.js`、`static/state.js` 或现有设置快照逻辑
+涉及：`static/js/planning/wizard.js`、`static/js/app.js`、`static/js/core/state.js` 或现有设置快照逻辑
 
 - 沿用 `settingsSnapshot()` / `settingsChanged()`；
 - 修改后显示旧结果与新设置的关系；

@@ -1,0 +1,137 @@
+:root {
+  /* Core parchment palette with the existing warm travel-editor personality. */
+  --bg: #f5f4ed;
+  --surface: #fffcf5;
+  --surface-warm: #f0ebe3;
+  --surface-raised: #fffefa;
+  --surface-muted: #f7f3eb;
+  --surface-sunken: #ebe6dc;
+
+  --fg: #1a1916;
+  --fg-2: #2e2d2a;
+  --muted: #6b6862;
+  --meta: #77736d;
+  --meta-readable: #716d66;
+
+  --border: #e5e1d6;
+  --border-soft: #efebe3;
+  --border-strong: #d3ccbd;
+  --border-ink: rgba(26, 25, 22, 0.18);
+
+  /* Brand terracotta plus a deeper accessible CTA tone. */
+  --accent: #c96442;
+  --accent-strong: #a84c31;
+  --accent-on: #fffdf8;
+  --accent-soft: #f7e9e3;
+  --accent-hover: #943f28;
+  --accent-active: #7f3523;
+
+  --success: #347150;
+  --success-soft: #e9f2ec;
+  --warn: #8a6224;
+  --warn-soft: #f7f0e2;
+  --danger: #a3403c;
+  --danger-soft: #f8e9e7;
+
+  /* Real CJK-capable webfonts with resilient system fallbacks. */
+  --font-display: 'Noto Serif SC', 'Songti SC', 'STSong', Georgia, 'Times New Roman', serif;
+  --font-body: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, ui-monospace, Menlo, monospace;
+
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-base: 15px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --text-2xl: 28px;
+  --text-3xl: 40px;
+  --text-4xl: 52px;
+
+  --leading-body: 1.65;
+  --leading-tight: 1.18;
+  --tracking-display: -0.018em;
+
+  /* Four-point spacing rhythm. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+  --space-9: 36px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-14: 56px;
+  --space-16: 64px;
+
+  --control-height: 44px;
+  --control-height-compact: 36px;
+  --touch-target: 44px;
+  --topbar-height: 80px;
+
+  --section-y-desktop: 96px;
+  --section-y-tablet: 64px;
+  --section-y-phone: 48px;
+
+  --radius-xs: 7px;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --radius-xl: 28px;
+  --radius-pill: 9999px;
+
+  /* One quiet elevation ladder. Static content stays flat. */
+  --elev-flat: none;
+  --elev-ring: 0 0 0 1px rgba(26, 25, 22, 0.065);
+  --elev-xs: 0 1px 2px rgba(26, 25, 22, 0.045);
+  --elev-raised:
+    0 1px 2px rgba(26, 25, 22, 0.045),
+    0 8px 24px rgba(26, 25, 22, 0.065);
+  --elev-card:
+    0 1px 2px rgba(26, 25, 22, 0.035),
+    0 18px 48px rgba(26, 25, 22, 0.085);
+  --elev-overlay:
+    0 2px 6px rgba(26, 25, 22, 0.06),
+    0 28px 80px rgba(26, 25, 22, 0.16);
+  --inner-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.58);
+
+  /* Plain-color fallback; modern browsers receive the color-mix ring below. */
+  --focus-ring:
+    0 0 0 2px var(--surface),
+    0 0 0 4px rgba(168, 76, 49, 0.48);
+
+  --motion-press: 80ms;
+  --motion-fast: 130ms;
+  --motion-base: 190ms;
+  --motion-enter: 260ms;
+  --motion-drawer: 320ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-emphasized: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --container-max: 1536px;
+  --setup-shell-max: 1536px;
+  --result-shell-max: 1536px;
+  --rail-width: 260px;
+  --content-max: 1224px;
+  --container-gutter-desktop: 32px;
+  --container-gutter-tablet: 20px;
+  --container-gutter-phone: 12px;
+}
+
+@supports (color: color-mix(in oklab, black, white)) {
+  :root {
+    --focus-ring:
+      0 0 0 2px var(--surface),
+      0 0 0 4px color-mix(in oklab, var(--accent-strong), transparent 42%);
+  }
+}
+
+@media (max-width: 560px) {
+  :root {
+    --control-height: var(--touch-target);
+    --topbar-height: 60px;
+  }
+}
