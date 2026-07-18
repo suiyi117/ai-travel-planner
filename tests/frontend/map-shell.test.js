@@ -5,10 +5,10 @@ const path = require("node:path");
 
 const repoRoot = path.resolve(__dirname, "../..");
 const indexHtml = fs.readFileSync(path.join(repoRoot, "static/index.html"), "utf8");
-const stylesCss = fs.readFileSync(path.join(repoRoot, "static/styles.css"), "utf8");
-const appJs = fs.readFileSync(path.join(repoRoot, "static/app.js"), "utf8");
-const mapJs = fs.readFileSync(path.join(repoRoot, "static/map.js"), "utf8");
-const tripShareBootJs = fs.readFileSync(path.join(repoRoot, "static/trip-share-boot.js"), "utf8");
+const stylesCss = fs.readFileSync(path.join(repoRoot, "static/css/styles.css"), "utf8");
+const appJs = fs.readFileSync(path.join(repoRoot, "static/js/app.js"), "utf8");
+const mapJs = fs.readFileSync(path.join(repoRoot, "static/js/planning/map.js"), "utf8");
+const tripShareBootJs = fs.readFileSync(path.join(repoRoot, "static/js/delivery/trip-share-boot.js"), "utf8");
 const tripShareHtml = fs.readFileSync(path.join(repoRoot, "static/trip-share.html"), "utf8");
 
 test("map overlay keeps the map as the primary canvas", () => {
@@ -39,7 +39,7 @@ test("route geometry keeps a visible hierarchy over the base map", () => {
 });
 
 test("zoom control follows the app surface language and touch contract", () => {
-  assert.match(mapJs, /zoomControlPosition \|\| 'bottomleft'/);
+  assert.match(mapJs, /zoomControlPosition \|\| 'topright'/);
   assert.match(stylesCss, /\.leaflet-control-zoom\s*\{[^}]*border:\s*1px solid var\(--border\)/s);
   assert.match(stylesCss, /\.map-drawer-panel \.leaflet-control-zoom a\s*\{[^}]*min-width:\s*44px/s);
   assert.match(stylesCss, /\.map-drawer-panel \.leaflet-control-zoom a\s*\{[^}]*min-height:\s*44px/s);
@@ -57,7 +57,32 @@ test("interactive maps prefer a high-DPI vector basemap with a raster fallback",
   assert.match(mapJs, /detectRetina:\s*false/);
   assert.match(tripShareBootJs, /function createShareMap\(/);
   assert.match(tripShareBootJs, /webrd0\{s\}\.is\.autonavi\.com/);
-  assert.match(indexHtml, /trip-publish\.js\?v=vector-map-zh-20260715/);
-  assert.match(tripShareHtml, /map\.js\?v=vector-map-zh-20260715/);
+  assert.match(indexHtml, /trip-publish\.js\?v=[^\s>]+/);
+  assert.match(tripShareHtml, /map\.js\?v=[^\s>]+/);
   assert.doesNotMatch(stylesCss, /\.leaflet-tile-pane\s*\{[^}]*contrast\(/s);
+});
+
+test('map clients use the active basemap coordinate system for overlays', () => {
+  assert.match(mapJs, /function coordinateSystemForMap\(map\)/);
+  assert.match(mapJs, /function toMapLatLng\(point, map\)/);
+  assert.match(mapJs, /function fromMapLatLng\(point, map\)/);
+  assert.match(mapJs, /points\.map\(point => toMapLatLng\(point, map\)\)/);
+  assert.match(appJs, /AeroTravelMap\.toMapLatLng\(point, map\)/);
+  assert.match(appJs, /addEventListener\('aerotravel:basemapchange'/);
+  assert.match(tripShareBootJs, /toMapLatLng\(point, map\)/);
+  assert.match(tripShareBootJs, /translateMapOverlays\(map,/);
+  assert.match(tripShareBootJs, /addEventListener\('aerotravel:basemapchange'/);
+});
+
+test('vector map applies the restrained product palette and keeps Amap fallback attribution', () => {
+  assert.match(mapJs, /const BASEMAP_THEME = Object\.freeze\(/);
+  assert.match(mapJs, /function applyAeroBasemapTheme\(/);
+  assert.match(mapJs, /applyAeroBasemapTheme\(vectorMap\)/);
+  assert.match(mapJs, /container\.dataset\.basemap = 'vector'/);
+  assert.match(mapJs, /container\.dataset\.basemap = 'raster'/);
+  assert.match(mapJs, /const mapIsAlive = \(\) => \(\s*!disposed/);
+  assert.match(mapJs, /map\.once\('unload'/);
+  assert.match(mapJs, /aerotravel:basemapchange/);
+  assert.match(mapJs, /amap\.com/);
+  assert.match(mapJs, /OpenFreeMap/);
 });

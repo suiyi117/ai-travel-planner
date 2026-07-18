@@ -1,4 +1,6 @@
+import asyncio
 import unittest
+from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -26,6 +28,16 @@ class RuntimeConfigTests(unittest.TestCase):
 
 
 class RuntimeHardeningTests(unittest.TestCase):
+    def test_lifespan_initializes_station_data_once(self):
+        async def run_lifespan():
+            async with server.app.router.lifespan_context(server.app):
+                pass
+
+        with patch("server.init_station_data", new_callable=AsyncMock) as initialize:
+            asyncio.run(run_lifespan())
+
+        initialize.assert_awaited_once_with()
+
     def test_health_response_has_request_id_and_security_headers(self):
         client = TestClient(server.app)
 

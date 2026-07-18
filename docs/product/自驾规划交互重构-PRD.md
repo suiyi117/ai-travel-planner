@@ -374,7 +374,7 @@ hasSelfDriveIntent =
 
 ### 12.1 前端单元测试
 
-优先新增纯函数测试，避免把状态派生继续堆入 `static/app.js`。
+优先新增纯函数测试，避免把状态派生继续堆入 `static/js/app.js`。
 
 建议覆盖：
 
@@ -429,10 +429,10 @@ hasSelfDriveIntent =
 实现阶段预计涉及：
 
 - `static/index.html`：移除规划模式控件，调整自驾偏好与编辑入口。
-- `static/app.js`：状态派生、编辑工具切换和兼容编排。
-- `static/state.js`：必要时增加瞬时 `editTool` 状态。
-- `static/wizard.js` 或新的聚焦无构建模块：承载纯状态派生规则。
-- `static/styles.css`：渐进区域、编辑工具入口和响应式样式。
+- `static/js/app.js`：状态派生、编辑工具切换和兼容编排。
+- `static/js/core/state.js`：必要时增加瞬时 `editTool` 状态。
+- `static/js/planning/wizard.js` 或新的聚焦无构建模块：承载纯状态派生规则。
+- `static/css/styles.css`：渐进区域、编辑工具入口和响应式样式。
 - `tests/frontend/*.test.js`：状态、兼容与交互回归测试。
 
 默认不修改：

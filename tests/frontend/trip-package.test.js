@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 global.window = {};
-require("../../static/trip-package.js");
+require("../../static/js/delivery/trip-package.js");
 
 const { buildTripPackage, generateShareToken } = window.AeroTravelTripPackage;
 

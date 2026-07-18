@@ -140,7 +140,7 @@
 ### 路线视觉方案
 
 1. **双层路线线条。** 用低透明度的暖色底衬线先把路线从底图中托出来，再叠一条更窄的前景线；两层均使用圆角端点和圆角连接，避免锯齿和廉价虚线感。
-2. **按状态控制节奏，不堆彩色。** 真实/已确认路线使用 `--accent` 前景线；城际段使用现有暖色中性层级区分；估算路线保留虚线，但降低装饰感、提高可读性。实现时从现有 CSS token 读取颜色，不在 `static/map.js` 新增孤立硬编码色值。
+2. **按状态控制节奏，不堆彩色。** 真实/已确认路线使用 `--accent` 前景线；城际段使用现有暖色中性层级区分；估算路线保留虚线，但降低装饰感、提高可读性。实现时从现有 CSS token 读取颜色，不在 `static/js/planning/map.js` 新增孤立硬编码色值。
 3. **用节点编号表达方向。** 保留站点编号，但让非当前节点更克制，当前节点使用唯一的赤陶高亮；起点/终点通过文字或形状语义区分，不额外铺一层大标签。
 4. **只在需要时显示路线说明。** 当一天内存在多种路线状态时，在地图工具层增加一条紧凑图例；单一路线状态不显示图例，避免地图变成说明面板。
 5. **控制视觉焦点。** 路线获得主 accent 后，节点条和地点浮卡改用暖色 ring 与中性表面承载，避免路线、标记、按钮同时高饱和。
@@ -179,7 +179,7 @@
 
 **依赖：** 无。
 
-**可能涉及：** `static/index.html`、`static/styles.css`。
+**可能涉及：** `static/index.html`、`static/css/styles.css`。
 
 ### 任务 2：建立桌面宽幅地图工作区
 
@@ -196,7 +196,7 @@
 
 **依赖：** 任务 1。
 
-**可能涉及：** `static/index.html`、`static/styles.css`、`static/app.js`。
+**可能涉及：** `static/index.html`、`static/css/styles.css`、`static/js/app.js`。
 
 ### 任务 3：统一地图选择与视野交互
 
@@ -213,7 +213,7 @@
 
 **依赖：** 任务 2。
 
-**可能涉及：** `static/app.js`、`static/map.js`、`tests/frontend/*map*.test.js` 或相邻现有测试。
+**可能涉及：** `static/js/app.js`、`static/js/planning/map.js`、`tests/frontend/*map*.test.js` 或相邻现有测试。
 
 ### 任务 4：实现移动端底部详情页片
 
@@ -230,7 +230,7 @@
 
 **依赖：** 任务 2、3。
 
-**可能涉及：** `static/index.html`、`static/styles.css`、`static/app.js`。
+**可能涉及：** `static/index.html`、`static/css/styles.css`、`static/js/app.js`。
 
 ### 任务 5：完成回归与视觉验收
 
@@ -265,7 +265,7 @@
 
 **依赖：** 任务 2、3。
 
-**可能涉及：** `static/map.js`、`static/app.js`、`static/styles.css`、`tests/frontend/map-shell.test.js`。
+**可能涉及：** `static/js/planning/map.js`、`static/js/app.js`、`static/css/styles.css`、`tests/frontend/map-shell.test.js`。
 
 ### 任务 7：重做 Leaflet 缩放控件
 
@@ -282,7 +282,7 @@
 
 **依赖：** 任务 2、4。
 
-**可能涉及：** `static/map.js`、`static/styles.css`、`tests/frontend/map-shell.test.js`。
+**可能涉及：** `static/js/planning/map.js`、`static/css/styles.css`、`tests/frontend/map-shell.test.js`。
 
 ### 任务 8：完成本轮增量回归
 

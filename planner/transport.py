@@ -4,6 +4,7 @@ import re
 from datetime import datetime, timedelta
 
 from services.flight_service import search_flights
+from services.driving_route_service import build_driving_route
 from services.train_service import search_trains
 
 
@@ -81,7 +82,103 @@ def build_segments_from_destinations(
     return segments
 
 
-async def enrich_one_segment(segment: dict, travel_date: str, budget: str = "") -> dict:
+def _destination_value(destination, field: str, default=None):
+    if isinstance(destination, dict):
+        return destination.get(field, default)
+    return getattr(destination, field, default)
+
+
+def destination_stay_days(destination) -> int:
+    """Return the number of itinerary days consumed by a route city."""
+    if _destination_value(destination, "plan_stay") is False:
+        return 0
+    try:
+        return max(0, int(_destination_value(destination, "days", 0) or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def segment_departure_offsets(destinations: list, transport_guide: list[dict]) -> list[int]:
+    """Map each segment to its travel-date offset from the trip start.
+
+    A normal hop leaves after all play days in its departure city. A round-trip
+    return is intentionally placed on the final play day, matching the product's
+    current contract that return travel does not create an extra itinerary day.
+    Zero-day transit cities therefore keep consecutive hops on the same date.
+    """
+    if not transport_guide:
+        return []
+
+    total_days = sum(destination_stay_days(city) for city in destinations)
+    route_legs: list[tuple[str, str, int]] = []
+    cumulative = 0
+    for index in range(max(0, len(destinations) - 1)):
+        origin = destinations[index]
+        destination = destinations[index + 1]
+        cumulative += destination_stay_days(origin)
+        remaining_play_days = sum(
+            destination_stay_days(city) for city in destinations[index + 1 :]
+        )
+        departure_offset = (
+            max(0, cumulative - 1)
+            if cumulative > 0 and remaining_play_days == 0
+            else cumulative
+        )
+        route_legs.append(
+            (
+                str(_destination_value(origin, "name", "") or ""),
+                str(_destination_value(destination, "name", "") or ""),
+                departure_offset,
+            )
+        )
+
+    if len(destinations) >= 2:
+        first_name = str(_destination_value(destinations[0], "name", "") or "")
+        last_name = str(_destination_value(destinations[-1], "name", "") or "")
+        if first_name and last_name and first_name != last_name:
+            route_legs.append((last_name, first_name, max(0, total_days - 1)))
+
+    used: set[int] = set()
+    offsets: list[int] = []
+    for segment_index, segment in enumerate(transport_guide):
+        from_city = str(segment.get("from_city") or "")
+        to_city = str(segment.get("to_city") or "")
+        if not from_city or not to_city:
+            parsed_from, parsed_to = parse_segment_cities(segment.get("segment", ""))
+            from_city = str(parsed_from or "")
+            to_city = str(parsed_to or "")
+
+        match_index = next(
+            (
+                index
+                for index, (origin, destination, _offset) in enumerate(route_legs)
+                if index not in used
+                and city_token(origin) == city_token(from_city)
+                and city_token(destination) == city_token(to_city)
+            ),
+            None,
+        )
+        if match_index is None and segment_index < len(route_legs):
+            match_index = segment_index
+
+        if match_index is None:
+            offsets.append(offsets[-1] if offsets else 0)
+            continue
+
+        used.add(match_index)
+        offsets.append(max(0, int(route_legs[match_index][2])))
+
+    return offsets
+
+
+async def enrich_one_segment(
+    segment: dict,
+    travel_date: str,
+    budget: str = "",
+    *,
+    city_centers: dict | None = None,
+    amap_key: str = "",
+) -> dict:
     """Enhance one transport segment. Never raises bare exceptions to callers."""
     try:
         seg_str = segment.get("segment", "")
@@ -89,6 +186,54 @@ async def enrich_one_segment(segment: dict, travel_date: str, budget: str = "") 
 
         if tool == "driving":
             seg = segment.copy()
+            seg["travel_date"] = travel_date
+            from_city = segment.get("from_city") or ""
+            to_city = segment.get("to_city") or ""
+            centers = city_centers or {}
+            origin = centers.get(from_city) or centers.get(str(from_city).rstrip("市"))
+            destination = centers.get(to_city) or centers.get(str(to_city).rstrip("市"))
+            if origin and destination and all(
+                float(point.get(field) or 0)
+                for point in (origin, destination)
+                for field in ("lat", "lng")
+            ):
+                route = await build_driving_route(
+                    amap_key,
+                    [
+                        {"id": from_city, "name": from_city, **origin},
+                        {"id": to_city, "name": to_city, **destination},
+                    ],
+                    "one_way",
+                )
+                duration_seconds = (route.get("totals") or {}).get("duration_seconds")
+                if duration_seconds:
+                    duration_minutes = max(1, round(int(duration_seconds) / 60))
+                    total_km = route.get("total_km")
+                    toll_yuan = route.get("toll_yuan")
+                    details = [
+                        f"约 {total_km} km" if total_km is not None else "",
+                        f"过路费约 ¥{round(float(toll_yuan))}" if toll_yuan is not None else "",
+                    ]
+                    seg["options"] = [
+                        {
+                            "id": "自驾",
+                            "time": "",
+                            "duration": f"{duration_minutes // 60}小时{duration_minutes % 60}分钟",
+                            "duration_minutes": duration_minutes,
+                            "distance_km": total_km,
+                            "toll_yuan": toll_yuan,
+                            "desc": " · ".join(item for item in details if item),
+                            "source": route.get("source") or "amap",
+                        }
+                    ]
+                    if route.get("status") == "provider":
+                        seg["data_source"] = "road_provider"
+                        seg["source_label"] = "高德道路参考"
+                    else:
+                        seg["data_source"] = "reference"
+                        seg["source_label"] = "道路估算"
+                    return seg
+
             seg["options"] = segment.get("options", [])
             seg["data_source"] = "ai_fallback"
             seg["source_label"] = "自驾（AI 预估）"
@@ -185,6 +330,7 @@ async def enrich_one_segment(segment: dict, travel_date: str, budget: str = "") 
             real_options = segment.get("options", [])
 
         seg = segment.copy()
+        seg["travel_date"] = travel_date
         real_options, removed_count = filter_direction_options(real_options, from_city, to_city, tool)
         if removed_count:
             seg["direction_warning"] = f"已过滤 {removed_count} 个方向不一致的交通选项"
@@ -213,6 +359,7 @@ async def enrich_one_segment(segment: dict, travel_date: str, budget: str = "") 
         seg["options"] = segment.get("options", [])
         seg["data_source"] = "ai_fallback"
         seg.setdefault("source_label", "AI 预估，需确认")
+        seg["travel_date"] = travel_date
         return seg
 
 
@@ -223,45 +370,23 @@ async def enrich_transport_guide(
     destinations: list,
     travel_date: str,
     budget: str = "",
+    *,
+    city_centers: dict | None = None,
+    amap_key: str = "",
 ) -> list[dict]:
     """Enhance transport guide options with real or reference transport data.
 
-    When possible, each inter-city segment uses a travel date offset by the
-    cumulative stay days of cities before the segment's departure city.
+    Normal hops leave after the departure city's stay days. Zero-day transit
+    hops share a date, while a round-trip return stays on the final play day.
     """
     if not transport_guide:
         return []
 
-    # Cumulative day offset when leaving each city (sum of stay days before next hop).
-    offset_by_city: dict[str, int] = {}
-    cumulative = 0
-    for city in destinations or []:
-        name = getattr(city, "name", None) or (city.get("name") if isinstance(city, dict) else None)
-        days_raw = getattr(city, "days", None)
-        if days_raw is None and isinstance(city, dict):
-            days_raw = city.get("days")
-        days = int(days_raw or 0)
-        plan_stay = getattr(city, "plan_stay", None)
-        if plan_stay is None and isinstance(city, dict):
-            plan_stay = city.get("plan_stay")
-        stay = 0 if plan_stay is False else max(0, days)
-        if name:
-            offset_by_city[str(name)] = cumulative
-            # Also index without 市 suffix for fuzzy match later.
-            offset_by_city[str(name).rstrip("市")] = cumulative
-        cumulative += stay
+    offsets = segment_departure_offsets(destinations or [], transport_guide)
 
-    def segment_date(seg: dict) -> str:
+    def segment_date(offset: int) -> str:
         if not travel_date:
             return travel_date
-        from_city = seg.get("from_city") or ""
-        if not from_city:
-            sides = arrow_sides(seg.get("segment", ""))
-            from_city = (sides[0] if sides else "") or ""
-        from_city = str(from_city).strip()
-        offset = offset_by_city.get(from_city)
-        if offset is None:
-            offset = offset_by_city.get(from_city.rstrip("市"), 0)
         try:
             base = datetime.strptime(str(travel_date)[:10], "%Y-%m-%d")
             return (base + timedelta(days=max(0, int(offset or 0)))).strftime("%Y-%m-%d")
@@ -270,7 +395,16 @@ async def enrich_transport_guide(
 
     return list(
         await asyncio.gather(
-            *(enrich_one_segment(seg, segment_date(seg), budget) for seg in transport_guide)
+            *(
+                enrich_one_segment(
+                    seg,
+                    segment_date(offset),
+                    budget,
+                    city_centers=city_centers,
+                    amap_key=amap_key,
+                )
+                for seg, offset in zip(transport_guide, offsets)
+            )
         )
     )
 
@@ -353,6 +487,8 @@ def build_quality_checks(itinerary: dict) -> dict:
             items.append({"level": "warn", "message": f"{label}：交通为 AI 预估，交付前需核对。"})
         elif segment.get("data_source") == "reference":
             items.append({"level": "warn", "message": f"{label}：使用典型参考数据，不代表实时余票或票价。"})
+        elif segment.get("data_source") == "road_provider":
+            items.append({"level": "warn", "message": f"{label}：道路耗时来自高德路径参考，出发前仍需按实时路况复核。"})
 
         for option in options:
             if not option_matches_direction(option, from_city, to_city, tool):
@@ -365,11 +501,24 @@ def build_quality_checks(itinerary: dict) -> dict:
             if not advice_ids.intersection(option_ids):
                 items.append({"level": "warn", "message": f"{label}：交通建议提到的班次未出现在候选列表中。"})
 
+    for warning in itinerary.get("schedule_warnings") or []:
+        message = str(warning.get("message") or "").strip()
+        if not message:
+            continue
+        level = str(warning.get("level") or "warn")
+        items.append(
+            {
+                "level": level if level in {"ok", "warn", "error"} else "warn",
+                "message": message,
+                **({"code": warning["code"]} if warning.get("code") else {}),
+            }
+        )
+
     if not items:
         return {
             "status": "pass",
             "summary": "可交付",
-            "items": [{"level": "ok", "message": "交通方向和数据来源检查通过。"}],
+            "items": [{"level": "ok", "message": "初始推荐班次的交通方向、门到门排程和数据来源检查通过。"}],
         }
 
     has_error = any(item["level"] == "error" for item in items)

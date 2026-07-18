@@ -4,7 +4,11 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from clients.ai import AiClientError
-from planner.generator import ItineraryGenerationError, generate_itinerary
+from planner.generator import (
+    ItineraryGenerationError,
+    _ensure_driving_city_centers,
+    generate_itinerary,
+)
 from schemas.travel import CityInfo, PlanRequest
 
 
@@ -31,6 +35,30 @@ def make_request(*, start_date: str = "") -> PlanRequest:
 
 
 class ItineraryGeneratorTests(unittest.TestCase):
+    def test_driving_center_hydration_only_queries_missing_route_cities(self):
+        itinerary = {
+            "city_centers": {"西安": {"lat": 34.34, "lng": 108.94}},
+            "transport_guide": [
+                {
+                    "from_city": "北京",
+                    "to_city": "西安",
+                    "tool": "driving",
+                }
+            ],
+        }
+
+        with patch(
+            "planner.generator.get_city_center",
+            AsyncMock(return_value={"lat": 39.9, "lng": 116.4, "name": "北京"}),
+        ) as center_mock:
+            centers = asyncio.run(
+                _ensure_driving_city_centers(itinerary, "amap-key")
+            )
+
+        center_mock.assert_awaited_once_with("amap-key", "北京")
+        self.assertEqual(centers["北京"]["lat"], 39.9)
+        self.assertEqual(centers["西安"]["lng"], 108.94)
+
     def test_missing_ai_key_fails_before_external_calls(self):
         with self.assertRaises(ItineraryGenerationError) as context:
             asyncio.run(generate_itinerary(make_request(), settings=make_settings(ai_api_key=""), logger=None))

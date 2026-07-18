@@ -45,7 +45,7 @@ if (Get-Command coverage -ErrorAction SilentlyContinue) {
 Write-Host ""
 if (Get-Command node -ErrorAction SilentlyContinue) {
     Write-Host "== JavaScript syntax check =="
-    Get-ChildItem static -Filter *.js | ForEach-Object {
+    Get-ChildItem static -Filter *.js -Recurse -File | ForEach-Object {
         Invoke-Checked node --check $_.FullName
     }
 

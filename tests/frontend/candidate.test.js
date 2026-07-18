@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 global.window = {};
-require('../../static/candidate.js');
+require('../../static/js/planning/candidate.js');
 
 const Candidate = window.AeroTravelCandidate;
 const escapeHtml = value => String(value ?? '');

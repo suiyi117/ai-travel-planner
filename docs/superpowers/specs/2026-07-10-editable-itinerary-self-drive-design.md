@@ -337,15 +337,15 @@ AeroTravel 当前擅长一次性生成旅行规划，但生成结果基本只读
 
 ### 9.1 前端
 
-- `static/state.js`：扩展初始状态和 schema 版本，不承载编辑算法。
+- `static/js/core/state.js`：扩展初始状态和 schema 版本，不承载编辑算法。
 - 新的纯工具模块：草稿转换、约束校验、不可变编辑操作和 revision 处理。
 - 新的编辑器模块：想去清单、每日节点、自驾节点和候选差异渲染。
-- `static/history.js`：有界撤销/重做历史。
-- `static/storage.js`：保存 version 2 快照并迁移 version 1 数据。
-- `static/map.js`：渲染已安排、未安排和道路路线三类视觉状态。
-- `static/app.js`：只保留启动、事件绑定、状态协调和模块调用。
+- `static/js/planning/history.js`：有界撤销/重做历史。
+- `static/js/core/storage.js`：保存 version 2 快照并迁移 version 1 数据。
+- `static/js/planning/map.js`：渲染已安排、未安排和道路路线三类视觉状态。
+- `static/js/app.js`：只保留启动、事件绑定、状态协调和模块调用。
 
-所有模块继续通过 `window.AeroTravel*` 命名空间暴露，并在 `static/index.html` 中于 `static/app.js` 之前加载。不引入框架或构建工具。
+所有模块继续通过 `window.AeroTravel*` 命名空间暴露，并在 `static/index.html` 中于 `static/js/app.js` 之前加载。不引入框架或构建工具。
 
 ### 9.2 后端
 

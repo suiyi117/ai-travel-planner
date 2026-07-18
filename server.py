@@ -3,13 +3,17 @@ AI 旅行规划师 - 后端服务
 FastAPI 服务，负责 AI 行程生成（POI 搜索由前端 JS API 完成）
 支持高铁/火车/航班真实时刻表查询
 """
+import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
-from core.observability import configure_logging, install_operability_middleware
+from core.observability import configure_logging, install_operability_middleware, log_event
 from core.settings import load_settings
 from routers.location import create_location_router
 from routers.planning import create_planning_router
@@ -28,7 +32,22 @@ ALLOWED_ORIGINS = settings.allowed_origins
 EXPOSE_CLIENT_CONFIG = settings.expose_client_config
 logger = configure_logging(settings.log_level)
 
-app = FastAPI(title="AI 旅行规划师", version="1.2.0")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    try:
+        await init_station_data()
+    except Exception as exc:
+        log_event(
+            logger,
+            logging.WARNING,
+            "station_data_init_failed",
+            error_type=exc.__class__.__name__,
+        )
+    yield
+
+
+app = FastAPI(title="AI 旅行规划师", version="1.2.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -56,15 +75,6 @@ async def serve_index():
     return RedirectResponse(url="/static/index.html")
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
-
-
-@app.on_event("startup")
-async def startup_event():
-    """服务启动时初始化"""
-    try:
-        await init_station_data()
-    except Exception as e:
-        print(f"[Startup] 车站数据初始化失败（将使用内置映射）: {e}")
 
 
 if __name__ == "__main__":

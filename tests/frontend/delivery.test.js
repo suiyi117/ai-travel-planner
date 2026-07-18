@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 global.window = {};
-require("../../static/delivery.js");
+require("../../static/js/delivery/delivery.js");
 
 const escapeHtml = (value) => String(value ?? "")
   .replaceAll("&", "&amp;")

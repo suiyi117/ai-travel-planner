@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 global.window = {};
-require('../../static/api.js');
+require('../../static/js/core/api.js');
 
 const Api = window.AeroTravelApi;
 

@@ -2,8 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 global.window = {};
-require('../../static/draft.js');
-require('../../static/draft-ops.js');
+require('../../static/js/planning/draft.js');
+require('../../static/js/planning/draft-ops.js');
 
 const { isTripDraft } = window.AeroTravelDraft;
 const {

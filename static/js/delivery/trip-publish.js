@@ -48,6 +48,9 @@
   <meta name="referrer" content="no-referrer">
   <title>${root.AeroTravelTripShareRender.escapeHtml(title)} · AeroTravel</title>
   <link rel="icon" href="data:,">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""><!-- pragma: allowlist secret -->
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" integrity="sha384-uTttxo/aOKbdE5RlD/SPzSDoDmNvGlUYPjONi2MN/b7c9HPSvW07OIuyP7uL6jxK" crossorigin=""><!-- pragma: allowlist secret -->
   <style>
@@ -79,11 +82,11 @@ ${scripts.boot || ''}
   async function loadPublishAssets(baseUrl) {
     const base = baseUrl || '';
     const [css, nav, render, map, boot] = await Promise.all([
-      fetchText(`${base}trip-share.css`),
-      fetchText(`${base}trip-nav.js`),
-      fetchText(`${base}trip-share-render.js`),
-      fetchText(`${base}map.js`),
-      fetchText(`${base}trip-share-boot.js`)
+      fetchText(`${base}css/trip-share.css`),
+      fetchText(`${base}js/delivery/trip-nav.js`),
+      fetchText(`${base}js/delivery/trip-share-render.js`),
+      fetchText(`${base}js/planning/map.js`),
+      fetchText(`${base}js/delivery/trip-share-boot.js`)
     ]);
     return {
       css,

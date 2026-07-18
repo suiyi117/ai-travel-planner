@@ -213,8 +213,8 @@
 | 允许 | 禁止 |
 |---|---|
 | `static/index.html`（token / 局部样式） | 后端、API |
-| `static/styles.css` | 框架 / bundler |
-| `static/app.js`（timeline markup 仅） | 交付长图大改、移动专项 |
+| `static/css/styles.css` | 框架 / bundler |
+| `static/js/app.js`（timeline markup 仅） | 交付长图大改、移动专项 |
 | 必要时更新 frontend 测试 DOM 断言 | IA 流程重做 |
 
 ---

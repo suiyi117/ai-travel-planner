@@ -14,7 +14,7 @@ global.window = {
     generateShareToken: () => "GeneratedToken123456"
   }
 };
-require("../../static/trip-publish.js");
+require("../../static/js/delivery/trip-publish.js");
 
 const { buildSelfContainedHtml } = window.AeroTravelTripPublish;
 

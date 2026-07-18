@@ -8,7 +8,19 @@ AMAP_DISTRICT_URL = "https://restapi.amap.com/v3/config/district"
 AMAP_PLACE_TEXT_URL = "https://restapi.amap.com/v3/place/text"
 AMAP_WEATHER_URL = "https://restapi.amap.com/v3/weather/weatherInfo"
 
-FALLBACK_CITY_CENTER = {"lat": 30.0, "lng": 116.0}
+FALLBACK_CITY_CENTER = {"lat": 34.2, "lng": 108.9}
+FALLBACK_CITY_CENTERS = {
+    "北京": {"lat": 39.905603, "lng": 116.413642},
+    "西安": {"lat": 34.340044, "lng": 108.944456},
+    "上海": {"lat": 31.228458, "lng": 121.478223},
+    "成都": {"lat": 30.570346, "lng": 104.069305},
+    "杭州": {"lat": 30.271771, "lng": 120.159794},
+    "广州": {"lat": 23.126423, "lng": 113.26973},
+    "深圳": {"lat": 22.540383, "lng": 114.063014},
+    "重庆": {"lat": 29.560151, "lng": 106.555318},
+    "长沙": {"lat": 28.224692, "lng": 112.94425},
+    "南京": {"lat": 32.058224, "lng": 118.802084},
+}
 WEATHER_CACHE_TTL = 30 * 60
 _weather_cache: dict = {}
 
@@ -17,6 +29,13 @@ def pick_primary_district(districts: list[dict]) -> dict:
     """Pick the most likely city/province district from ambiguous Amap keyword matches."""
     priority = {"city": 0, "province": 1, "district": 2, "street": 3}
     return min(districts, key=lambda d: priority.get(str(d.get("level", "")), 9))
+
+
+def fallback_city_center(city: str) -> dict:
+    city_name = str(city or "").strip()
+    normalized = city_name.removesuffix("市")
+    center = FALLBACK_CITY_CENTERS.get(normalized, FALLBACK_CITY_CENTER)
+    return {**center, "name": city_name}
 
 
 def parse_amap_pois(data: dict) -> list[dict]:
@@ -74,7 +93,7 @@ async def search_pois(amap_key: str, city: str, keywords: str, count: int = 25) 
 
 
 async def get_city_center(amap_key: str, city: str) -> dict:
-    fallback = {**FALLBACK_CITY_CENTER, "name": city}
+    fallback = fallback_city_center(city)
     if not amap_key:
         return fallback
 

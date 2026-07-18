@@ -3,10 +3,12 @@ import logging
 from collections.abc import Callable
 
 from clients.ai import AiClientError, request_chat_completion
+from clients.amap import get_city_center
 from clients.amap import query_weather as amap_query_weather
 from core.observability import log_event
 from planner.itinerary import hydrate_itinerary, parse_ai_itinerary_content
 from planner.prompting import build_itinerary_prompt
+from planner.scheduling import reconcile_itinerary_schedule
 from planner.transport import build_quality_checks, enrich_transport_guide
 from schemas.travel import PlanRequest
 
@@ -87,6 +89,16 @@ async def generate_itinerary(request: PlanRequest, *, settings, logger: logging.
         route_shape=getattr(request, "route_shape", None) or "one_way",
     )
 
+    city_centers = itinerary.get("city_centers") or {}
+    if request.start_date and any(
+        segment.get("tool") == "driving"
+        for segment in itinerary.get("transport_guide") or []
+    ):
+        city_centers = await _ensure_driving_city_centers(
+            itinerary,
+            settings.amap_key,
+        )
+
     if request.start_date:
         try:
             itinerary["transport_guide"] = await enrich_transport_guide(
@@ -94,6 +106,8 @@ async def generate_itinerary(request: PlanRequest, *, settings, logger: logging.
                 request.destinations,
                 request.start_date,
                 request.budget,
+                city_centers=city_centers,
+                amap_key=settings.amap_key,
             )
         except Exception as exc:
             _log_warning(
@@ -102,6 +116,14 @@ async def generate_itinerary(request: PlanRequest, *, settings, logger: logging.
                 error_type=exc.__class__.__name__,
             )
 
+    if itinerary.get("days"):
+        itinerary = reconcile_itinerary_schedule(
+            itinerary,
+            destinations=request.destinations,
+            start_date=request.start_date,
+            pace=request.pace,
+        )
+
     itinerary["quality_checks"] = build_quality_checks(itinerary)
     return itinerary
 
@@ -109,3 +131,48 @@ async def generate_itinerary(request: PlanRequest, *, settings, logger: logging.
 def _log_warning(logger: logging.Logger | None, event: str, **fields) -> None:
     if logger:
         log_event(logger, logging.WARNING, event, **fields)
+
+
+async def _ensure_driving_city_centers(
+    itinerary: dict,
+    amap_key: str,
+) -> dict:
+    centers = dict(itinerary.get("city_centers") or {})
+    driving_cities = {
+        str(segment.get(field) or "").strip()
+        for segment in itinerary.get("transport_guide") or []
+        if segment.get("tool") == "driving"
+        for field in ("from_city", "to_city")
+        if segment.get(field)
+    }
+
+    def has_center(city: str) -> bool:
+        center = centers.get(city) or centers.get(city.rstrip("市"))
+        if not isinstance(center, dict):
+            return False
+        try:
+            lat = float(center.get("lat") or 0)
+            lng = float(center.get("lng") or 0)
+        except (TypeError, ValueError):
+            return False
+        return bool(lat and lng and not (lat == 30.0 and lng == 116.0))
+
+    missing = sorted(city for city in driving_cities if not has_center(city))
+    loaded = await asyncio.gather(
+        *(get_city_center(amap_key, city) for city in missing),
+        return_exceptions=True,
+    )
+    for city, center in zip(missing, loaded):
+        if isinstance(center, Exception) or not isinstance(center, dict):
+            continue
+        try:
+            lat = float(center.get("lat") or 0)
+            lng = float(center.get("lng") or 0)
+        except (TypeError, ValueError):
+            continue
+        if lat and lng and not (lat == 30.0 and lng == 116.0):
+            centers[city] = center
+            centers[city.rstrip("市")] = center
+
+    itinerary["city_centers"] = centers
+    return centers
